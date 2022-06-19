@@ -17,12 +17,9 @@ import cats.effect.unsafe.implicits.global
 import bookofaifosi.wrappers.event.{Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 
 object MessageListener extends ListenerAdapter:
-  out =>
-
   private def runCommandList[T, E <: Event](
     event: E,
     commands: List[Command[T, E]],
-    privateChannel: Boolean,
   )(
     log: (E, Command[T, E]) => IO[Unit],
   ): IO[Unit] =
@@ -37,7 +34,7 @@ object MessageListener extends ListenerAdapter:
                 if stopped then
                   IO.pure(true)
                 else
-                  log(event, command) *> command.run(command.pattern, event, privateChannel)
+                  log(event, command) *> command.apply(command.pattern, event)
             yield stop
           case (io, _) => io
         }
@@ -48,9 +45,8 @@ object MessageListener extends ListenerAdapter:
   private def runTextCommandList(
     event: MessageEvent,
     commands: List[TextCommand],
-    privateChannel: Boolean,
   ): IO[Unit] =
-    runCommandList(event, commands, privateChannel) { (event, command) =>
+    runCommandList(event, commands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
         IO.println(s"${event.author} issued text command $command $subgroups".trim)
@@ -58,25 +54,24 @@ object MessageListener extends ListenerAdapter:
         IO.unit
     }
 
-  private def runReactionCommandList(event: ReactionEvent, commands: List[ReactionCommand], privateChannel: Boolean): IO[Unit] =
-    runCommandList(event, commands, privateChannel) { (event, command) =>
+  private def runReactionCommandList(event: ReactionEvent, commands: List[ReactionCommand]): IO[Unit] =
+    runCommandList(event, commands) { (event, command) =>
       IO.println(s"${event.author} issued reaction command $command".trim)
     }
 
   private def runSlashCommandList(
     event: SlashCommandEvent,
     commands: List[SlashCommand],
-    privateChannel: Boolean,
   ): IO[Unit] =
-    runCommandList(event, commands, privateChannel) { (event, command) =>
+    runCommandList(event, commands) { (event, command) =>
       IO.println(s"${event.author} issued slash command $command".trim)
     }
 
   override def onMessageReceived(event: MessageReceivedEvent): Unit =
-    runTextCommandList(event, Bot.textCommands, privateChannel = false).unsafeRunSync()
+    runTextCommandList(event, Bot.textCommands).unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
-    runReactionCommandList(event, Bot.reactionCommands, privateChannel = false).unsafeRunSync()
+    runReactionCommandList(event, Bot.reactionCommands).unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
-    runSlashCommandList(event, Bot.slashCommands, privateChannel = false).unsafeRunSync()
+    runSlashCommandList(event, Bot.slashCommands).unsafeRunSync()

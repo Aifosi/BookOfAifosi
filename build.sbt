@@ -38,18 +38,23 @@ enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 
 val http4sVersion = "1.0.0-M32"
-val circeVersion = "0.14.1"
+val circeVersion = "0.14.2"
+val doobieVersion = "1.0.0-RC2"
 libraryDependencies ++= Seq(
   "net.dv8tion"            % "JDA"                 % "5.0.0-alpha.11",
   "com.github.pureconfig" %% "pureconfig-core"     % "0.17.1",
-  "org.typelevel"         %% "cats-effect"         % "3.3.11",
-  "co.fs2"                %% "fs2-core"            % "3.2.7",
+  "org.typelevel"         %% "cats-effect"         % "3.3.12",
+  "co.fs2"                %% "fs2-core"            % "3.2.8",
   "org.http4s"            %% "http4s-dsl"          % http4sVersion,
   "org.http4s"            %% "http4s-core"         % http4sVersion,
   "org.http4s"            %% "http4s-circe"        % http4sVersion,
   "org.http4s"            %% "http4s-blaze-server" % http4sVersion,
   "io.circe"              %% "circe-core"          % circeVersion,
   "io.circe"              %% "circe-parser"        % circeVersion,
+  "org.postgresql"         % "postgresql"          % "42.3.6",
+  "org.flywaydb"           % "flyway-core"         % "8.5.12",
+  "org.tpolecat"          %% "doobie-core"         % doobieVersion,
+  "org.tpolecat"          %% "doobie-postgres"     % doobieVersion,
 )
 
 Docker / dockerRepository := Some("aifosi")

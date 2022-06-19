@@ -11,4 +11,4 @@ case class Configuration(
 object Configuration:
 
   def fromConfig(config: Config = ConfigFactory.load()): Configuration =
-    ConfigSource.fromConfig(config).loadOrThrow[Configuration]
+    ConfigSource.fromConfig(config).at("app").loadOrThrow[Configuration]

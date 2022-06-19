@@ -1,0 +1,11 @@
+version: '2.0'
+
+services:
+  db:
+    image:  library/postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: bookofaifosi
+      POSTGRES_PASSWORD: bookofaifosi
+      POSTGRES_DB: bookofaifosi

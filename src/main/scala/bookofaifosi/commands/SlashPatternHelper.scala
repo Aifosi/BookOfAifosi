@@ -1,9 +1,9 @@
-package bookofaifosi.commands.slash
+package bookofaifosi.commands
 
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
-import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
-import net.dv8tion.jda.api.interactions.commands.{OptionMapping, OptionType}
 import bookofaifosi.wrappers.{Role, User}
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.interactions.commands.build.{SlashCommandData, SubcommandData}
+import net.dv8tion.jda.api.interactions.commands.{OptionMapping, OptionType}
 
 import scala.compiletime.*
 import scala.quoted.*
@@ -35,6 +35,32 @@ object SlashPatternHelper:
     }
 
   inline def addOption[T] = ${ matchT[T] }
+
+  private def subCommandPartial(optionType: OptionType, required: Boolean)(data: SubcommandData, name: String, description: String, autoComplete: Boolean): SubcommandData =
+    data.addOption(optionType, name, description, required, autoComplete)
+
+  private def subCommandMatchT[T: Type](using Quotes): Expr[(SubcommandData, String, String, Boolean) => SubcommandData] =
+    Type.of[T] match {
+      case '[Option[Int]] => '{ subCommandPartial(OptionType.INTEGER, false) }
+      case '[Option[Long]] => '{ subCommandPartial(OptionType.INTEGER, false) }
+      case '[Option[Double]] => '{ subCommandPartial(OptionType.NUMBER, false) }
+      case '[Option[String]] => '{ subCommandPartial(OptionType.STRING, false) }
+      case '[Option[Boolean]] => '{ subCommandPartial(OptionType.BOOLEAN, false) }
+      case '[Option[User]] => '{ subCommandPartial(OptionType.USER, false) }
+      case '[Option[Role]] => '{ subCommandPartial(OptionType.ROLE, false) }
+      //case '[Option[Mentionable]] => '{ subCommandPartial(OptionType.MENTIONABLE, false) }
+      case '[Int] => '{ subCommandPartial(OptionType.INTEGER, true) }
+      case '[Long] => '{ subCommandPartial(OptionType.INTEGER, true) }
+      case '[Double] => '{ subCommandPartial(OptionType.NUMBER, true) }
+      case '[String] => '{ subCommandPartial(OptionType.STRING, true) }
+      case '[Boolean] => '{ subCommandPartial(OptionType.BOOLEAN, true) }
+      case '[User] => '{ subCommandPartial(OptionType.USER, true) }
+      case '[Role] => '{ subCommandPartial(OptionType.ROLE, true) }
+      //case '[Mentionable] => '{ subCommandPartial(OptionType.MENTIONABLE, true) }
+      case _ => '{ error("Options of given type not supported") }
+    }
+
+  inline def addSubCommandOption[T] = ${ subCommandMatchT[T] }
 
 
   private def getT[T](f: OptionMapping => T)(event: SlashCommandInteractionEvent, option: String): T =

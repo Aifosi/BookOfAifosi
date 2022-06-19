@@ -1,7 +1,7 @@
 package bookofaifosi.wrappers.event
 
+import bookofaifosi.commands.SlashPatternHelper
 import cats.effect.IO
-import bookofaifosi.commands.slash.SlashPatternHelper
 import bookofaifosi.wrappers.event.{Event, SlashCommandEvent}
 import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.entities.{MessageChannel, MessageEmbed, Guild as JDAGuild, Member as JDAMember, Message as JDAMessage, User as JDAUser}
@@ -35,7 +35,7 @@ class SlashCommandEvent(
   jdaAuthor: JDAUser,
   jdaMember: Option[JDAMember],
   jdaGuild: Option[JDAGuild],
-  underlying: SlashCommandInteractionEvent,
+  val underlying: SlashCommandInteractionEvent,
 ) extends GenericTextEvent(jdaChannel, jdaAuthor, jdaMember, jdaGuild) with SlashAPI:
   override def reply(string: String): IO[Unit] = underlying.reply(string).toIO.void
   def deferReply(ephemeral: Boolean = false): IO[Unit] = underlying.deferReply(ephemeral).toIO.void
@@ -45,7 +45,8 @@ class SlashCommandEvent(
     ImageIO.write(image, "png", outputStream)
     underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.void
   inline def getOption[T](option: String): T = SlashPatternHelper.getOption[T](underlying, option)
-  lazy val name: String = underlying.getName
+  lazy val commandName: String = underlying.getName
+  lazy val subCommandName: Option[String] = Option(underlying.getSubcommandName)
   lazy val hook: InteractionHook = underlying.getHook
 
 object SlashCommandEvent:

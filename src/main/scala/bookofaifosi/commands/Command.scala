@@ -1,11 +1,9 @@
 package bookofaifosi.commands
 
 import cats.effect.IO
-import bookofaifosi.commands.slash.SlashPattern
 import bookofaifosi.wrappers.event.{Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashCommandEvent}
 import bookofaifosi.{Bot, Named}
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
-//import net.dv8tion.jda.api.interactions.commands.Command as JDACommand
 import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}
 import net.dv8tion.jda.api.utils.data.DataObject
 
@@ -19,17 +17,9 @@ object Command:
 sealed abstract class Command[T, E <: Event] extends Named:
   def pattern: T
 
-  protected def apply(pattern: T, event: E): IO[Boolean]
+  def apply(pattern: T, event: E): IO[Boolean]
 
   val description: String
-
-  def run(pattern: T, event: E, alwaysAllowed: Boolean): IO[Boolean] =
-    val allowed = event.authorMember.fold(false) { member =>
-      member.isGuildOwner ||
-        member.roles.map(_.id).nonEmpty ||
-        member.id == 211184778815340544L
-    }
-    if allowed || alwaysAllowed then apply(pattern, event) else IO.pure(false)
 
   override def toString: String = className
 
@@ -39,17 +29,28 @@ abstract class TextCommand extends Command[Regex, MessageEvent]:
   override def matches(event: MessageEvent): Boolean = pattern.matches(event.content)
 
 abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
-  def command: String
+  val defaultEnabled: Boolean
 
-  override lazy val pattern: SlashPattern = SlashPattern(command, description)
+  val fullCommand: String
 
-  override def matches(event: SlashCommandEvent): Boolean = command.equalsIgnoreCase(event.name)
+  final protected lazy val (command: String, subCommand: Option[String]) = fullCommand.split(" ").toList match {
+    case List(command, subCommand) => (command, Some(subCommand))
+    case List(command)             => (command, None)
+    case _ => throw new Exception(s"Invalid command $fullCommand")
+  }
+
+  final protected lazy val slashPattern: SlashPattern = SlashPattern(command, description, subCommand.toSet)
+
+  override lazy val pattern: SlashPattern = slashPattern
+
+  override def matches(event: SlashCommandEvent): Boolean = fullCommand.equalsIgnoreCase((event.commandName +: event.subCommandName.toList).mkString(" "))
 
 trait Options:
   this: SlashCommand =>
-  def options: List[SlashPattern => SlashPattern]
+  type PatternOptions = SlashPattern => Option[String] => SlashPattern
+  val options: List[PatternOptions]
 
-  override lazy val pattern: SlashPattern = options.foldLeft(SlashPattern(command, description))((command, option) => option(command))
+  override lazy val pattern: SlashPattern = options.foldLeft(slashPattern)((command, option) => option(command)(subCommand))
 
 abstract class ReactionCommand extends Command[String, ReactionEvent]:
   override def matches(event: ReactionEvent): Boolean = pattern == event.content
