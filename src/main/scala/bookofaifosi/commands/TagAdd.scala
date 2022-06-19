@@ -1,10 +1,13 @@
 package bookofaifosi.commands
 
+import bookofaifosi.Bot
+import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.wrappers.event.SlashCommandEvent
 import bookofaifosi.db.Tag
 import cats.effect.IO
+import doobie.syntax.connectionio.*
 
-object AddTag extends SlashCommand with Options:
+object TagAdd extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
 
   override val fullCommand: String = "tag add"
@@ -18,8 +21,8 @@ object AddTag extends SlashCommand with Options:
     val tag = event.getOption[String]("tag")
     val description = event.getOption[Option[String]]("description")
     for
-      _ <- Tag.add(tag, description)
-      _ <- event.reply("Tag added.")
+      _ <- Tag.add(tag, description).transact(Bot.xa)
+      _ <- event.reply(s"Tag \"$tag\" added.")
     yield true
 
   override val description: String = "Adds a new tag"

@@ -6,13 +6,15 @@ import bookofaifosi.{Bot, Named}
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
 import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}
 import net.dv8tion.jda.api.utils.data.DataObject
-
+import bookofaifosi.commands.Options.PatternOptions
 import scala.util.matching.Regex
 
 object Command:
   val all = ".+".r
   val userID = "(?:<@!)?(\\d+)(?:>)?".r
   val groupID = "(?:<@&)?(\\d+)(?:>)?".r
+
+type AnyCommand = Command[?, ? <: Event]
 
 sealed abstract class Command[T, E <: Event] extends Named:
   def pattern: T
@@ -33,13 +35,13 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
 
   val fullCommand: String
 
-  final protected lazy val (command: String, subCommand: Option[String]) = fullCommand.split(" ").toList match {
+  final lazy val (command: String, subCommand: Option[String]) = fullCommand.split(" ").toList match {
     case List(command, subCommand) => (command, Some(subCommand))
     case List(command)             => (command, None)
     case _ => throw new Exception(s"Invalid command $fullCommand")
   }
 
-  final protected lazy val slashPattern: SlashPattern = SlashPattern(command, description, subCommand.toSet)
+  final protected lazy val slashPattern: SlashPattern = SlashPattern(command, description, subCommand.map(_ -> description).toSet)
 
   override lazy val pattern: SlashPattern = slashPattern
 
@@ -47,10 +49,13 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
 
 trait Options:
   this: SlashCommand =>
-  type PatternOptions = SlashPattern => Option[String] => SlashPattern
   val options: List[PatternOptions]
 
   override lazy val pattern: SlashPattern = options.foldLeft(slashPattern)((command, option) => option(command)(subCommand))
+
+
+object Options:
+  type PatternOptions = SlashPattern => Option[String] => SlashPattern
 
 abstract class ReactionCommand extends Command[String, ReactionEvent]:
   override def matches(event: ReactionEvent): Boolean = pattern == event.content

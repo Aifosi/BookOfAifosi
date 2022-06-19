@@ -49,6 +49,7 @@ libraryDependencies ++= Seq(
   "org.http4s"            %% "http4s-core"         % http4sVersion,
   "org.http4s"            %% "http4s-circe"        % http4sVersion,
   "org.http4s"            %% "http4s-blaze-server" % http4sVersion,
+  "org.http4s"            %% "http4s-blaze-client" % http4sVersion,
   "io.circe"              %% "circe-core"          % circeVersion,
   "io.circe"              %% "circe-parser"        % circeVersion,
   "org.postgresql"         % "postgresql"          % "42.3.6",

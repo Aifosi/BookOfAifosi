@@ -11,12 +11,14 @@ import bookofaifosi.syntax.all.*
 import bookofaifosi.wrappers.{Channel, Role, User}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
+import org.http4s.blaze.client.*
+import org.http4s.client.*
 
 import scala.concurrent.duration.*
 
 //https://discord.com/api/oauth2/authorize?client_id=987840268726312970&permissions=139586750528&scope=bot
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=377986731072
-object Bot extends IOApp:
+object Bot extends IOApp.Simple:
   lazy val config = Configuration.fromConfig()
   lazy val dbConfig = DatabaseConfiguration.fromConfig()
 
@@ -33,7 +35,11 @@ object Bot extends IOApp:
 
   val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
     Help,
-    AddTag,
+    TagAdd,
+    TagInfo,
+    TagList,
+    TagRemove,
+    TagUpdate,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -51,26 +57,26 @@ object Bot extends IOApp:
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
-    slashCommands.map { command =>
-      val data = command.pattern.build.setDefaultEnabled(command.defaultEnabled)
-
+    slashCommands.groupBy(_.command).view.mapValues { commands =>
+      val pattern = commands.map(_.pattern).reduceLeft(_.merge(_))
+      val data = pattern.build.setDefaultEnabled(commands.forall(_.defaultEnabled))
+      val subCommandsMessage =
+        val subCommands = commands.flatMap(_.subCommand)
+        if subCommands.isEmpty then "" else s" [${subCommands.mkString(", ")}]"
       for
-        _ <- IO.println(s"""Registering "${data.getName}", enabled? ${data.isDefaultEnabled}""")
+        _ <- IO.println(s"""Registering "${data.getName}$subCommandsMessage", enabled? ${data.isDefaultEnabled}""")
         _ <- jda.upsertCommand(data).toIO
-        //_ <- jda.getGuildById(987807096332505118L).upsertCommand(data).toIO
       yield ()
-    }.sequence_
+    }.toMap.values.toList.sequence_
 
-  /*override def run: IO[Unit] =
+  val client: Deferred[IO, Client[IO]] = Deferred.unsafe
+
+  override def run: IO[Unit] =
     (for
+      client <- Stream.resource(BlazeClientBuilder[IO].resource)
+      _ <- Stream.eval(Bot.client.complete(client))
       _ <- Stream.eval(runMigrations)
       jda <- Stream.eval(jdaIO)
       _ <- Stream.eval(registerSlashCommands(jda))
-    yield ()).compile.drain*/
-
-  override def run(args: List[String]): IO[ExitCode] =
-    (for
-      jda <- Stream.eval(jdaIO)
-      _ <- Stream.eval(registerSlashCommands(jda))
       _ <- Stream.never[IO]
-    yield ()).compile.drain.as(ExitCode.Success)
+    yield ()).compile.drain

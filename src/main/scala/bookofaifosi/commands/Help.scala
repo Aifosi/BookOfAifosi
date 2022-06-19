@@ -2,7 +2,7 @@ package bookofaifosi.commands
 
 import cats.data.NonEmptyList
 import cats.effect.IO
-import bookofaifosi.{AnyCommand, Bot}
+import bookofaifosi.Bot
 import bookofaifosi.wrappers.event.{MessageEvent, SlashCommandEvent}
 
 import scala.util.matching.Regex
