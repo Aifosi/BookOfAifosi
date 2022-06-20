@@ -1,15 +1,14 @@
 package bookofaifosi.model
 
-import net.dv8tion.jda.api.entities.User as DiscordUser
 import bookofaifosi.db.User as DBUser
 
 import java.time.Instant
 import java.util.UUID
 
 class RegisteredUser(
-  user: DiscordUser,
   dbUser: DBUser,
-) extends User(user):
+  user: User,
+) extends User(user.user):
   val id: UUID = dbUser.id
   val chasterName: String = dbUser.chasterName
   val accessToken: String = dbUser.accessToken

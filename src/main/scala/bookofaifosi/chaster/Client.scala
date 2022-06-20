@@ -1,9 +1,11 @@
 package bookofaifosi.chaster
 
 import bookofaifosi.{Bot, Registration}
-import bookofaifosi.db.{UserRepository, User as DBUser}
+import bookofaifosi.db.{RegisteredUserRepository, UserRepository, User as DBUser}
+import bookofaifosi.db.Filters.*
 import bookofaifosi.chaster.Paged.getAll as getAllPaged
 import bookofaifosi.chaster.*
+import bookofaifosi.model.RegisteredUser
 import cats.effect.IO
 import cats.syntax.option.*
 import io.circe.syntax.*
@@ -31,7 +33,7 @@ object Client:
 
   def expect[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Bot.client.get.flatMap(_.expect[A](req))
 
-  def expectAuthenticated[A](user: DBUser, req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
+  def expectAuthenticated[A](user: RegisteredUser, req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
     for
       user <- user.updatedAccessToken
       client <- Bot.client.get
@@ -60,8 +62,8 @@ object Client:
       .withQueryParam("scope", scope)
       .withQueryParam("state", uuid)
 
-  extension (user: DBUser)
-    private def updatedAccessToken: IO[DBUser] =
+  extension (user: RegisteredUser)
+    private def updatedAccessToken: IO[RegisteredUser] =
       if user.expiresAt.isAfter(Instant.now()) then
         IO.pure(user)
       else
@@ -71,7 +73,7 @@ object Client:
             "grant_type" -> "refresh_token",
             "refresh_token" -> user.refreshToken,
           )
-          user <- UserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+          user <- RegisteredUserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         yield user
 
     private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Client.expectAuthenticated(user, req)
@@ -82,7 +84,7 @@ object Client:
         response <- client.getAllPaged[A](uri, Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken)))(lastIDSeen)
       yield response
 
-    def profile: IO[User] = expectUserAuthenticated[User](GET(API / "auth" / "profile"))
+    //def profile: IO[User] = expectUserAuthenticated[User](GET(API / "auth" / "profile"))
     def locks: IO[List[Lock]] = expectUserAuthenticated[List[Lock]](GET(API / "locks"))
     def lock(id: String): IO[Lock] = expectUserAuthenticated[Lock](GET(API / "locks" / id))
     def lockHistory(id: String, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =

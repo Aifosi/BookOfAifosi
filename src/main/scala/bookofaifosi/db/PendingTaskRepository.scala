@@ -1,24 +1,19 @@
 package bookofaifosi.db
 
-import bookofaifosi.db.User as DBUser
+import doobie.postgres.implicits.*
+import doobie.syntax.string.*
+import bookofaifosi.model.RegisteredUser
+import doobie.Fragment
 
 import java.time.Instant
 import java.util.UUID
 
-case class PendingTask(
-  id: UUID,
-  user: DBUser,
-  keyholder: DBUser,
-  deadline: Instant,
-)
-
-private case class PendingTaskDB(
+private case class PendingTask(
   id: UUID,
   userID: UUID,
   keyholderID: UUID,
   deadline: Instant,
 )
 
-object PendingTaskRepository {
-
-}
+object PendingTaskRepository extends Repository[PendingTask]:
+  override protected val selectAll: Fragment = fr"select id, user_id, keyholder_id, deadline from pending_tasks"

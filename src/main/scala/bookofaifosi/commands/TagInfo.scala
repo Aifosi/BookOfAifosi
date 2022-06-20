@@ -6,6 +6,8 @@ import bookofaifosi.db.TagRepository
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import doobie.syntax.connectionio.*
+import bookofaifosi.db.Filters.*
+import cats.syntax.option.*
 
 object TagInfo extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = true
@@ -23,7 +25,7 @@ object TagInfo extends SlashCommand with Options with AutoCompleteString:
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val tagName = event.getOption[String]("name")
     for
-      tag <- TagRepository.find(tagName)
+      tag <- TagRepository.find(tagName.some.equalName)
       _ <- event.reply(tag.fold(s"Could not find tag named \"$tagName\"") { tag =>
         s"name: ${tag.name}${tag.description.fold(" No Description")(description => s" description: $description")}"
       })

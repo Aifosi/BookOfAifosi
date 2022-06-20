@@ -3,6 +3,7 @@ package bookofaifosi.db
 import bookofaifosi.Bot
 import bookofaifosi.chaster.Client
 import bookofaifosi.db.mkFragment
+import bookofaifosi.db.Filters.*
 import bookofaifosi.model.{TaskSubscription as TaskSubscriptionModel, User}
 import bookofaifosi.db.UserRepository
 import cats.effect.IO
@@ -22,22 +23,17 @@ case class TaskSubscription(
   id: UUID,
   lockID: String,
   mostRecentEventTime: Option[Instant]
-):
-  def toModel: IO[TaskSubscriptionModel] =
-    for
-      maybeDBUser <- UserRepository.find(id = id.some)
-      dbUser <- IO.fromOption(maybeDBUser)(new Exception(s"Could not find user with ID: $id"))
-      discord <- Bot.discord.get
-      user <- discord.userByID(dbUser.discordID)
-    yield TaskSubscriptionModel(dbUser, user, lockID, mostRecentEventTime)
+)
 
-object TaskSubscriptionRepository:
-  val list: IO[List[TaskSubscriptionModel]] =
-    sql"select user_id, lock_id, most_recent_event_time from task_subscriptions"
-      .queryWithLogHandler[TaskSubscription](LogHandler.jdkLogHandler)
-      .to[List]
-      .transact(Bot.xa)
-      .flatMap(_.traverse(_.toModel))
+object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, TaskSubscriptionModel]:
+  override protected val selectAll: Fragment = fr"select user_id, lock_id, most_recent_event_time from task_subscriptions"
+
+  override def toModel(taskSubscription: TaskSubscription): IO[TaskSubscriptionModel] =
+    for
+      user <- RegisteredUserRepository.get(taskSubscription.id.equalID)
+      discord <- Bot.discord.get
+      discordUser <- discord.userByID(user.discordID)
+    yield TaskSubscriptionModel(user, discordUser, taskSubscription.lockID, taskSubscription.mostRecentEventTime)
 
   def add(
     userID: UUID,
@@ -48,7 +44,7 @@ object TaskSubscriptionRepository:
       .updateWithLogHandler(LogHandler.jdkLogHandler)
       .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.xa)
-      .flatMap(_.toModel)
+      .flatMap(toModel)
 
   def update(
     userID: UUID,
@@ -59,4 +55,4 @@ object TaskSubscriptionRepository:
       .updateWithLogHandler(LogHandler.jdkLogHandler)
       .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.xa)
-      .flatMap(_.toModel)
+      .flatMap(toModel)

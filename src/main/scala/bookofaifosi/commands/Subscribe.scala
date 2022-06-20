@@ -5,7 +5,8 @@ import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
 import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.model.{TaskSubscription, User}
-import bookofaifosi.db.{TaskSubscriptionRepository, UserRepository, User as DBUser}
+import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, UserRepository, User as DBUser}
+import bookofaifosi.db.Filters.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
 import cats.effect.{IO, Ref}
@@ -25,11 +26,9 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)
   )
 
-  private def dbUser(user: User): IO[Option[DBUser]] = UserRepository.find(discordID = user.discordID.some)
-
   private def lockNames(user: User): IO[List[String]] =
     (for
-      dbUser <- Stream.evalSeq(dbUser(user).map(_.toList))
+      dbUser <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalID))
       lock <- Stream.evalSeq(dbUser.locks)
     yield lock.title).compile.toList
 
@@ -39,7 +38,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override val stream: Stream[IO, Unit] =
     for
-      subscription @ TaskSubscription(dbUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list).metered(60.seconds).repeat
+      subscription @ TaskSubscription(dbUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(60.seconds).repeat
       event <- dbUser.lockHistory(lockID, mostRecentEventTime)
       _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(dbUser.id, lockID, event.createdAt.some) else IO.unit)
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
@@ -52,7 +51,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
     val response = for
-      user <- OptionT(dbUser(event.author)).toRight("You need to register to use this command, please use `/register` to do so.")
+      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalID)).toRight("You need to register to use this command, please use `/register` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id
