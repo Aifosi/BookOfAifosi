@@ -5,7 +5,9 @@ import pureconfig.{ConfigReader, ConfigSource}
 import pureconfig.generic.derivation.default.derived
 
 case class Configuration(
-  token: String,
+  host: String,
+  publicHost: String,
+  port: Int,
 ) derives ConfigReader
 
 object Configuration:

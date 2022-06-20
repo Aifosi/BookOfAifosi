@@ -12,15 +12,19 @@ import bookofaifosi.wrappers.{Channel, Role, User}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
+import org.http4s.*
+import org.http4s.blaze.server.BlazeServerBuilder
+import org.http4s.dsl.io.*
 import org.http4s.client.*
 
 import scala.concurrent.duration.*
 
 //https://discord.com/api/oauth2/authorize?client_id=987840268726312970&permissions=139586750528&scope=bot
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=377986731072
-object Bot extends IOApp.Simple:
-  lazy val config = Configuration.fromConfig()
+object Bot extends IOApp:
+  lazy val chasterConfig = ChasterConfiguration.fromConfig()
   lazy val dbConfig = DatabaseConfiguration.fromConfig()
+  lazy val config = Configuration.fromConfig()
 
   val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
     dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
@@ -41,6 +45,7 @@ object Bot extends IOApp.Simple:
     TagRemove,
     TagUpdate,
     Reminder,
+    Register,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -57,7 +62,7 @@ object Bot extends IOApp.Simple:
   }
 
   private val jdaIO: IO[JDA] =
-    val jda = JDABuilder.createDefault(config.token).addEventListeners(MessageListener)
+    val jda = JDABuilder.createDefault(chasterConfig.token).addEventListeners(MessageListener)
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
@@ -75,12 +80,15 @@ object Bot extends IOApp.Simple:
 
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
 
-  override def run: IO[Unit] =
+  override def run(args: List[String]): IO[ExitCode] =
     (for
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Stream.eval(Bot.client.complete(client))
       _ <- Stream.eval(runMigrations)
       jda <- Stream.eval(jdaIO)
       _ <- Stream.eval(registerSlashCommands(jda))
-      _ <- Stream.never[IO]
-    yield ()).compile.drain
+      exitCode <- BlazeServerBuilder[IO]
+        .bindHttp(config.port, config.host)
+        .withHttpApp(Registration.routes.orNotFound)
+        .serve
+    yield exitCode).compile.lastOrError

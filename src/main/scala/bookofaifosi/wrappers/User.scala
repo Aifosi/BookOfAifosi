@@ -12,6 +12,7 @@ class User(private[wrappers] val user: JDAUser):
   lazy val id: Long = user.getIdLong
   lazy val mention: String = s"<@!$id>"
   lazy val name: String = user.getName
+  lazy val tag: String = user.getAsTag
   def getNameIn(guild: Guild): String = guild.getMember(this).flatMap(_.nickname).getOrElse(name)
   lazy val avatarURL: URL = new URL(user.getAvatarUrl)
   lazy val isBot: Boolean = user.isBot
@@ -29,7 +30,7 @@ class User(private[wrappers] val user: JDAUser):
 
   def isSelfMuted: Option[Boolean] = member.map(_.isSelfMuted)
 
-  override def toString: String = s"$name($id)"
+  override def toString: String = s"$tag($id)"
 
   def canEqual(other: Any): Boolean = other.isInstanceOf[User]
 
