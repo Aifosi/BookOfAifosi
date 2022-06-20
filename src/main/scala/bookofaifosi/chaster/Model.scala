@@ -1,0 +1,137 @@
+package bookofaifosi.chaster
+
+import io.circe.{Decoder, HCursor, Json}
+
+import java.time.Instant
+import scala.deriving.Mirror
+import scala.util.Try
+
+case class AccessToken(
+  access_token: String,
+  expires_in: Int,
+  refresh_expires_in: Int,
+  refresh_token: String,
+  token_type: String,
+  scope: String,
+) derives Decoder:
+  val expiresAt: Instant = Instant.now().plusSeconds(expires_in)
+
+trait WithID:
+  def _id: String
+
+case class User (
+  _id: String,
+  username: String,
+  gender: String,
+  role: String,
+  discordId: String,
+  discordUsername: String,
+) extends WithID derives Decoder
+
+case class SharedLockExtensions (
+  slug: String,
+  name: String,
+  textConfig: String,
+  mode: String,
+  regularity: Int
+) derives Decoder
+
+case class Extensions (
+  slug: String,
+  //config: Any,
+  _id: String,
+  displayName: String,
+  summary: String,
+  subtitle: String,
+  icon: String,
+  mode: String,
+  regularity: Int,
+  //userData: Any,
+  nbActionsRemaining: Int,
+  nextActionDate: Option[String], //Wrong on swagger
+) extends WithID derives Decoder
+
+case class Lock(
+  status: String,
+  _id: String,
+  endDate: Option[String],
+  title: String,
+  totalDuration: Int, //The total duration, since the creation of the lock, in seconds
+  user: User,
+  keyholder: Option[User],
+  sharedLock: Option[SharedLock],
+  isAllowedToViewTime: Boolean,
+  isFrozen: Boolean,
+  extensions: List[Extensions],
+  startDate: Instant,
+  maxLimitDate: Option[String],
+  displayRemainingTime: Boolean,
+  limitLockTime: Boolean,
+  unlockedAt: Option[Instant], //Wrong on swagger
+  frozenAt: Option[Instant],
+  hideTimeLogs: Boolean,
+  trusted: Boolean
+) extends WithID derives Decoder
+
+case class SharedLock (
+  _id: String,
+  minDuration: Int, //Seconds
+  maxDuration: Int, //Seconds
+  calculatedMaxLimitDuration: Option[Int],
+  user: User,
+  requirePassword: Boolean,
+  //durationMode: String, //[ duration, date ]
+  password: Option[String],
+  maxLimitDuration: Option[Int],
+  minDate: Option[Instant],
+  maxDate: Option[Instant],
+  maxLimitDate: Option[Instant],
+  displayRemainingTime: Boolean,
+  limitLockTime: Boolean,
+  maxLockedUsers: Option[Int],
+  isPublic: Boolean,
+  requireContact: Boolean,
+  name: String,
+  description: String,
+  hideTimeLogs: Boolean,
+  //Only returned in shared locks endpoints
+  extensions: Option[List[SharedLockExtensions]], //Wrong on swagger
+  locks: Option[List[String]], //List of locks
+) extends WithID derives Decoder
+
+case class History[T: Decoder] (
+  extension: Option[String],
+  _id: String,
+  `type`: String,
+  role: String,
+  description: String,
+  createdAt: Instant,
+  user: Option[User],
+  payload: T
+) extends WithID:
+  def as[TT: Decoder](using ev: T =:= Json): Option[History[TT]] =
+    ev(payload).as[TT].toOption.map(History(extension, _id, `type`, role, description, createdAt, user, _))
+
+object History {
+  inline given decoder[T: Decoder]: Decoder[History[T]] = (c: HCursor) =>
+    for
+      extension <- c.downField("extension").as[Option[String]]
+      id <- c.downField("_id").as[String]
+      `type` <- c.downField("type").as[String]
+      role <- c.downField("role").as[String]
+      description <- c.downField("description").as[String]
+      createdAt <- c.downField("createdAt").as[Instant]
+      user <- c.downField("user").as[Option[User]]
+      payload <- c.downField("payload").as[T]
+    yield History(extension, id, `type`, role, description, createdAt, user, payload)
+}
+
+case class Segment(
+  `type`: String,
+  duration: Int,
+  text: String
+) derives Decoder
+
+case class WheelTurnedPayload(
+  segment: Segment
+) derives Decoder

@@ -1,13 +1,14 @@
 package bookofaifosi.commands
 
-import cats.effect.IO
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashCommandEvent}
+import cats.effect.{IO, Ref}
+import bookofaifosi.wrappers.event.{AutoCompleteEvent, Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.{Bot, Named}
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
 import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}
 import net.dv8tion.jda.api.utils.data.DataObject
 import bookofaifosi.commands.Options.PatternOptions
-
+import fs2.Stream
+import scala.concurrent.duration.*
 import scala.util.matching.Regex
 
 object Command:
@@ -51,6 +52,10 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
 
   override def matches(event: SlashCommandEvent): Boolean = fullCommand.equalsIgnoreCase((event.commandName +: event.subCommandName.toList).mkString(" "))
 
+trait Streams:
+  this: AnyCommand =>
+  def stream: Stream[IO, Unit]
+
 
 trait Options:
   this: SlashCommand =>
@@ -65,11 +70,11 @@ type AutoCompletable = AutoComplete[?]
 
 sealed trait AutoComplete[T]:
   this: SlashCommand =>
-  val autoCompleteOptions: Map[String, IO[List[T]]]
+  val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[T]]]
 
   def matchesAutoComplete(event: AutoCompleteEvent): Boolean = fullCommand.equalsIgnoreCase((event.commandName +: event.subCommandName.toList).mkString(" "))
 
-  protected def focusedOptions(event: AutoCompleteEvent): IO[List[T]] = autoCompleteOptions.getOrElse(event.focusedOption, IO.pure(List.empty))
+  protected def focusedOptions(event: AutoCompleteEvent): IO[List[T]] = autoCompleteOptions.get(event.focusedOption).fold(IO.pure(List.empty))(_(event))
 
   inline protected def reply(event: AutoCompleteEvent): IO[Boolean] = focusedOptions(event).flatMap(event.replyChoices[T](_)).as(true)
 
@@ -95,3 +100,26 @@ trait AutoCompleteDouble extends AutoComplete[Double]:
   this: SlashCommand =>
   override def apply(event: AutoCompleteEvent): IO[Boolean] = reply(event)
 
+trait SlowResponse:
+  this: SlashCommand =>
+  val ephemeralResponses: Boolean
+  def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit]
+
+  override final def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+    def switchToHook(slashAPI: Ref[IO, SlashAPI], repliedRef: Ref[IO, Boolean]) =
+      for
+        _ <- IO.sleep(3.seconds)
+        replied <- repliedRef.get
+        _ <- if !replied then
+          slashAPI.set(event.hook) *> event.deferReply(ephemeralResponses) *> repliedRef.set(true)
+        else
+          IO.unit
+      yield ()
+
+    for
+      slashAPI <- Ref.of[IO, SlashAPI](event)
+      repliedRef <- Ref.of[IO, Boolean](false)
+      _ <- switchToHook(slashAPI, repliedRef).start
+      _ <- slowResponse(pattern, event, slashAPI)
+      _ <- repliedRef.set(true)
+    yield true

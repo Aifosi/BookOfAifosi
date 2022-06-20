@@ -1,6 +1,6 @@
 package bookofaifosi.commands
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.wrappers.event.SlashCommandEvent
+import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import cats.syntax.applicative.*
 
@@ -21,8 +21,8 @@ object Reminder extends SlashCommand with Options with AutoCompleteString:
     unit.toString.toLowerCase -> unit
   }.toMap
 
-  override val autoCompleteOptions: Map[String, IO[List[String]]] = Map(
-    "unit" -> timeUnits.keys.toList.pure
+  override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(
+    "unit" -> (_ => timeUnits.keys.toList.pure)
   )
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =

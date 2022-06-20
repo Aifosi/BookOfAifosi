@@ -11,12 +11,6 @@ import scala.util.chaining.*
 trait Fragments[A: Read]:
   protected val selectAll: Fragment
 
-  protected lazy val filter = selectAll ++ fr"where true"
-
-  /*protected def filterName(name: Option[String]) = name.fold(Fragment.empty)(name => fr"and name ILIKE $name")
-
-  protected def filterPartialName(name: Option[String]) = name.fold(Fragment.empty)(name => fr"and name ILIKE ${s"%$name%"}")*/
-
   protected def filterName(name: Option[String]): Option[Fragment] = name.map(name => fr"name ILIKE $name")
 
   protected def filterPartialName(name: Option[String]): Option[Fragment] = name.map(name => fr"name ILIKE ${s"%$name%"}")

@@ -2,7 +2,7 @@ package bookofaifosi.commands
 
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.wrappers.event.SlashCommandEvent
+import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashCommandEvent}
 import bookofaifosi.db.Tag
 import cats.effect.IO
 import doobie.syntax.connectionio.*
@@ -19,8 +19,8 @@ object TagUpdate extends SlashCommand with Options with AutoCompleteString:
     _.addOption[Option[Boolean]]("remove_description", "Should the description be updated?"),
   )
 
-  override val autoCompleteOptions: Map[String, IO[List[String]]] = Map(
-    "name" -> Tag.list().transact(Bot.xa).map(_.map(_.name))
+  override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(
+    "name" -> (_ => Tag.list().transact(Bot.xa).map(_.map(_.name)))
   )
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =

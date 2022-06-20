@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.db.Tag
-import bookofaifosi.wrappers.event.SlashCommandEvent
+import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import doobie.syntax.connectionio.*
 
@@ -14,8 +14,8 @@ object TagInfo extends SlashCommand with Options with AutoCompleteString:
     _.addOption[String]("name", "Name of the tag you want to search.", autoComplete = true)
   )
 
-  override val autoCompleteOptions: Map[String, IO[List[String]]] = Map(
-    "name" -> Tag.list().transact(Bot.xa).map(_.map(_.name))
+  override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(
+    "name" -> (_ => Tag.list().transact(Bot.xa).map(_.map(_.name)))
   )
   
   override val fullCommand: String = "tag info"

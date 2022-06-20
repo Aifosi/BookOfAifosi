@@ -46,6 +46,7 @@ object Bot extends IOApp:
     TagUpdate,
     Reminder,
     Register,
+    Subscribe,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -60,6 +61,9 @@ object Bot extends IOApp:
   lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
     case command: AutoCompletable => command
   }
+  lazy val commandStreams: Stream[IO, Unit] = allCommands.collect {
+    case command: Streams => command.stream
+  }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =
     val jda = JDABuilder.createDefault(chasterConfig.token).addEventListeners(MessageListener)
@@ -91,4 +95,5 @@ object Bot extends IOApp:
         .bindHttp(config.port, config.host)
         .withHttpApp(Registration.routes.orNotFound)
         .serve
+        .concurrently(commandStreams)
     yield exitCode).compile.lastOrError
