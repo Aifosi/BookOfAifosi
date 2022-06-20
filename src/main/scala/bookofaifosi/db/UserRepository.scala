@@ -1,7 +1,6 @@
 package bookofaifosi.db
 
 import bookofaifosi.Bot
-import bookofaifosi.chaster.Client
 import bookofaifosi.db.mkFragment
 import cats.effect.IO
 import doobie.{ConnectionIO, Fragment}
@@ -9,7 +8,7 @@ import doobie.syntax.string.*
 import doobie.postgres.implicits.*
 import cats.syntax.functor.*
 import doobie.util.log.LogHandler
-import org.http4s.client.Client as HTTPClient
+import doobie.syntax.connectionio.*
 
 import java.time.Instant
 import java.util.UUID
@@ -27,11 +26,14 @@ case class User(
 object UserRepository:
   private val selectAll: Fragment = fr"select id, chaster_name, discord_id, access_token, expires_at, refresh_token, scope from users"
 
-  def find(id: Option[UUID] = None, chasterName: Option[String] = None, discordID: Option[Long] = None): ConnectionIO[Option[User]] =
+  def find(id: Option[UUID] = None, chasterName: Option[String] = None, discordID: Option[Long] = None): IO[Option[User]] =
     val filterId = id.map(id => fr"id = $id")
     val filterName = chasterName.map(name => fr"chaster_name ILIKE $name")
     val filterDiscordId = discordID.map(id => fr"discord_id = $id")
-    (selectAll ++ List(filterId, filterName, filterDiscordId).mkFragment(fr"where", fr"and")).queryWithLogHandler[User](LogHandler.jdkLogHandler).option
+    (selectAll ++ List(filterId, filterName, filterDiscordId).mkFragment(fr"where", fr"and"))
+      .queryWithLogHandler[User](LogHandler.jdkLogHandler)
+      .option
+      .transact(Bot.xa)
 
   def add(
     chasterName: String,
@@ -40,10 +42,11 @@ object UserRepository:
     expiresAt: Instant,
     refreshToken: String,
     scope: String,
-  ): ConnectionIO[User] =
+  ): IO[User] =
     sql"insert into users(chaster_name, discord_id, access_token, expires_at, refresh_token, scope) values ($chasterName, $discordID, $accessToken, $expiresAt, $refreshToken, $scope)"
       .updateWithLogHandler(LogHandler.jdkLogHandler)
-      .withUniqueGeneratedKeys("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
+      .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
+      .transact(Bot.xa)
 
   def update(
     id: UUID,
@@ -51,7 +54,8 @@ object UserRepository:
     expiresAt: Instant,
     refreshToken: String,
     scope: String,
-  ): ConnectionIO[User] =
+  ): IO[User] =
     sql"update users set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope where id = $id"
       .updateWithLogHandler(LogHandler.jdkLogHandler)
-      .withUniqueGeneratedKeys("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
+      .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
+      .transact(Bot.xa)

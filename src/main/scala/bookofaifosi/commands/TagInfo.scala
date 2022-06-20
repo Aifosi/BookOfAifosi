@@ -2,7 +2,7 @@ package bookofaifosi.commands
 
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.db.Tag
+import bookofaifosi.db.TagRepository
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import doobie.syntax.connectionio.*
@@ -15,7 +15,7 @@ object TagInfo extends SlashCommand with Options with AutoCompleteString:
   )
 
   override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(
-    "name" -> (_ => Tag.list().transact(Bot.xa).map(_.map(_.name)))
+    "name" -> (_ => TagRepository.list().map(_.map(_.name)))
   )
   
   override val fullCommand: String = "tag info"
@@ -23,7 +23,7 @@ object TagInfo extends SlashCommand with Options with AutoCompleteString:
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val tagName = event.getOption[String]("name")
     for
-      tag <- Tag.find(tagName).transact(Bot.xa)
+      tag <- TagRepository.find(tagName)
       _ <- event.reply(tag.fold(s"Could not find tag named \"$tagName\"") { tag =>
         s"name: ${tag.name}${tag.description.fold(" No Description")(description => s" description: $description")}"
       })

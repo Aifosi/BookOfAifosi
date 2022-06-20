@@ -40,7 +40,7 @@ object Registration:
         )
         profileUri = Uri.unsafeFromString("https://api.chaster.app/auth/profile")
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
-        _ <- UserRepository.add(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
+        _ <- UserRepository.add(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         _ <- registrations.update(_ - uuid)
         _ <- IO.println(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
       yield ()

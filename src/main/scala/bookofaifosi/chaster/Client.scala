@@ -71,7 +71,7 @@ object Client:
             "grant_type" -> "refresh_token",
             "refresh_token" -> user.refreshToken,
           )
-          user <- UserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
+          user <- UserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         yield user
 
     private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Client.expectAuthenticated(user, req)

@@ -4,8 +4,8 @@ import bookofaifosi.Bot
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.model.User
-import bookofaifosi.db.{TaskSubscription, TaskSubscriptionRepository, UserRepository, User as DBUser}
+import bookofaifosi.model.{TaskSubscription, User}
+import bookofaifosi.db.{TaskSubscriptionRepository, UserRepository, User as DBUser}
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
 import cats.effect.{IO, Ref}
@@ -25,7 +25,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)
   )
 
-  private def dbUser(user: User): IO[Option[DBUser]] = UserRepository.find(discordID = user.discordID.some).transact(Bot.xa)
+  private def dbUser(user: User): IO[Option[DBUser]] = UserRepository.find(discordID = user.discordID.some)
 
   private def lockNames(user: User): IO[List[String]] =
     (for

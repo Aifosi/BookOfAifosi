@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.model.event.SlashCommandEvent
-import bookofaifosi.db.Tag
+import bookofaifosi.db.TagRepository
 import cats.effect.IO
 import doobie.syntax.connectionio.*
 
@@ -21,7 +21,7 @@ object TagAdd extends SlashCommand with Options:
     val tag = event.getOption[String]("name")
     val description = event.getOption[Option[String]]("description")
     for
-      _ <- Tag.add(tag, description).transact(Bot.xa)
+      _ <- TagRepository.add(tag, description)
       _ <- event.reply(s"Tag \"$tag\" added.")
     yield true
 

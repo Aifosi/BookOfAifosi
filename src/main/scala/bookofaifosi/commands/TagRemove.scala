@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
-import bookofaifosi.db.Tag
+import bookofaifosi.db.TagRepository
 import cats.effect.IO
 import doobie.syntax.connectionio.*
 
@@ -17,13 +17,13 @@ object TagRemove extends SlashCommand with Options with AutoCompleteString:
   )
 
   override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(
-    "name" -> (_ => Tag.list().transact(Bot.xa).map(_.map(_.name)))
+    "name" -> (_ => TagRepository.list().map(_.map(_.name)))
   )
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val tag = event.getOption[String]("name")
     for
-      removed <- Tag.remove(tag).transact(Bot.xa)
+      removed <- TagRepository.remove(tag)
       message = removed match {
         case 0 => s"No tags named \n$tag\n found!"
         case 1 => s"$tag removed."
