@@ -1,7 +1,7 @@
 package bookofaifosi.syntax
 
 import cats.effect.{IO, Ref}
-import bookofaifosi.wrappers.{Channel, Role, User}
+import bookofaifosi.model.{Channel, Role, User}
 import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.entities.Activity

@@ -1,6 +1,6 @@
 package bookofaifosi.commands
 
-import bookofaifosi.wrappers.{Role, User}
+import bookofaifosi.model.{Role, User}
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.interactions.commands.build.{SlashCommandData, SubcommandData}
 import net.dv8tion.jda.api.interactions.commands.{OptionMapping, OptionType}

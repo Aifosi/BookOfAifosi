@@ -1,7 +1,7 @@
 package bookofaifosi.chaster
 
 import bookofaifosi.{Bot, Registration}
-import bookofaifosi.db.User as DBUser
+import bookofaifosi.db.{UserRepository, User as DBUser}
 import bookofaifosi.chaster.Paged.getAll as getAllPaged
 import bookofaifosi.chaster.*
 import cats.effect.IO
@@ -71,7 +71,7 @@ object Client:
             "grant_type" -> "refresh_token",
             "refresh_token" -> user.refreshToken,
           )
-          user <- DBUser.update(user.chasterName, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
+          user <- UserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
         yield user
 
     private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Client.expectAuthenticated(user, req)

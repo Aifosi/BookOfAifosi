@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers.event
+package bookofaifosi.model.event
 
 import net.dv8tion.jda.api.entities.MessageChannel
 import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}

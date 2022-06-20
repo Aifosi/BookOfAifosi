@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers
+package bookofaifosi.model
 
 import java.net.URL
 
@@ -8,9 +8,9 @@ import net.dv8tion.jda.api.entities.User as JDAUser
 import compiletime.asMatchable
 import scala.jdk.CollectionConverters.*
 
-class User(private[wrappers] val user: JDAUser):
-  lazy val id: Long = user.getIdLong
-  lazy val mention: String = s"<@!$id>"
+open class User(private[model] val user: JDAUser):
+  lazy val discordID: Long = user.getIdLong
+  lazy val mention: String = s"<@!$discordID>"
   lazy val name: String = user.getName
   lazy val tag: String = user.getAsTag
   def getNameIn(guild: Guild): String = guild.getMember(this).flatMap(_.nickname).getOrElse(name)
@@ -26,20 +26,20 @@ class User(private[wrappers] val user: JDAUser):
       new VoiceChannel(channel)
   }
 
-  def member: Option[Member] = voiceChannel.flatMap(_.members.find(_.id == id))
+  def member: Option[Member] = voiceChannel.flatMap(_.members.find(_.id == discordID))
 
   def isSelfMuted: Option[Boolean] = member.map(_.isSelfMuted)
 
-  override def toString: String = s"$tag($id)"
+  override def toString: String = s"$tag($discordID)"
 
   def canEqual(other: Any): Boolean = other.isInstanceOf[User]
 
   override def equals(other: Any): Boolean = other.asMatchable match
     case that: User =>
       that.canEqual(this) &&
-        id == that.id
+        discordID == that.discordID
     case _ => false
 
   override def hashCode(): Int =
-    val state = Seq(id)
+    val state = Seq(discordID)
     state.map(_.hashCode()).foldLeft(0)((a, b) => 31 * a + b)

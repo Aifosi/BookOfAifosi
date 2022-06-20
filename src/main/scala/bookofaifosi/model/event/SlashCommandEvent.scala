@@ -1,8 +1,8 @@
-package bookofaifosi.wrappers.event
+package bookofaifosi.model.event
 
 import bookofaifosi.commands.MacroHelper
 import cats.effect.IO
-import bookofaifosi.wrappers.event.{Event, SlashCommandEvent}
+import bookofaifosi.model.event.{Event, SlashCommandEvent}
 import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.entities.{MessageChannel, MessageEmbed, Guild as JDAGuild, Member as JDAMember, Message as JDAMessage, User as JDAUser}
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent

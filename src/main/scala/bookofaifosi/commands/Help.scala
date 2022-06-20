@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import cats.data.NonEmptyList
 import cats.effect.IO
 import bookofaifosi.Bot
-import bookofaifosi.wrappers.event.{MessageEvent, SlashCommandEvent}
+import bookofaifosi.model.event.{MessageEvent, SlashCommandEvent}
 
 import scala.util.matching.Regex
 

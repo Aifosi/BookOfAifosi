@@ -1,8 +1,8 @@
-package bookofaifosi.wrappers.event
+package bookofaifosi.model.event
 
 import cats.effect.IO
-import bookofaifosi.wrappers.event.{Event, GenericTextEvent}
-import bookofaifosi.wrappers.Message
+import bookofaifosi.model.event.{Event, GenericTextEvent}
+import bookofaifosi.model.Message
 import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, Message as JDAMessage, User as JDAUser}
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 

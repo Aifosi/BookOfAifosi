@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import cats.effect.{IO, Ref}
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashAPI, SlashCommandEvent}
+import bookofaifosi.model.event.{AutoCompleteEvent, Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.{Bot, Named}
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
 import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}

@@ -8,7 +8,7 @@ import cats.syntax.foldable.*
 import fs2.Stream
 import bookofaifosi.commands.*
 import bookofaifosi.syntax.all.*
-import bookofaifosi.wrappers.{Channel, Role, User, Discord}
+import bookofaifosi.model.{Channel, Role, User, Discord}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*

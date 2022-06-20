@@ -1,7 +1,6 @@
 package bookofaifosi.chaster
 
 import bookofaifosi.{Bot, Registration}
-import bookofaifosi.db.User as DBUser
 import bookofaifosi.chaster.*
 import cats.effect.IO
 import cats.syntax.option.*

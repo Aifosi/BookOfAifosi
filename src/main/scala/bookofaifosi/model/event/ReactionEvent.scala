@@ -1,8 +1,8 @@
-package bookofaifosi.wrappers.event
+package bookofaifosi.model.event
 
 import cats.effect.IO
 import bookofaifosi.syntax.all.*
-import bookofaifosi.wrappers.event.{Event, ReactionEvent}
+import bookofaifosi.model.event.{Event, ReactionEvent}
 import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 

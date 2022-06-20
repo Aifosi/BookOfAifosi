@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers
+package bookofaifosi.model
 
 import cats.effect.IO
 import net.dv8tion.jda.api.JDA

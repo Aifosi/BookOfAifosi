@@ -2,7 +2,7 @@ package bookofaifosi.commands
 
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.wrappers.event.SlashCommandEvent
+import bookofaifosi.model.event.SlashCommandEvent
 import bookofaifosi.db.Tag
 import cats.effect.IO
 import doobie.syntax.connectionio.*

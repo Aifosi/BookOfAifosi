@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Registration
-import bookofaifosi.wrappers.event.SlashCommandEvent
+import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
 import scala.concurrent.duration.*
 

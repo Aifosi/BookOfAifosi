@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.commands.Options.PatternOptions
 import bookofaifosi.db.Tag
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashCommandEvent}
+import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import doobie.syntax.connectionio.*
 

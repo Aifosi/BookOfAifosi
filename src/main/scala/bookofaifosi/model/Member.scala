@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers
+package bookofaifosi.model
 
 import cats.effect.IO
 import bookofaifosi.syntax.action.*
@@ -25,6 +25,6 @@ class Member(member: JDAMember):
 
   def roles: Set[Role] = member.getRoles.asScala.toSet.map(new Role(_))
 
-  def hasRole(role: Role): Boolean = roles.exists(_.id == role.id)
+  def hasRole(role: Role): Boolean = roles.exists(_.discordID == role.discordID)
 
   def isGuildOwner: Boolean = member.getGuild.getOwnerIdLong == id

@@ -23,6 +23,7 @@ CREATE TABLE task_tags (
 );
 
 CREATE TABLE users (
+  id            uuid PRIMARY KEY   DEFAULT gen_random_uuid(),
   chaster_name  text      NOT NULL,
   discord_id    bigint    NOT NULL,
   access_token  text      NOT NULL,
@@ -31,14 +32,23 @@ CREATE TABLE users (
   scope         text      NOT NULL,
   created_at    timestamp NOT NULL DEFAULT NOW(),
   updated_at    timestamp NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (chaster_name, discord_id)
+  UNIQUE (chaster_name, discord_id)
 );
 
 CREATE TABLE task_subscriptions (
-  discord_id             bigint    NOT NULL,
+  user_id                uuid      NOT NULL REFERENCES users (id),
   lock_id                text      NOT NULL,
   most_recent_event_time timestamp NULL,
   created_at             timestamp NOT NULL DEFAULT NOW(),
   updated_at             timestamp NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (discord_id, lock_id)
+  PRIMARY KEY (user_id, lock_id)
+);
+
+CREATE TABLE pending_tasks (
+  id           uuid PRIMARY KEY   DEFAULT gen_random_uuid(),
+  user_id      uuid      NOT NULL REFERENCES users (id),
+  keyholder_id uuid      NOT NULL REFERENCES users (id),
+  deadline     timestamp NOT NULL,
+  created_at   timestamp NOT NULL DEFAULT NOW(),
+  updated_at   timestamp NOT NULL DEFAULT NOW()
 );

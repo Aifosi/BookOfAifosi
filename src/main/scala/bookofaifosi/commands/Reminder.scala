@@ -1,6 +1,6 @@
 package bookofaifosi.commands
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashCommandEvent}
+import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import cats.syntax.applicative.*
 

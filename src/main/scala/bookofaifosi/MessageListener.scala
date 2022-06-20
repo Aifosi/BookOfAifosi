@@ -2,13 +2,13 @@ package bookofaifosi
 
 import cats.effect.IO
 import bookofaifosi.commands.{Command, ReactionCommand, SlashCommand, TextCommand, AutoCompletable}
-import bookofaifosi.wrappers.event.ReactionEvent.*
-import bookofaifosi.wrappers.event.ReactionEvent.given
-import bookofaifosi.wrappers.event.MessageEvent.*
-import bookofaifosi.wrappers.event.MessageEvent.given
-import bookofaifosi.wrappers.event.SlashCommandEvent.*
-import bookofaifosi.wrappers.event.SlashCommandEvent.given
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
+import bookofaifosi.model.event.ReactionEvent.*
+import bookofaifosi.model.event.ReactionEvent.given
+import bookofaifosi.model.event.MessageEvent.*
+import bookofaifosi.model.event.MessageEvent.given
+import bookofaifosi.model.event.SlashCommandEvent.*
+import bookofaifosi.model.event.SlashCommandEvent.given
+import bookofaifosi.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}

@@ -4,10 +4,9 @@ import bookofaifosi.Bot
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
 import bookofaifosi.commands.Options.PatternOptions
-import bookofaifosi.wrappers.User
-import bookofaifosi.db.User as DBUser
-import bookofaifosi.db.TaskSubscription
-import bookofaifosi.wrappers.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
+import bookofaifosi.model.User
+import bookofaifosi.db.{TaskSubscription, TaskSubscriptionRepository, UserRepository, User as DBUser}
+import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
 import cats.effect.{IO, Ref}
 import cats.data.{EitherT, OptionT}
@@ -26,7 +25,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)
   )
 
-  private def dbUser(user: User): IO[Option[DBUser]] = DBUser.find(discordID = user.id.some).transact(Bot.xa)
+  private def dbUser(user: User): IO[Option[DBUser]] = UserRepository.find(discordID = user.discordID.some).transact(Bot.xa)
 
   private def lockNames(user: User): IO[List[String]] =
     (for
@@ -40,9 +39,9 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override val stream: Stream[IO, Unit] =
     for
-      subscription @ TaskSubscription(dbUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscription.list).metered(60.seconds).repeat
+      subscription @ TaskSubscription(dbUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list).metered(60.seconds).repeat
       event <- dbUser.lockHistory(lockID, mostRecentEventTime)
-      _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then subscription.updateMostRecentEventTime(event.createdAt) else IO.unit)
+      _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(dbUser.id, lockID, event.createdAt.some) else IO.unit)
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       taskEvent <- Stream.when(wheelTurnedEvent.payload.segment.`type` == "text")(wheelTurnedEvent)
       task = taskEvent.payload.segment.text
@@ -58,7 +57,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id
       mostRecentHistory <- EitherT(user.lockHistory(lockId).take(1).compile.last.attempt).leftMap(_ => s"Invalid lock id $lockId")
-      _ <- EitherT.liftF(TaskSubscription.add(user.discordID, lockId, mostRecentHistory.map(_.createdAt)))
+      _ <- EitherT.liftF(TaskSubscriptionRepository.add(user.id, lockId, mostRecentHistory.map(_.createdAt)))
     yield ()
     for
       response <- response.value

@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers
+package bookofaifosi.model
 
 import cats.effect.IO
 import bookofaifosi.syntax.action.*

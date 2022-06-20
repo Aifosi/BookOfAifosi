@@ -3,8 +3,8 @@ package bookofaifosi
 import bookofaifosi.Bot
 import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser}
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.db.User as DBUser
-import bookofaifosi.wrappers.User
+import bookofaifosi.db.UserRepository
+import bookofaifosi.model.User
 import cats.effect.{IO, Ref}
 import doobie.syntax.connectionio.*
 import io.circe.Decoder
@@ -40,7 +40,7 @@ object Registration:
         )
         profileUri = Uri.unsafeFromString("https://api.chaster.app/auth/profile")
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
-        dbUser <- DBUser.add(profile.username, user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
+        _ <- UserRepository.add(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope).transact(Bot.xa)
         _ <- registrations.update(_ - uuid)
         _ <- IO.println(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
       yield ()

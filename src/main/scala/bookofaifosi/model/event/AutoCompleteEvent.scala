@@ -1,4 +1,4 @@
-package bookofaifosi.wrappers.event
+package bookofaifosi.model.event
 
 import bookofaifosi.commands.MacroHelper
 import net.dv8tion.jda.api.entities.MessageChannel
