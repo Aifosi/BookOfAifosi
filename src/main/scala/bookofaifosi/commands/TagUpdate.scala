@@ -7,16 +7,20 @@ import bookofaifosi.db.Tag
 import cats.effect.IO
 import doobie.syntax.connectionio.*
 
-object TagUpdate extends SlashCommand with Options:
+object TagUpdate extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = false
 
   override val fullCommand: String = "tag update"
 
   override val options: List[PatternOptions] = List(
-    _.addOption[String]("name", "The name of the tag you want to update."),
+    _.addOption[String]("name", "The name of the tag you want to update.", autoComplete = true),
     _.addOption[Option[String]]("new_name", "The new name for the tag."),
     _.addOption[Option[String]]("new_description", "The description for the tag."),
     _.addOption[Option[Boolean]]("remove_description", "Should the description be updated?"),
+  )
+
+  override val autoCompleteOptions: Map[String, IO[List[String]]] = Map(
+    "name" -> Tag.list().transact(Bot.xa).map(_.map(_.name))
   )
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =

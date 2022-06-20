@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member a
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 
 import java.util.concurrent.{CancellationException, CompletableFuture, CompletionException}
+import scala.util.Try
 
 class MessageEvent(
   jdaMessage: JDAMessage,
@@ -25,5 +26,5 @@ object MessageEvent:
       event.getChannel,
       event.getAuthor,
       Option(event.getMember),
-      Option(event.getGuild),
+      Try(event.getGuild).toOption,
     )

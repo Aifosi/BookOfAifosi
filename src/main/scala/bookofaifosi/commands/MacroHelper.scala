@@ -1,14 +1,19 @@
 package bookofaifosi.commands
 
 import bookofaifosi.wrappers.{Role, User}
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.interactions.commands.build.{SlashCommandData, SubcommandData}
 import net.dv8tion.jda.api.interactions.commands.{OptionMapping, OptionType}
+import bookofaifosi.syntax.action.*
+import cats.syntax.functor.*
+import cats.effect.IO
 
+import java.util
 import scala.compiletime.*
 import scala.quoted.*
+import scala.jdk.CollectionConverters.*
 
-object SlashPatternHelper:
+object MacroHelper:
 
   private def partial(optionType: OptionType, required: Boolean)(data: SlashCommandData, name: String, description: String, autoComplete: Boolean): SlashCommandData =
     data.addOption(optionType, name, description, required, autoComplete)
@@ -91,3 +96,19 @@ object SlashPatternHelper:
     }
 
   inline def getOption[T] = ${ fetchOption[T] }
+
+  private def replyOptions[T: Type](using Quotes): Expr[(CommandAutoCompleteInteractionEvent, List[T]) => IO[Unit]] =
+    Type.of[T] match {
+      /*case '[Option[Int]] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceLongs(options.asJava).toIO.void }
+      case '[Option[Long]] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceLongs(options.asJava).toIO.void }
+      case '[Option[Double]] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceDoubles(options.asJava).toIO.void }
+      case '[Option[String]] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceStrings(options.asJava).toIO.void }*/
+      //case '[Int] => '{ makeReplyInt(_, _) }
+      case '[Int] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceLongs(options.asInstanceOf[List[Int]].map(_.toLong)*).toIO.void }
+      case '[Long] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceLongs(options.asInstanceOf[List[Long]]*).toIO.void }
+      case '[Double] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceDoubles(options.asInstanceOf[List[Double]]*).toIO.void }
+      case '[String] => '{ (event: CommandAutoCompleteInteractionEvent, options: List[T]) => event.replyChoiceStrings(options.asInstanceOf[List[String]]*).toIO.void }
+      case _ => '{ error("Options of given type not supported") }
+    }
+
+  inline def replyChoices[T] = ${ replyOptions[T] }

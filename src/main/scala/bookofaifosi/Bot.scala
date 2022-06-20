@@ -40,6 +40,7 @@ object Bot extends IOApp.Simple:
     TagList,
     TagRemove,
     TagUpdate,
+    Reminder,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -50,6 +51,9 @@ object Bot extends IOApp.Simple:
   }
   lazy val slashCommands: List[SlashCommand] = allCommands.collect {
     case command: SlashCommand => command
+  }
+  lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
+    case command: AutoCompletable => command
   }
 
   private val jdaIO: IO[JDA] =

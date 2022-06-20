@@ -29,10 +29,10 @@ case class SlashPattern(
   inline def addOption[T](name: String, description: String, autoComplete: Boolean = false): Option[String] => SlashPattern = (subCommand: Option[String]) =>
     require(subCommand.forall(subCommands.contains) , s"Trying to add option to nonexistent subcommand $subCommand")
     subCommand.fold {
-      val option: SlashCommandData => SlashCommandData = SlashPatternHelper.addOption[T](_, name, description, autoComplete)
+      val option: SlashCommandData => SlashCommandData = MacroHelper.addOption[T](_, name, description, autoComplete)
       copy(options = options :+ name, commandOptions = commandOptions :+ option)
     } { subCommand =>
-      val option: SubcommandData => SubcommandData = SlashPatternHelper.addSubCommandOption[T](_, name, description, autoComplete)
+      val option: SubcommandData => SubcommandData = MacroHelper.addSubCommandOption[T](_, name, description, autoComplete)
       copy(options = options :+ name, subCommandOptions = subCommandOptions.updatedWith(subCommand)(_.fold(List(option))(_ :+ option).some))
   }
 

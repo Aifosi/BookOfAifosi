@@ -1,20 +1,19 @@
 package bookofaifosi
 
 import cats.effect.IO
-import bookofaifosi.commands.{Command, ReactionCommand, SlashCommand, TextCommand}
+import bookofaifosi.commands.{Command, ReactionCommand, SlashCommand, TextCommand, AutoCompletable}
 import bookofaifosi.wrappers.event.ReactionEvent.*
 import bookofaifosi.wrappers.event.ReactionEvent.given
 import bookofaifosi.wrappers.event.MessageEvent.*
 import bookofaifosi.wrappers.event.MessageEvent.given
 import bookofaifosi.wrappers.event.SlashCommandEvent.*
 import bookofaifosi.wrappers.event.SlashCommandEvent.given
-import bookofaifosi.wrappers.event.Event
+import bookofaifosi.wrappers.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import cats.effect.unsafe.implicits.global
-import bookofaifosi.wrappers.event.{Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 
 object MessageListener extends ListenerAdapter:
   private def runCommandList[T, E <: Event](
@@ -42,36 +41,34 @@ object MessageListener extends ListenerAdapter:
     else
       IO.unit
 
-  private def runTextCommandList(
-    event: MessageEvent,
-    commands: List[TextCommand],
-  ): IO[Unit] =
-    runCommandList(event, commands) { (event, command) =>
+  override def onMessageReceived(event: MessageReceivedEvent): Unit =
+    runCommandList(event, Bot.textCommands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
         IO.println(s"${event.author} issued text command $command $subgroups".trim)
       else
         IO.unit
-    }
-
-  private def runReactionCommandList(event: ReactionEvent, commands: List[ReactionCommand]): IO[Unit] =
-    runCommandList(event, commands) { (event, command) =>
-      IO.println(s"${event.author} issued reaction command $command".trim)
-    }
-
-  private def runSlashCommandList(
-    event: SlashCommandEvent,
-    commands: List[SlashCommand],
-  ): IO[Unit] =
-    runCommandList(event, commands) { (event, command) =>
-      IO.println(s"${event.author} issued slash command $command".trim)
-    }
-
-  override def onMessageReceived(event: MessageReceivedEvent): Unit =
-    runTextCommandList(event, Bot.textCommands).unsafeRunSync()
+    }.unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
-    runReactionCommandList(event, Bot.reactionCommands).unsafeRunSync()
+    runCommandList(event, Bot.reactionCommands) { (event, command) =>
+      IO.println(s"${event.author} issued reaction command $command".trim)
+    }.unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
-    runSlashCommandList(event, Bot.slashCommands).unsafeRunSync()
+    runCommandList(event, Bot.slashCommands) { (event, command) =>
+      IO.println(s"${event.author} issued slash command $command".trim)
+    }.unsafeRunSync()
+
+  override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
+    Bot.autoCompletableCommands.foldLeft(IO.pure(false)) {
+      case (io, command) if command.matchesAutoComplete(event) =>
+        for
+          stopped <- io
+          stop <- if stopped then IO.pure(true) else command.apply(event)
+        yield stop
+      case (io, _) => io
+    }
+      .as(())
+      .unsafeRunSync()
+
