@@ -99,7 +99,7 @@ case class SharedLock (
   locks: Option[List[String]], //List of locks
 ) extends WithID derives Decoder
 
-case class History[T: Decoder] (
+case class Event[T: Decoder] (
   extension: Option[String],
   _id: String,
   `type`: String,
@@ -109,11 +109,11 @@ case class History[T: Decoder] (
   user: Option[User],
   payload: T
 ) extends WithID:
-  def as[TT: Decoder](using ev: T =:= Json): Option[History[TT]] =
-    ev(payload).as[TT].toOption.map(History(extension, _id, `type`, role, description, createdAt, user, _))
+  def as[TT: Decoder](using ev: T =:= Json): Option[Event[TT]] =
+    ev(payload).as[TT].toOption.map(Event(extension, _id, `type`, role, description, createdAt, user, _))
 
-object History {
-  inline given decoder[T: Decoder]: Decoder[History[T]] = (c: HCursor) =>
+object Event {
+  inline given decoder[T: Decoder]: Decoder[Event[T]] = (c: HCursor) =>
     for
       extension <- c.downField("extension").as[Option[String]]
       id <- c.downField("_id").as[String]
@@ -123,7 +123,7 @@ object History {
       createdAt <- c.downField("createdAt").as[Instant]
       user <- c.downField("user").as[Option[User]]
       payload <- c.downField("payload").as[T]
-    yield History(extension, id, `type`, role, description, createdAt, user, payload)
+    yield Event(extension, id, `type`, role, description, createdAt, user, payload)
 }
 
 case class Segment(

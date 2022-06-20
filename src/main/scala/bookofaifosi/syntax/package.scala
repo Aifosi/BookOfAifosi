@@ -5,5 +5,6 @@ package object syntax:
   object jda extends JDASyntax
   object action extends ActionSyntax
   object io extends IOSyntax
+  object stream extends StreamSyntax
 
-  object all extends ChainingSyntax with JDASyntax with ActionSyntax with IOSyntax
+  object all extends ChainingSyntax with JDASyntax with ActionSyntax with IOSyntax with StreamSyntax

@@ -8,7 +8,7 @@ import cats.syntax.foldable.*
 import fs2.Stream
 import bookofaifosi.commands.*
 import bookofaifosi.syntax.all.*
-import bookofaifosi.wrappers.{Channel, Role, User}
+import bookofaifosi.wrappers.{Channel, Role, User, Discord}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
@@ -83,6 +83,7 @@ object Bot extends IOApp:
     }.toMap.values.toList.sequence_
 
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
+  val discord: Deferred[IO, Discord] = Deferred.unsafe
 
   override def run(args: List[String]): IO[ExitCode] =
     (for
@@ -90,6 +91,7 @@ object Bot extends IOApp:
       _ <- Stream.eval(Bot.client.complete(client))
       _ <- Stream.eval(runMigrations)
       jda <- Stream.eval(jdaIO)
+      _ <- Stream.eval(Bot.discord.complete(new Discord(jda)))
       _ <- Stream.eval(registerSlashCommands(jda))
       exitCode <- BlazeServerBuilder[IO]
         .bindHttp(config.port, config.host)

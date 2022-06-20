@@ -23,13 +23,22 @@ CREATE TABLE task_tags (
 );
 
 CREATE TABLE users (
-  chaster_name  text                     NOT NULL,
-  discord_id    bigint                   NOT NULL,
-  access_token  text                     NOT NULL,
-  expires_at    timestamp WITH TIME ZONE NOT NULL,
-  refresh_token text                     NOT NULL,
-  scope         text                     NOT NULL,
-  created_at    timestamp                NOT NULL DEFAULT NOW(),
-  updated_at    timestamp                NOT NULL DEFAULT NOW(),
+  chaster_name  text      NOT NULL,
+  discord_id    bigint    NOT NULL,
+  access_token  text      NOT NULL,
+  expires_at    timestamp NOT NULL,
+  refresh_token text      NOT NULL,
+  scope         text      NOT NULL,
+  created_at    timestamp NOT NULL DEFAULT NOW(),
+  updated_at    timestamp NOT NULL DEFAULT NOW(),
   PRIMARY KEY (chaster_name, discord_id)
+);
+
+CREATE TABLE task_subscriptions (
+  discord_id             bigint    NOT NULL,
+  lock_id                text      NOT NULL,
+  most_recent_event_time timestamp NULL,
+  created_at             timestamp NOT NULL DEFAULT NOW(),
+  updated_at             timestamp NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (discord_id, lock_id)
 );
