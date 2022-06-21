@@ -28,8 +28,8 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   private def lockNames(user: User): IO[List[String]] =
     (for
-      dbUser <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalID))
-      lock <- Stream.evalSeq(dbUser.locks)
+      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalID))
+      lock <- Stream.evalSeq(user.locks)
     yield lock.title).compile.toList
 
   override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(

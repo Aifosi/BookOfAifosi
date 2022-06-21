@@ -5,8 +5,10 @@ import cats.data.NonEmptyList
 import cats.effect.{Deferred, ExitCode, IO, IOApp, Ref}
 import cats.syntax.parallel.*
 import cats.syntax.foldable.*
+import cats.syntax.traverse.*
 import fs2.Stream
 import bookofaifosi.commands.*
+import bookofaifosi.commands
 import bookofaifosi.syntax.all.*
 import bookofaifosi.model.{Channel, Role, User, Discord}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
@@ -47,6 +49,7 @@ object Bot extends IOApp:
     Reminder,
     Register,
     Subscribe,
+    commands.Deadline,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -70,17 +73,9 @@ object Bot extends IOApp:
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
-    slashCommands.groupBy(_.command).view.mapValues { commands =>
-      val pattern = commands.map(_.pattern).reduceLeft(_.merge(_))
-      val data = pattern.build.setDefaultEnabled(commands.forall(_.defaultEnabled))
-      val subCommandsMessage =
-        val subCommands = commands.flatMap(_.subCommand)
-        if subCommands.isEmpty then "" else s" [${subCommands.mkString(", ")}]"
-      for
-        _ <- IO.println(s"""Registering "${data.getName}$subCommandsMessage", enabled? ${data.isDefaultEnabled}""")
-        _ <- jda.upsertCommand(data).toIO
-      yield ()
-    }.toMap.values.toList.sequence_
+    SlashPattern.buildCommands(slashCommands.map(_.pattern)).traverse_ { data =>
+      jda.upsertCommand(data).toIO
+    }
 
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
   val discord: Deferred[IO, Discord] = Deferred.unsafe

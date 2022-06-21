@@ -65,7 +65,7 @@ object Registration:
   def basic(user: User, timeout: FiniteDuration): IO[Uri] =
     for
       uuid <- IO(UUID.randomUUID())
-      scope = "profile locks"
+      scope = "profile locks keyholder"
       _ <- IO.println(s"Starting registration for $user, UUID: $uuid, scope: $scope")
       _ <- registrations.update(_ + (uuid -> (user, scope)))
       _ <- invalidateRegistration(uuid, timeout)

@@ -2,49 +2,62 @@ package bookofaifosi.commands
 
 import cats.syntax.option.*
 import net.dv8tion.jda.api.interactions.commands.OptionType
-import net.dv8tion.jda.api.interactions.commands.build.{Commands, SlashCommandData, SubcommandData}
+import net.dv8tion.jda.api.interactions.commands.build.{Commands, SlashCommandData, SubcommandData, SubcommandGroupData}
 
 import scala.quoted.{Quotes, Type}
 
 case class SlashPattern(
   name: String,
+  subCommandGroup: Option[String],
+  subCommand: Option[String],
   description: String,
-  subCommandsWithDescriptions: Set[(String, String)] = Set.empty,
-  options: List[String] = List.empty,
+  defaultEnabled: Boolean,
   commandOptions: List[SlashCommandData => SlashCommandData] = List.empty,
-  subCommandOptions: Map[String, List[SubcommandData => SubcommandData]] = Map.empty,
+  subCommandOptions: List[SubcommandData => SubcommandData] = List.empty,
 ):
-  lazy val subCommands: Set[String] = subCommandsWithDescriptions.map(_._1)
-  
-  lazy val build: SlashCommandData =
-    val command: SlashCommandData = Commands.slash(name, description)
-    if subCommandsWithDescriptions.isEmpty then
-      commandOptions.foldLeft(command)((command, option) => option(command))
-    else
-      subCommandsWithDescriptions.foldLeft(command) { case (command, (subCommandName, subCommandDescription)) =>
-        val subCommand = subCommandOptions.getOrElse(subCommandName, List.empty).foldLeft(new SubcommandData(subCommandName, subCommandDescription))((command, option) => option(command))
-        command.addSubcommands(subCommand)
-      }
-
-  inline def addOption[T](name: String, description: String, autoComplete: Boolean = false): Option[String] => SlashPattern = (subCommand: Option[String]) =>
-    require(subCommand.forall(subCommands.contains) , s"Trying to add option to nonexistent subcommand $subCommand")
+  inline def addOption[T](name: String, description: String, autoComplete: Boolean = false): SlashPattern =
     subCommand.fold {
       val option: SlashCommandData => SlashCommandData = MacroHelper.addOption[T](_, name, description, autoComplete)
-      copy(options = options :+ name, commandOptions = commandOptions :+ option)
+      copy(commandOptions = commandOptions :+ option)
     } { subCommand =>
       val option: SubcommandData => SubcommandData = MacroHelper.addSubCommandOption[T](_, name, description, autoComplete)
-      copy(options = options :+ name, subCommandOptions = subCommandOptions.updatedWith(subCommand)(_.fold(List(option))(_ :+ option).some))
-  }
+      copy(subCommandOptions = subCommandOptions :+ option)
+    }
 
-  override def toString: String = s"/$name ${subCommands.mkString(" ")}"
+object SlashPattern:
+  extension [A](command: A)
+    def applyOptions(options: List[A => A]) = options.foldLeft(command)((command, option) => option(command))
 
-  def merge(other: SlashPattern): SlashPattern =
-    require(name == other.name, s"Trying to merge two unrelated slash commands $name and ${other.name}")
-    require(subCommandsWithDescriptions.nonEmpty && other.subCommandsWithDescriptions.nonEmpty, s"Both commands must have sub commands to be merged \"$name ${subCommands.mkString(" ")}\" and \n${other.name} ${other.subCommands.mkString(" ")}\n")
-    copy(
-      //description = if subCommandsWithDescriptions.isEmpty then description else other.description,
-      subCommandsWithDescriptions = subCommandsWithDescriptions ++ other.subCommandsWithDescriptions,
-      options = options ++ other.options,
-      commandOptions = commandOptions ++ other.commandOptions,
-      subCommandOptions = subCommandOptions ++ other.subCommandOptions
-    )
+  def buildCommands(commands: List[SlashPattern]): List[SlashCommandData] =
+    commands.groupBy(_.name).view.mapValues(_.groupBy(_.subCommandGroup).view.mapValues(_.groupBy(_.subCommand)).toMap).toList.map {
+      case (commandName, other) =>
+        lazy val defaultEnabled = other.values.flatMap(_.values.flatten).toList.forall(_.defaultEnabled)
+        val command = other.get(None).flatMap(_.get(None)).flatMap(_.headOption)
+          .fold(Commands.slash(commandName, "No description")) { pattern =>
+            Commands.slash(commandName, pattern.description).applyOptions(pattern.commandOptions)
+          }
+
+        other.foldLeft(command) {
+          case (command, (None, other))                                              => other.foldLeft(command) {
+            case (command, (None, _)) => command
+            case (command, (Some(subCommandName), List(pattern))) =>
+              //Commands with subCommand only
+              val subCommand = new SubcommandData(subCommandName, pattern.description).applyOptions(pattern.subCommandOptions)
+              command.addSubcommands(subCommand)
+
+            case _ => throw new Exception("Unexpected number of patterns")
+          }
+          case (command, (Some(subCommandGroupName), other)) if other.contains(None) => throw new Exception(s"$commandName $subCommandGroupName has no subCommands")
+          case (command, (Some(subCommandGroupName), other))                         =>
+            //Commands with subCommandGroup and subCommand
+            val subcommandGroup = other.view.collect { case (Some(subCommandName), other) => subCommandName -> other }
+              .foldLeft(new SubcommandGroupData(subCommandGroupName, "No description")) {
+                case (subcommandGroup, (subCommandName, List(pattern))) =>
+                  val subCommand = new SubcommandData(subCommandName, pattern.description).applyOptions(pattern.subCommandOptions)
+                  subcommandGroup.addSubcommands(subCommand)
+
+                case _ => throw new Exception("Unexpected number of patterns")
+              }
+            command.addSubcommandGroups(subcommandGroup)
+        }.setDefaultEnabled(defaultEnabled)
+    }

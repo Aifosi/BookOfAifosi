@@ -3,6 +3,7 @@ package bookofaifosi.commands
 import cats.effect.{IO, Ref}
 import bookofaifosi.model.event.{AutoCompleteEvent, Event, GenericTextEvent, MessageEvent, ReactionEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.{Bot, Named}
+import bookofaifosi.commands.SlashPattern.*
 import net.dv8tion.jda.api.interactions.commands.build.SlashCommandData
 import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}
 import net.dv8tion.jda.api.utils.data.DataObject
@@ -40,17 +41,20 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
 
   val fullCommand: String
 
-  final lazy val (command: String, subCommand: Option[String]) = fullCommand.split(" ").toList match {
-    case List(command, subCommand) => (command, Some(subCommand))
-    case List(command)             => (command, None)
+  final lazy val (command: String, subCommandGroup: Option[String], subCommand: Option[String]) = fullCommand.split(" ").toList match {
+    case List(command, subCommandGroup, subCommand) => (command, Some(subCommandGroup), Some(subCommand))
+    case List(command, subCommand) => (command, None, Some(subCommand))
+    case List(command)             => (command, None, None)
     case _ => throw new Exception(s"Invalid command $fullCommand")
   }
 
-  final protected lazy val slashPattern: SlashPattern = SlashPattern(command, description, subCommand.map(_ -> description).toSet)
+  final protected lazy val slashPattern: SlashPattern =
+    SlashPattern(command, subCommandGroup, subCommand, description, defaultEnabled)
 
   override lazy val pattern: SlashPattern = slashPattern
 
-  override def matches(event: SlashCommandEvent): Boolean = fullCommand.equalsIgnoreCase((event.commandName +: event.subCommandName.toList).mkString(" "))
+  override def matches(event: SlashCommandEvent): Boolean =
+    List(Some(command), subCommandGroup, subCommand).flatten.mkString(" ").equalsIgnoreCase(fullCommand)
 
 trait Streams:
   this: AnyCommand =>
@@ -61,10 +65,10 @@ trait Options:
   this: SlashCommand =>
   val options: List[PatternOptions]
 
-  override lazy val pattern: SlashPattern = options.foldLeft(slashPattern)((command, option) => option(command)(subCommand))
+  override lazy val pattern: SlashPattern = slashPattern.applyOptions(options)
 
 object Options:
-  type PatternOptions = SlashPattern => Option[String] => SlashPattern
+  type PatternOptions = SlashPattern => SlashPattern
 
 type AutoCompletable = AutoComplete[?]
 

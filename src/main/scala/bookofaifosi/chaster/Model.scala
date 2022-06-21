@@ -22,10 +22,10 @@ trait WithID:
 case class User (
   _id: String,
   username: String,
-  gender: String,
+  gender: Option[String],
   role: String,
-  discordId: String,
-  discordUsername: String,
+  discordId: Option[String],
+  discordUsername: Option[String],
 ) extends WithID derives Decoder
 
 case class SharedLockExtensions (

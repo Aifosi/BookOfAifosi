@@ -90,3 +90,5 @@ object Client:
     def lockHistory(id: String, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =
       getAll[Event[Json]](API / "locks" / id / "history")(None)
         .takeWhile(event => eventsAfter.forall(_.isBefore(event.createdAt)))
+    def keyholderLocks: Stream[IO, Lock] =
+      getAll[Lock](API / "keyholder" / "locks" / "search")(None)
