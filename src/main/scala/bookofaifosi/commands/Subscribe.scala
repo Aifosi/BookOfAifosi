@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
-import bookofaifosi.commands.Options.PatternOptions
+import bookofaifosi.commands.PatternOption
 import bookofaifosi.model.{TaskSubscription, User}
 import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, UserRepository, User as DBUser}
 import bookofaifosi.db.Filters.*
@@ -22,7 +22,7 @@ import scala.concurrent.duration.*
 object Subscribe extends SlashCommand with Options with AutoCompleteString with Streams with SlowResponse:
   override val defaultEnabled: Boolean = true
   override val fullCommand: String = "subscribe tasks"
-  override val options: List[PatternOptions] = List(
+  override val options: List[PatternOption] = List(
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)
   )
 
@@ -55,8 +55,8 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id
-      mostRecentHistory <- EitherT(user.lockHistory(lockId).take(1).compile.last.attempt).leftMap(_ => s"Invalid lock id $lockId")
-      _ <- EitherT.liftF(TaskSubscriptionRepository.add(user.id, lockId, mostRecentHistory.map(_.createdAt)))
+      mostRecentEvent <- EitherT(user.lockHistory(lockId).take(1).compile.last.attempt).leftMap(_ => s"Invalid lock id $lockId")
+      _ <- EitherT.liftF(TaskSubscriptionRepository.add(user.id, lockId, mostRecentEvent.map(_.createdAt)))
     yield ()
     for
       response <- response.value

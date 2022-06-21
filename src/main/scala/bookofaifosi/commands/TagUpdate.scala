@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Bot
-import bookofaifosi.commands.Options.PatternOptions
+import bookofaifosi.commands.Options.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import bookofaifosi.db.TagRepository
 import cats.effect.IO
@@ -12,8 +12,8 @@ object TagUpdate extends SlashCommand with Options with AutoCompleteString:
 
   override val fullCommand: String = "tag update"
 
-  override val options: List[PatternOptions] = List(
-    _.addOption[String]("name", "The name of the tag you want to update.", autoComplete = true),
+  override val options: List[PatternOption] = List(
+    Options.tagName,
     _.addOption[Option[String]]("new_name", "The new name for the tag."),
     _.addOption[Option[String]]("new_description", "The description for the tag."),
     _.addOption[Option[Boolean]]("remove_description", "Should the description be updated?"),

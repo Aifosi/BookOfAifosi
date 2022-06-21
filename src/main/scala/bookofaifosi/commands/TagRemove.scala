@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Bot
-import bookofaifosi.commands.Options.PatternOptions
+import bookofaifosi.commands.Options.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import bookofaifosi.db.TagRepository
 import cats.effect.IO
@@ -12,8 +12,8 @@ object TagRemove extends SlashCommand with Options with AutoCompleteString:
 
   override val fullCommand: String = "tag remove"
 
-  override val options: List[PatternOptions] = List(
-    _.addOption[String]("name", "The name of the tags you want to remove.", autoComplete = true),
+  override val options: List[PatternOption] = List(
+    Options.tagName
   )
 
   override val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[String]]] = Map(

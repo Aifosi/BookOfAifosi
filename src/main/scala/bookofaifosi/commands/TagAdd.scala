@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Bot
-import bookofaifosi.commands.Options.PatternOptions
+import bookofaifosi.commands.PatternOption
 import bookofaifosi.model.event.SlashCommandEvent
 import bookofaifosi.db.TagRepository
 import cats.effect.IO
@@ -12,7 +12,7 @@ object TagAdd extends SlashCommand with Options:
 
   override val fullCommand: String = "tag add"
 
-  override val options: List[PatternOptions] = List(
+  override val options: List[PatternOption] = List(
     _.addOption[String]("name", "Name of the tag you want to add."),
     _.addOption[Option[String]]("description", "Description of this tag."),
   )

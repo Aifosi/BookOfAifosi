@@ -1,5 +1,6 @@
 package bookofaifosi.commands
-import bookofaifosi.commands.Options.PatternOptions
+
+import bookofaifosi.commands.Options.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import cats.effect.IO
 import cats.syntax.applicative.*
@@ -10,14 +11,14 @@ import scala.concurrent.duration.*
 object Reminder extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = true
   override val fullCommand: String = "reminder create"
-  override val options: List[PatternOptions] = List(
+  override val options: List[PatternOption] = List(
     _.addOption[String]("name", "Name of the reminder."),
-    _.addOption[Long]("duration", "Amount of time you want to be reminded in."),
-    _.addOption[String]("unit", "Unit of time for the duration", autoComplete = true),
+    Options.duration,
+    Options.timeUnit,
     _.addOption[String]("message", "Message of the reminder."),
   )
 
-  private val timeUnits: Map[String, TimeUnit] = TimeUnit.values.toList.map { unit =>
+  val timeUnits: Map[String, TimeUnit] = TimeUnit.values.toList.map { unit =>
     unit.toString.toLowerCase -> unit
   }.toMap
 

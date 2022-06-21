@@ -1,7 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Bot
-import bookofaifosi.commands.Options.PatternOptions
+import bookofaifosi.commands.PatternOption
 import bookofaifosi.db.TagRepository
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
