@@ -46,7 +46,9 @@ class SlashCommandEvent(
     underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.void
   inline def getOption[T](option: String): T = MacroHelper.getOption[T](underlying, option)
   lazy val commandName: String = underlying.getName
+  lazy val subCommandGroupName: Option[String] = Option(underlying.getSubcommandGroup)
   lazy val subCommandName: Option[String] = Option(underlying.getSubcommandName)
+  lazy val fullCommand: String = List(Some(commandName), subCommandGroupName, subCommandName).flatten.mkString(" ")
   lazy val hook: InteractionHook = underlying.getHook
 
 object SlashCommandEvent:

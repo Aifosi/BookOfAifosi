@@ -1,10 +1,11 @@
 package bookofaifosi.chaster
 
-import io.circe.{Decoder, HCursor, Json}
+import io.circe.{Decoder, Encoder, HCursor, Json}
 
 import java.time.Instant
 import scala.deriving.Mirror
 import scala.util.Try
+import scala.util.chaining.*
 
 case class AccessToken(
   access_token: String,
@@ -14,7 +15,9 @@ case class AccessToken(
   token_type: String,
   scope: String,
 ) derives Decoder:
-  val expiresAt: Instant = Instant.now().plusSeconds(expires_in)
+  val expiresAt: Instant =
+    println("calculating expiresAt")
+    Instant.now().plusSeconds(expires_in).tap(println)
 
 trait WithID:
   def _id: String
@@ -135,3 +138,8 @@ case class Segment(
 case class WheelTurnedPayload(
   segment: Segment
 ) derives Decoder
+
+case class KeyholderLockSearch(
+  status: String,
+  name: String,
+) derives Encoder.AsObject

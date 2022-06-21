@@ -54,7 +54,7 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
   override lazy val pattern: SlashPattern = slashPattern
 
   override def matches(event: SlashCommandEvent): Boolean =
-    List(Some(command), subCommandGroup, subCommand).flatten.mkString(" ").equalsIgnoreCase(fullCommand)
+    event.fullCommand.equalsIgnoreCase(fullCommand)
 
 trait Streams:
   this: AnyCommand =>

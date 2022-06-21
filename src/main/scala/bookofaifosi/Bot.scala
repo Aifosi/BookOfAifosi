@@ -47,7 +47,8 @@ object Bot extends IOApp:
     TagRemove,
     TagUpdate,
     Reminder,
-    Register,
+    RegisterWearer,
+    RegisterKeyholder,
     Subscribe,
     commands.Deadline,
   )

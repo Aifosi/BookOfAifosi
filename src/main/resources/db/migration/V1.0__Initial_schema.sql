@@ -24,8 +24,8 @@ CREATE TABLE task_tags (
 
 CREATE TABLE users (
   id            uuid PRIMARY KEY   DEFAULT gen_random_uuid(),
-  chaster_name  text      NOT NULL,
-  discord_id    bigint    NOT NULL,
+  chaster_name  text      UNIQUE NOT NULL,
+  discord_id    bigint    UNIQUE NOT NULL,
   access_token  text      NOT NULL,
   expires_at    timestamp NOT NULL,
   refresh_token text      NOT NULL,

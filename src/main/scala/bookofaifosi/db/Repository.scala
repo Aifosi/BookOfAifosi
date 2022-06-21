@@ -36,6 +36,7 @@ object Filters:
     def similarName: Filter = fr"name ILIKE $name".some
     def similarPartialName: Filter = fr"name ILIKE ${s"%$name%"}".some
     def equalName: Filter = fr"name = $name".some
+    def equalChasterName: Filter = fr"chaster_name = $name".some
 
   extension (name: Option[String])
     def similarName: Filter = name.flatMap(_.similarName)

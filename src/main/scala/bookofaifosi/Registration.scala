@@ -4,7 +4,8 @@ import bookofaifosi.Bot
 import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser}
 import bookofaifosi.chaster.Client.given
 import bookofaifosi.db.{RegisteredUserRepository, UserRepository}
-import bookofaifosi.model.User
+import bookofaifosi.db.Filters.*
+import bookofaifosi.model.{RegisteredUser, User}
 import cats.effect.{IO, Ref}
 import doobie.syntax.connectionio.*
 import io.circe.Decoder
@@ -14,7 +15,8 @@ import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.Method.*
 import org.http4s.client.dsl.io.*
 import org.http4s.headers.{Authorization, Location}
-
+import cats.syntax.applicative.*
+import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
@@ -26,8 +28,26 @@ object Registration:
   private object CodeParamMatcher extends QueryParamDecoderMatcher[String]("code")
   private object UUIDParamMatcher extends QueryParamDecoderMatcher[UUID]("state")
 
-  private val baseUri = Uri.unsafeFromString("https://sso.chaster.app/auth/realms/app/protocol/openid-connect")
   val registerUri = Uri.unsafeFromString(s"http://${Bot.config.publicHost}/register")
+
+  private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
+
+  def addOrUpdateScope(
+    chasterName: String,
+    discordID: Long,
+    accessToken: String,
+    expiresAt: Instant,
+    refreshToken: String,
+    scope: String,
+  ): IO[RegisteredUser] =
+    RegisteredUserRepository.add(chasterName, discordID, accessToken, expiresAt, refreshToken, scope).attempt.flatMap {
+      _.fold(
+        throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
+          RegisteredUserRepository.update(user.id, accessToken, expiresAt, refreshToken, joinScopes(user.scope, scope))
+        }),
+        _.pure
+      )
+    }
 
   val routes: HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
@@ -40,7 +60,7 @@ object Registration:
         )
         profileUri = Uri.unsafeFromString("https://api.chaster.app/auth/profile")
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
-        _ <- RegisteredUserRepository.add(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+        _ <- addOrUpdateScope(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         _ <- registrations.update(_ - uuid)
         _ <- IO.println(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
       yield ()
@@ -62,12 +82,13 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def basic(user: User, timeout: FiniteDuration): IO[Uri] =
+  def register(user: User, timeout: FiniteDuration, scope: String): IO[Uri] =
     for
       uuid <- IO(UUID.randomUUID())
-      scope = "profile locks keyholder"
       _ <- IO.println(s"Starting registration for $user, UUID: $uuid, scope: $scope")
-      _ <- registrations.update(_ + (uuid -> (user, scope)))
+      registeredUser <- RegisteredUserRepository.find(user.discordID.equalID)
+      fullScope = registeredUser.fold(scope)(user => joinScopes(user.scope, scope))
+      _ <- registrations.update(_ + (uuid -> (user, fullScope)))
       _ <- invalidateRegistration(uuid, timeout)
       authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
     yield authenticateUri
