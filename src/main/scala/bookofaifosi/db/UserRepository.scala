@@ -42,11 +42,11 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     refreshToken: String,
     scope: String,
   ): IO[RegisteredUser] =
-    val user = sql"insert into users(chaster_name, discord_id, access_token, expires_at, refresh_token, scope) values ($chasterName, $discordID, $accessToken, $expiresAt, $refreshToken, $scope)"
+    sql"insert into users(chaster_name, discord_id, access_token, expires_at, refresh_token, scope) values ($chasterName, $discordID, $accessToken, $expiresAt, $refreshToken, $scope)"
       .updateWithLogHandler(LogHandler.jdkLogHandler)
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
       .transact(Bot.xa)
-    user.flatMap(toModel)
+      .flatMap(toModel)
 
   def update(
     id: UUID,
@@ -55,11 +55,11 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     refreshToken: String,
     scope: String,
   ): IO[RegisteredUser] =
-    val user = sql"update users set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope where id = $id"
+    sql"update users set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope where id = $id"
       .updateWithLogHandler(LogHandler.jdkLogHandler)
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
       .transact(Bot.xa)
-    user.flatMap(toModel)
+      .flatMap(toModel)
 
 object UserRepository extends Repository[User]:
   override protected val selectAll: Fragment = fr"select id, chaster_name, discord_id, access_token, expires_at, refresh_token, scope from users"

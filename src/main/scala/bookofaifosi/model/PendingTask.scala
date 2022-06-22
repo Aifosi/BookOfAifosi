@@ -5,6 +5,7 @@ import java.util.UUID
 
 case class PendingTask(
   id: UUID,
+  task: String,
   user: RegisteredUser,
   keyholder: RegisteredUser,
   deadline: Instant,

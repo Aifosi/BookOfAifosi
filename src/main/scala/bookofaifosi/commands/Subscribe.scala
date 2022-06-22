@@ -21,7 +21,7 @@ import scala.concurrent.duration.*
 
 object Subscribe extends SlashCommand with Options with AutoCompleteString with Streams with SlowResponse:
   override val defaultEnabled: Boolean = true
-  override val fullCommand: String = "subscribe tasks"
+  override val fullCommand: String = "wearer subscribe tasks"
   override val options: List[PatternOption] = List(
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)
   )
@@ -38,9 +38,9 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override val stream: Stream[IO, Unit] =
     for
-      subscription @ TaskSubscription(dbUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(60.seconds).repeat
-      event <- dbUser.lockHistory(lockID, mostRecentEventTime)
-      _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(dbUser.id, lockID, event.createdAt.some) else IO.unit)
+      subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(60.seconds).repeat
+      event <- registeredUser.lockHistory(lockID, mostRecentEventTime)
+      _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(registeredUser.id, lockID, event.createdAt.some) else IO.unit)
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       taskEvent <- Stream.when(wheelTurnedEvent.payload.segment.`type` == "text")(wheelTurnedEvent)
       task = taskEvent.payload.segment.text

@@ -56,6 +56,8 @@ libraryDependencies ++= Seq(
   "org.flywaydb"           % "flyway-core"         % "8.5.12",
   "org.tpolecat"          %% "doobie-core"         % doobieVersion,
   "org.tpolecat"          %% "doobie-postgres"     % doobieVersion,
+  "ch.qos.logback"         % "logback-classic"     % "1.2.11",
+  "org.typelevel"         %% "log4cats-slf4j"      % "2.3.0",
 )
 
 Docker / dockerRepository := Some("aifosi")

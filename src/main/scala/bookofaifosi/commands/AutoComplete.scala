@@ -8,9 +8,12 @@ import java.util.concurrent.TimeUnit
 
 object AutoComplete:
   type AutoCompleteOption = (String, AutoCompleteEvent => IO[List[String]])
-  private val timeUnits: Map[String, TimeUnit] = TimeUnit.values.toList.map { unit =>
-    unit.toString.toLowerCase -> unit
-  }.toMap
+  val timeUnits: Map[String, TimeUnit] = Map(
+    TimeUnit.SECONDS.toString.toLowerCase -> TimeUnit.SECONDS,
+    TimeUnit.MINUTES.toString.toLowerCase -> TimeUnit.MINUTES,
+    TimeUnit.HOURS.toString.toLowerCase -> TimeUnit.HOURS,
+    TimeUnit.DAYS.toString.toLowerCase -> TimeUnit.DAYS,
+  )
 
   lazy val timeUnit: AutoCompleteOption = "unit" -> (_ => timeUnits.keys.toList.pure)
 
@@ -18,8 +21,8 @@ sealed trait AutoComplete[T]:
   this: SlashCommand =>
   val autoCompleteOptions: Map[String, AutoCompleteEvent => IO[List[T]]]
 
-  def matchesAutoComplete(event: AutoCompleteEvent): Boolean = fullCommand.equalsIgnoreCase((event.commandName 
-    +: event.subCommandName.toList).mkString(" "))
+  def matchesAutoComplete(event: AutoCompleteEvent): Boolean =
+    event.fullCommand.equalsIgnoreCase(fullCommand)
 
   protected def focusedOptions(event: AutoCompleteEvent): IO[List[T]] =
     autoCompleteOptions.get(event.focusedOption).fold(IO.pure(List.empty))(_(event))

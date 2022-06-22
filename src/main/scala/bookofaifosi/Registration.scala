@@ -20,6 +20,7 @@ import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
+import bookofaifosi.syntax.logger.*
 
 object Registration:
   private val registrations: Ref[IO, Map[UUID, (User, String)]] = Ref.unsafe(Map.empty)
@@ -62,7 +63,7 @@ object Registration:
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
         _ <- addOrUpdateScope(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         _ <- registrations.update(_ - uuid)
-        _ <- IO.println(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
+        _ <- Bot.logger.info(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
       yield ()
 
       registrations.get.flatMap {
@@ -85,7 +86,7 @@ object Registration:
   def register(user: User, timeout: FiniteDuration, scope: String): IO[Uri] =
     for
       uuid <- IO(UUID.randomUUID())
-      _ <- IO.println(s"Starting registration for $user, UUID: $uuid, scope: $scope")
+      _ <- Bot.logger.info(s"Starting registration for $user, UUID: $uuid, scope: $scope")
       registeredUser <- RegisteredUserRepository.find(user.discordID.equalID)
       fullScope = registeredUser.fold(scope)(user => joinScopes(user.scope, scope))
       _ <- registrations.update(_ + (uuid -> (user, fullScope)))

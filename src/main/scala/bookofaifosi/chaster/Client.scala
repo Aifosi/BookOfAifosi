@@ -20,7 +20,7 @@ import doobie.syntax.connectionio.*
 import fs2.Stream
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.http4s.client.Client
-
+import bookofaifosi.syntax.logger.*
 import scala.concurrent.duration.*
 import java.time.Instant
 import java.util.UUID
@@ -97,11 +97,10 @@ object Client:
   extension (user: RegisteredUser)
     private def updatedAccessToken: IO[RegisteredUser] =
       if user.expiresAt.isAfter(Instant.now()) then
-        IO.println(user.expiresAt) *> IO.println(Instant.now()) *> IO.println(user.expiresAt.isAfter(Instant.now())) *>
         IO.pure(user)
       else
         for
-          _ <- IO.println(s"Refreshing access token for ${user.discordID}")
+          _ <- Bot.logger.debug(s"Refreshing access token for ${user.discordID}")
           accessToken <- Client.token(
             "grant_type" -> "refresh_token",
             "refresh_token" -> user.refreshToken,

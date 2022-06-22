@@ -9,6 +9,7 @@ import bookofaifosi.model.event.MessageEvent.given
 import bookofaifosi.model.event.SlashCommandEvent.*
 import bookofaifosi.model.event.SlashCommandEvent.given
 import bookofaifosi.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
+import bookofaifosi.syntax.logger.*
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
@@ -45,19 +46,19 @@ object MessageListener extends ListenerAdapter:
     runCommandList(event, Bot.textCommands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
-        IO.println(s"${event.author} issued text command $command $subgroups".trim)
+        Bot.logger.info(s"${event.author} issued text command $command $subgroups".trim)
       else
         IO.unit
     }.unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
     runCommandList(event, Bot.reactionCommands) { (event, command) =>
-      IO.println(s"${event.author} issued reaction command $command".trim)
+      Bot.logger.info(s"${event.author} issued reaction command $command".trim)
     }.unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
-      IO.println(s"${event.author} issued slash command $command".trim)
+      Bot.logger.info(s"${event.author} issued slash command $command".trim)
     }.unsafeRunSync()
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =

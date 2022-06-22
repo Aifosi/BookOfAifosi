@@ -10,7 +10,7 @@ import fs2.Stream
 import bookofaifosi.commands.*
 import bookofaifosi.commands
 import bookofaifosi.syntax.all.*
-import bookofaifosi.model.{Channel, Role, User, Discord}
+import bookofaifosi.model.{Channel, Discord, Role, User}
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
@@ -18,16 +18,23 @@ import org.http4s.*
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io.*
 import org.http4s.client.*
+import org.typelevel.log4cats.SelfAwareStructuredLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.duration.*
 
 //https://discord.com/api/oauth2/authorize?client_id=987840268726312970&permissions=139586750528&scope=bot
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=377986731072
 object Bot extends IOApp:
+  lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
   lazy val dbConfig = DatabaseConfiguration.fromConfig()
   lazy val config = Configuration.fromConfig()
 
+  val client: Deferred[IO, Client[IO]] = Deferred.unsafe
+  val discord: Deferred[IO, Discord] = Deferred.unsafe
+  val logger: Deferred[IO, SelfAwareStructuredLogger[IO]] = Deferred.unsafe
+  
   val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
     dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
   )
@@ -36,7 +43,7 @@ object Bot extends IOApp:
     for
       flyway <- IO(Flyway.configure.dataSource(dbConfig.url, dbConfig.user, dbConfig.password).baselineOnMigrate(true).load)
       migrations <- IO(flyway.migrate())
-      _ <- IO.println(s"Ran ${migrations.migrationsExecuted} migrations.")
+      _ <- logger.debug(s"Ran ${migrations.migrationsExecuted} migrations.")
     yield ()
 
   val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
@@ -50,7 +57,7 @@ object Bot extends IOApp:
     RegisterWearer,
     RegisterKeyholder,
     Subscribe,
-    commands.Deadline,
+    commands.AddDeadline,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -70,7 +77,7 @@ object Bot extends IOApp:
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =
-    val jda = JDABuilder.createDefault(chasterConfig.token).addEventListeners(MessageListener)
+    val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(MessageListener)
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
@@ -78,11 +85,10 @@ object Bot extends IOApp:
       jda.upsertCommand(data).toIO
     }
 
-  val client: Deferred[IO, Client[IO]] = Deferred.unsafe
-  val discord: Deferred[IO, Discord] = Deferred.unsafe
-
   override def run(args: List[String]): IO[ExitCode] =
     (for
+      logger <- Stream.eval(Slf4jLogger.create[IO])
+      _ <- Stream.eval(Bot.logger.complete(logger))
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Stream.eval(Bot.client.complete(client))
       _ <- Stream.eval(runMigrations)

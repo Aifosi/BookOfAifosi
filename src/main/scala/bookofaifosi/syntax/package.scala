@@ -6,5 +6,6 @@ package object syntax:
   object action extends ActionSyntax
   object io extends IOSyntax
   object stream extends StreamSyntax
+  object logger extends LoggerSyntax
 
-  object all extends ChainingSyntax with JDASyntax with ActionSyntax with IOSyntax with StreamSyntax
+  object all extends ChainingSyntax with JDASyntax with ActionSyntax with IOSyntax with StreamSyntax with LoggerSyntax

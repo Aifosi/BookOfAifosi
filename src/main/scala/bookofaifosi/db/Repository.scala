@@ -3,7 +3,7 @@ package bookofaifosi.db
 import bookofaifosi.Bot
 import bookofaifosi.db.Filters.*
 import cats.effect.IO
-import doobie.{ConnectionIO, Fragment}
+import doobie.{ConnectionIO, Fragment, Get, Put}
 import doobie.implicits.*
 import doobie.postgres.*
 import doobie.postgres.implicits.*
@@ -13,7 +13,11 @@ import cats.syntax.option.*
 import cats.syntax.traverse.*
 
 import java.util.UUID
+import scala.concurrent.duration.*
 import scala.util.chaining.*
+
+given Get[FiniteDuration] = Get[Long].map(_.seconds)
+given Put[FiniteDuration] = Put[Long].contramap(_.toSeconds)
 
 type Filter = Option[Fragment]
 
@@ -28,6 +32,9 @@ extension (filters: List[Filter])
 object Filters:
   extension (id: UUID)
     def equalID: Filter = fr"id = $id".some
+    
+  extension (id: Option[UUID])
+    def equalID: Filter = id.flatMap(_.equalID)
 
   extension (id: Long)
     def equalID: Filter = fr"discord_id = $id".some

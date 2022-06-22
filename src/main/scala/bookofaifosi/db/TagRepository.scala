@@ -15,7 +15,7 @@ import doobie.syntax.connectionio.*
 import bookofaifosi.db.Filters.*
 
 object TagRepository extends Repository[Tag]:
-  protected val selectAll = fr"select name, description from tags"
+  override protected val selectAll = fr"select name, description from tags"
   def add(name: String, description: Option[String]): IO[Unit] =
     sql"insert into tags(name, description) values ($name, $description)"
       .updateWithLogHandler(LogHandler.jdkLogHandler)

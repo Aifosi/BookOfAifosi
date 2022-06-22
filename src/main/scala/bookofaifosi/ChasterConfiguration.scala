@@ -5,7 +5,6 @@ import pureconfig.generic.derivation.default.derived
 import pureconfig.{ConfigReader, ConfigSource}
 
 case class ChasterConfiguration(
-  token: String,
   clientId: String,
   secretKey: String,
 ) derives ConfigReader
