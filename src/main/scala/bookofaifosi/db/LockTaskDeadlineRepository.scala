@@ -40,7 +40,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
     mostRecentEventTime: Option[Instant],
   ): IO[LockTaskDeadlineModel] =
     sql"insert into lock_task_deadlines(lock_id, keyholder_id, user_id, deadline, most_recent_event_time) values ($lockID, $keyholderID, $userID, $deadline, $mostRecentEventTime)"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[LockTaskDeadline]("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -50,7 +50,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
     keyholderID: UUID,
   ): IO[Unit] =
     sql"delete from lock_task_deadlines where lock_id = $lockID and keyholder_id = $keyholderID"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .run
       .void
       .transact(Bot.xa)
@@ -62,7 +62,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
     mostRecentEventTime: Option[Instant],
   ): IO[LockTaskDeadlineModel] =
     sql"update lock_task_deadlines set most_recent_event_time = $mostRecentEventTime, deadline = $deadline where lock_id = $lockID and keyholder_id = $keyholderID"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[LockTaskDeadline]("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
       .transact(Bot.xa)
       .flatMap(toModel)

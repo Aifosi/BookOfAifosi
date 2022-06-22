@@ -1,5 +1,6 @@
 package bookofaifosi
 
+import bookofaifosi.Bot.logger
 import doobie.util.transactor.Transactor
 import cats.data.NonEmptyList
 import cats.effect.{Deferred, ExitCode, IO, IOApp, Ref}
@@ -34,7 +35,7 @@ object Bot extends IOApp:
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
   val discord: Deferred[IO, Discord] = Deferred.unsafe
   val logger: Deferred[IO, SelfAwareStructuredLogger[IO]] = Deferred.unsafe
-  
+
   val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
     dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
   )
@@ -73,7 +74,7 @@ object Bot extends IOApp:
     case command: AutoCompletable => command
   }
   lazy val commandStreams: Stream[IO, Unit] = allCommands.collect {
-    case command: Streams => command.stream
+    case command: Streams => command.stream(config.checkFrequency)
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =
@@ -85,19 +86,22 @@ object Bot extends IOApp:
       jda.upsertCommand(data).toIO
     }
 
+  val httpServer: Stream[IO, ExitCode] = BlazeServerBuilder[IO]
+    .bindHttp(config.port, config.host)
+    .withHttpApp(Registration.routes.orNotFound)
+    .serve
+
   override def run(args: List[String]): IO[ExitCode] =
     (for
-      logger <- Stream.eval(Slf4jLogger.create[IO])
-      _ <- Stream.eval(Bot.logger.complete(logger))
+      logger <- Slf4jLogger.create[IO].streamed
+      _ <- Bot.logger.complete(logger).streamed
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
-      _ <- Stream.eval(Bot.client.complete(client))
-      _ <- Stream.eval(runMigrations)
-      jda <- Stream.eval(jdaIO)
-      _ <- Stream.eval(Bot.discord.complete(new Discord(jda)))
-      _ <- Stream.eval(registerSlashCommands(jda))
-      exitCode <- BlazeServerBuilder[IO]
-        .bindHttp(config.port, config.host)
-        .withHttpApp(Registration.routes.orNotFound)
-        .serve
+      _ <- Bot.client.complete(client).streamed
+      _ <- runMigrations.streamed
+      jda <- jdaIO.streamed
+      _ <- Bot.discord.complete(new Discord(jda)).streamed
+      _ <- registerSlashCommands(jda).streamed
+      exitCode <- httpServer
         .concurrently(commandStreams)
+        .concurrently(Stream.eval(logger.info("Loading Finished")))
     yield exitCode).compile.lastOrError

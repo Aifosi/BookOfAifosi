@@ -36,9 +36,9 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     "lock" -> ((event: AutoCompleteEvent) => lockNames(event.author))
   )
 
-  override val stream: Stream[IO, Unit] =
+  override def stream(delay: FiniteDuration): Stream[IO, Unit] =
     for
-      subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(60.seconds).repeat
+      subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(delay).repeat
       event <- registeredUser.lockHistory(lockID, mostRecentEventTime)
       _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(registeredUser.id, lockID, event.createdAt.some) else IO.unit)
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])

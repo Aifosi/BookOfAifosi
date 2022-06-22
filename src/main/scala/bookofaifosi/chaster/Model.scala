@@ -15,9 +15,7 @@ case class AccessToken(
   token_type: String,
   scope: String,
 ) derives Decoder:
-  val expiresAt: Instant =
-    println("calculating expiresAt")
-    Instant.now().plusSeconds(expires_in).tap(println)
+  val expiresAt: Instant = Instant.now().plusSeconds(expires_in)
 
 trait WithID:
   def _id: String

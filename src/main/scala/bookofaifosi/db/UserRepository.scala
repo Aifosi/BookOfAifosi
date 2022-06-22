@@ -43,7 +43,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     scope: String,
   ): IO[RegisteredUser] =
     sql"insert into users(chaster_name, discord_id, access_token, expires_at, refresh_token, scope) values ($chasterName, $discordID, $accessToken, $expiresAt, $refreshToken, $scope)"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -56,7 +56,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     scope: String,
   ): IO[RegisteredUser] =
     sql"update users set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope where id = $id"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "discord_id", "access_token", "expires_at", "refresh_token", "scope")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -69,6 +69,6 @@ object UserRepository extends Repository[User]:
     val filterName = chasterName.map(name => fr"chaster_name ILIKE $name")
     val filterDiscordId = discordID.map(id => fr"discord_id = $id")
     (selectAll ++ List(filterId, filterName, filterDiscordId).mkFragment(fr"where", fr"and"))
-      .queryWithLogHandler[User](LogHandler.jdkLogHandler)
+      .queryWithLogHandler[User](Log.handler)
       .option
       .transact(Bot.xa)

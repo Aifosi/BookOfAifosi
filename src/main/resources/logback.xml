@@ -1,7 +1,7 @@
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>[%-20thread] %highlight(%-5level) %cyan(%logger{15}) - %msg%n</pattern>
+            <pattern>[%-22thread] %highlight(%-5level) %cyan(%logger{15}) - %msg%n</pattern>
         </encoder>
     </appender>
     <logger name="org.http4s" level="INFO" />

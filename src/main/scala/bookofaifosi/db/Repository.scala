@@ -57,7 +57,7 @@ trait Repository[A: Read]:
   protected val selectAll: Fragment
 
   private def query(filters: Iterable[Filter]) =
-    (selectAll ++ filters.toList.mkFragment(fr"where", fr"and")).queryWithLogHandler[A](LogHandler.jdkLogHandler)
+    (selectAll ++ filters.toList.mkFragment(fr"where", fr"and")).queryWithLogHandler[A](Log.handler)
 
   def list(filters: Filter*): IO[List[A]] = query(filters).to[List].transact(Bot.xa)
 

@@ -18,20 +18,20 @@ object TagRepository extends Repository[Tag]:
   override protected val selectAll = fr"select name, description from tags"
   def add(name: String, description: Option[String]): IO[Unit] =
     sql"insert into tags(name, description) values ($name, $description)"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .run
       .void
       .transact(Bot.xa)
 
   def remove(name: String): IO[Int] =
     sql"delete from tags where name = $name"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .run
       .transact(Bot.xa)
 
   def update(name: String, newName: Option[String], newDescription: Option[Option[String]]): IO[Int] =
     List(newName.equalName, descriptionEqual(newDescription)).mkFragment(fr"update tags set", fr",", fr"where name = $name")
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+      .updateWithLogHandler(Log.handler)
       .run
       .transact(Bot.xa)
 

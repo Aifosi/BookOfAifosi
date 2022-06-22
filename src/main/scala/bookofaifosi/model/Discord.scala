@@ -2,7 +2,9 @@ package bookofaifosi.model
 
 import cats.effect.IO
 import net.dv8tion.jda.api.JDA
+import bookofaifosi.syntax.action.*
+import cats.data.OptionT
 
 class Discord(jda: JDA):
   def userByID(id: Long): IO[User] =
-    IO.fromOption(Option(jda.getUserById(id)).map(new User(_)))(new Exception(s"Could not find discord user with id $id"))
+    OptionT.fromOption(Option(jda.getUserById(id))).getOrElseF(jda.retrieveUserById(id).toIO).map(new User(_))

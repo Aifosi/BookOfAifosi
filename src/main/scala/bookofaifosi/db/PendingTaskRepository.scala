@@ -12,6 +12,7 @@ import doobie.util.log.LogHandler
 import doobie.syntax.connectionio.*
 import java.time.Instant
 import java.util.UUID
+import cats.syntax.functor.*
 import scala.concurrent.duration.FiniteDuration
 
 private case class PendingTask(
@@ -37,9 +38,18 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     keyholderID: UUID,
     deadline: Instant,
   ): IO[PendingTaskModel] =
-    sql"insert into lock_task_deadlines(task, user_id, keyholder_id, deadline) values ($task, $userID, $keyholderID, $deadline)"
-      .updateWithLogHandler(LogHandler.jdkLogHandler)
+    sql"insert into pending_tasks(task, user_id, keyholder_id, deadline) values ($task, $userID, $keyholderID, $deadline)"
+      .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[PendingTask]("id", "task", "user_id", "keyholder_id", "deadline")
       .transact(Bot.xa)
       .flatMap(toModel)
+
+  def remove(
+    id: UUID,
+  ): IO[Unit] =
+    sql"delete from pending_tasks where id = $id"
+      .updateWithLogHandler(Log.handler)
+      .run
+      .void
+      .transact(Bot.xa)
 

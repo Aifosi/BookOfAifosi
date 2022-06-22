@@ -6,6 +6,7 @@ import bookofaifosi.model.event.*
 import cats.effect.{IO, Ref}
 import fs2.Stream
 import bookofaifosi.syntax.stream.*
+import bookofaifosi.syntax.io.*
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.WheelTurnedPayload
 import bookofaifosi.db.Filters.*
@@ -38,39 +39,43 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
     AutoComplete.timeUnit,
   )
 
-  private val addPendingTasks: Stream[IO, Unit] = for
-    LockTaskDeadline(lockID, keyholder, user, deadline, mostRecentEventTime) <- Stream.evalSeq(LockTaskDeadlineRepository.list()).metered(60.seconds).repeat
+  private def addPendingTasks(delay: FiniteDuration): Stream[IO, Unit] = for
+    LockTaskDeadline(lockID, keyholder, user, deadline, mostRecentEventTime) <- Stream.evalSeq(LockTaskDeadlineRepository.list()).metered(delay).repeat
     event <- user.lockHistory(lockID, mostRecentEventTime)
-    _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then LockTaskDeadlineRepository.update(lockID, keyholder.id, deadline, event.createdAt.some) else IO.unit)
+    _ <- Stream.whenF(mostRecentEventTime.forall(_.isBefore(event.createdAt)))(LockTaskDeadlineRepository.update(lockID, keyholder.id, deadline, event.createdAt.some))
     wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
     taskEvent <- Stream.when(wheelTurnedEvent.payload.segment.`type` == "text")(wheelTurnedEvent)
     task = taskEvent.payload.segment.text
-    _ <- Stream.eval(PendingTaskRepository.add(task, user.id, keyholder.id, event.createdAt.plusSeconds(deadline.toSeconds)))
+    _ <- user.sendMessage(s"You have $deadline to finish the task \"$task\"").streamed
+    _ <- PendingTaskRepository.add(task, user.id, keyholder.id, event.createdAt.plusSeconds(deadline.toSeconds)).streamed
   yield ()
 
-  private val notifyDeadlineFailed: Stream[IO, Unit] = for
-    PendingTask(_, task, user, keyholder, deadline) <- Stream.evalSeq(PendingTaskRepository.list()).metered(60.seconds).repeat
-    _ <- Stream.eval {
-      if deadline.isAfter(Instant.now()) then
-        keyholder.sendMessage(s"${user.mention} failed task $task") *> user.sendMessage(s"You failed task $task")
-      else
-        IO.unit
-    }
+  private def notifyDeadlineFailed(delay: FiniteDuration): Stream[IO, Unit] = for
+    PendingTask(id, task, user, keyholder, deadline) <- Stream.evalSeq(PendingTaskRepository.list()).metered(delay).repeat
+    _ <- Stream.filter(deadline.isBefore(Instant.now()))
+    _ <- keyholder.sendMessage(s"${user.mention} failed task $task").streamed
+    _ <- user.sendMessage(s"You failed task $task").streamed
+    _ <- PendingTaskRepository.remove(id).streamed
   yield ()
 
-  override def stream: Stream[IO, Unit] = addPendingTasks.concurrently(notifyDeadlineFailed)
+  override def stream(delay: FiniteDuration): Stream[IO, Unit] = addPendingTasks(delay).concurrently(notifyDeadlineFailed(delay))
 
   override val ephemeralResponses: Boolean = true
+  //TODO Adding new deadline replaces old one
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
     val response = for
-      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalID)).filter(_.isKeyholder).toRight(s"You need to register as a keyholder use this command, please use `/${RegisterKeyholder.fullCommand}` to do so.")
+      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalID)).filter(_.isKeyholder)
+        .toRight(s"You need to register as a keyholder use this command, please use `/${RegisterKeyholder.fullCommand}` to do so.")
       lockTitle = event.getOption[String]("lock")
-      lock <- OptionT(keyHolder.keyholderLocks.find(_.title == lockTitle).compile.last).toRight(s"Can't find lock with name $lockTitle")
-      user <- OptionT(RegisteredUserRepository.find(lock.user.username.equalChasterName)).toRight(s"Your lockee needs to register as a wearer use this command, it can be done using `/${RegisterWearer.fullCommand}`.")
+      lock <- OptionT(keyHolder.keyholderLocks.find(_.title == lockTitle).compile.last)
+        .toRight(s"Can't find lock with name $lockTitle")
+      user <- OptionT(RegisteredUserRepository.find(lock.user.username.equalChasterName))
+        .toRight(s"Your lockee needs to register as a wearer use this command, it can be done using `/${RegisterWearer.fullCommand}`.")
       lockId = lock._id
       duration = event.getOption[Long]("deadline")
       unitName = event.getOption[String]("unit")
-      unit <- OptionT.fromOption(AutoComplete.timeUnits.get(unitName)).toRight(s"Invalid unit \"$unitName\"")
+      unit <- OptionT.fromOption(AutoComplete.timeUnits.get(unitName))
+        .toRight(s"Invalid unit \"$unitName\"")
       deadLine = FiniteDuration(duration, unit)
       mostRecentEvent <- EitherT(user.lockHistory(lockId).take(1).compile.last.attempt).leftMap(_ => s"Invalid lock id $lockId")
       _ <- EitherT.liftF(LockTaskDeadlineRepository.add(lockId, keyHolder.id, user.id, deadLine, mostRecentEvent.map(_.createdAt)))
