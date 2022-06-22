@@ -2,6 +2,7 @@ package bookofaifosi.db
 
 import bookofaifosi.Bot
 import bookofaifosi.db.Filters.*
+import bookofaifosi.model.DiscordID
 import cats.effect.IO
 import doobie.{ConnectionIO, Fragment, Get, Put}
 import doobie.implicits.*
@@ -15,9 +16,14 @@ import cats.syntax.traverse.*
 import java.util.UUID
 import scala.concurrent.duration.*
 import scala.util.chaining.*
+import bookofaifosi.model.DiscordID
+import bookofaifosi.model.toLong
 
 given Get[FiniteDuration] = Get[Long].map(_.seconds)
 given Put[FiniteDuration] = Put[Long].contramap(_.toSeconds)
+
+given Get[DiscordID] = Get[Long].map(DiscordID(_))
+given Put[DiscordID] = Put[Long].contramap(_.toLong)
 
 type Filter = Option[Fragment]
 
@@ -36,20 +42,20 @@ object Filters:
   extension (id: Option[UUID])
     def equalID: Filter = id.flatMap(_.equalID)
 
-  extension (id: Long)
+  extension (id: DiscordID)
     def equalID: Filter = fr"discord_id = $id".some
 
-  extension (name: String)
-    def similarName: Filter = fr"name ILIKE $name".some
-    def similarPartialName: Filter = fr"name ILIKE ${s"%$name%"}".some
-    def equalName: Filter = fr"name = $name".some
-    def equalChasterName: Filter = fr"chaster_name = $name".some
+  extension (string: String)
+    def similarName: Filter = fr"name ILIKE $string".some
+    def similarPartialName: Filter = fr"name ILIKE ${s"%$string%"}".some
+    def equalName: Filter = fr"name = $string".some
+    def equalChasterName: Filter = fr"chaster_name = $string".some
+    def equalUserType: Filter = fr"user_type = $string".some
 
   extension (name: Option[String])
     def similarName: Filter = name.flatMap(_.similarName)
     def similarPartialName: Filter = name.flatMap(_.similarPartialName)
     def equalName: Filter = name.flatMap(_.equalName)
-
 
   def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${description.orNull}")
 

@@ -15,6 +15,5 @@ class RegisteredUser(
   val expiresAt: Instant = dbUser.expiresAt
   val refreshToken: String = dbUser.refreshToken
   val scope: String = dbUser.scope
-  lazy val scopes: Array[String] = scope.split(" ")
-  lazy val isWearer: Boolean = scopes.contains("locks")
-  lazy val isKeyholder: Boolean = scopes.contains("keyholder")
+  lazy val isWearer: Boolean = dbUser.isWearer
+  lazy val isKeyholder: Boolean = dbUser.isKeyholder

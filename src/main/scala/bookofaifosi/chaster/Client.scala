@@ -1,7 +1,7 @@
 package bookofaifosi.chaster
 
 import bookofaifosi.{Bot, Registration}
-import bookofaifosi.db.{RegisteredUserRepository, UserRepository, User as DBUser}
+import bookofaifosi.db.{RegisteredUserRepository, User as DBUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.chaster.*
 import bookofaifosi.model.RegisteredUser
@@ -66,13 +66,6 @@ object Client:
 
   def expect[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Bot.client.get.flatMap(_.expect[A](req))
 
-  def expectAuthenticated[A](user: RegisteredUser, req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
-    for
-      user <- user.updatedAccessToken
-      request = req.putHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken)))
-      response <- expect[A](request)
-    yield response
-
   def token(formData: (String, String)*): IO[AccessToken] =
     for
       client <- Bot.client.get
@@ -107,8 +100,12 @@ object Client:
           )
           user <- RegisteredUserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         yield user
-
-    private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] = Client.expectAuthenticated(user, req)
+    private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
+      for
+        user <- user.updatedAccessToken
+        request = req.putHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken)))
+        response <- expect[A](request)
+      yield response
 
     private def getAll[A <: WithID: Decoder](uri: Uri): Stream[IO, A] =
       for
@@ -171,3 +168,9 @@ object Client:
         }.metered(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
+    def modifyTime(lock: String, modification: FiniteDuration): IO[Unit] =
+      val seconds = modification.toSeconds
+      if seconds < 0 && !user.isKeyholder then
+        IO.raiseError(new Exception("Only keyholders can remove time."))
+      else
+        expectUserAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))

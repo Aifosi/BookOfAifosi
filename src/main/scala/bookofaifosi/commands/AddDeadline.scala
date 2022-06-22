@@ -18,7 +18,7 @@ import java.time.Instant
 import scala.concurrent.duration.*
 
 object AddDeadline extends SlashCommand with Options with AutoCompleteString with Streams with SlowResponse:
-  override val defaultEnabled: Boolean = true
+  override val defaultEnabled: Boolean = false
   override val fullCommand: String = "keyholder add deadline"
   override val description: String = "Lets you add a deadline to a wearer's lock tasks."
 

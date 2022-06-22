@@ -1,7 +1,9 @@
 package bookofaifosi.model.event
 
 import cats.effect.IO
+import cats.syntax.traverse.*
 import bookofaifosi.model.*
+import cats.data.OptionT
 import net.dv8tion.jda.api.JDA
 import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}
 
@@ -16,11 +18,15 @@ abstract class Event(
   jdaGuild: Option[JDAGuild],
 ):
   lazy val author: User = new User(jdaAuthor)
-  lazy val authorMember: Option[Member] = jdaMember.map(new Member(_)).orElse(author.member)
+  lazy val authorMember: IO[Member] =
+    OptionT.fromOption(jdaMember.map(new Member(_)))
+      .orElseF(guild.traverse(author.member))
+      .value
+      .flatMap(IO.fromOption(_)(new Exception(s"Failed to get member of event")))
   lazy val channel: Channel = new Channel(jdaChannel)
   lazy val fromBot: Boolean = author.isBot
   lazy val guild: Option[Guild] = jdaGuild.map(new Guild(_))
-  lazy val jda: JDA = jdaAuthor.getJDA
+  lazy val discord: Discord = new Discord(jdaAuthor.getJDA)
 
   def reply(string: String): IO[Unit] = channel.sendMessage(string).void
 

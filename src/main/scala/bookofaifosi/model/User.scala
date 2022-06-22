@@ -3,17 +3,17 @@ package bookofaifosi.model
 import java.net.URL
 
 import cats.effect.IO
+import cats.syntax.traverse.*
 import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.entities.User as JDAUser
 import compiletime.asMatchable
 import scala.jdk.CollectionConverters.*
 
 open class User(private[model] val user: JDAUser):
-  lazy val discordID: Long = user.getIdLong
-  lazy val mention: String = s"<@!$discordID>"
+  lazy val discordID: DiscordID = user.getIdLong
+  lazy val mention: String = user.getAsMention//s"<@!$discordID>"
   lazy val name: String = user.getName
   lazy val tag: String = user.getAsTag
-  def getNameIn(guild: Guild): String = guild.getMember(this).flatMap(_.nickname).getOrElse(name)
   lazy val avatarURL: URL = new URL(user.getAvatarUrl)
   lazy val isBot: Boolean = user.isBot
 
@@ -21,14 +21,13 @@ open class User(private[model] val user: JDAUser):
 
   def sendMessage(message: String): IO[Message] = privateChannel.flatMap(_.sendMessage(message))
 
-  def voiceChannel: Option[VoiceChannel] = user.getJDA.getVoiceChannels.asScala.toList.collectFirst {
-    case channel if channel.getMembers.asScala.exists(_.getUser.getIdLong == user.getIdLong) =>
-      new VoiceChannel(channel)
-  }
+  def member(guild: Guild): IO[Member] = guild.getMember(this)
 
-  def member: Option[Member] = voiceChannel.flatMap(_.members.find(_.id == discordID))
+  def getNameIn(guild: Guild): IO[String] = member(guild).map(_.effectiveName)
 
-  def isSelfMuted: Option[Boolean] = member.map(_.isSelfMuted)
+  def addRole(guild: Guild, role: Role): IO[Unit] = member(guild).flatMap(_.addRole(role))
+
+  def removeRole(guild: Guild, role: Role): IO[Unit] = member(guild).flatMap(_.removeRole(role))
 
   override def toString: String = s"$tag($discordID)"
 

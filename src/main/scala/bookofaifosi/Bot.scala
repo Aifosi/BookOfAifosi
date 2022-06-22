@@ -21,11 +21,10 @@ import org.http4s.dsl.io.*
 import org.http4s.client.*
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-
 import scala.concurrent.duration.*
 
-//https://discord.com/api/oauth2/authorize?client_id=987840268726312970&permissions=139586750528&scope=bot
-//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=377986731072
+//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992185408
+//Needs Manage Roles
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
@@ -59,6 +58,8 @@ object Bot extends IOApp:
     RegisterKeyholder,
     Subscribe,
     commands.AddDeadline,
+    RoleSetWearer,
+    RoleSetKeyholder,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -82,6 +83,7 @@ object Bot extends IOApp:
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
+    //jda.deleteCommandById(988593784617058384L).toIO *>
     SlashPattern.buildCommands(slashCommands.map(_.pattern)).traverse_ { data =>
       jda.upsertCommand(data).toIO
     }

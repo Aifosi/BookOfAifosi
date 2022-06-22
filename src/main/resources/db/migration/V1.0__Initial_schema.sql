@@ -32,6 +32,8 @@ CREATE TABLE users (
   expires_at    timestamp WITH TIME ZONE NOT NULL,
   refresh_token text                     NOT NULL,
   scope         text                     NOT NULL,
+  is_wearer     boolean                  NOT NULL,
+  is_keyholder  boolean                  NOT NULL,
   created_at    timestamp WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at    timestamp WITH TIME ZONE NOT NULL DEFAULT NOW(),
   UNIQUE (chaster_name, discord_id)
@@ -65,4 +67,11 @@ CREATE TABLE lock_task_deadlines (
   created_at             timestamp WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at             timestamp WITH TIME ZONE NOT NULL DEFAULT NOW(),
   PRIMARY KEY (lock_id, keyholder_id)
+);
+
+CREATE TABLE user_roles (
+  guild_discord_id bigint NOT NULL,
+  role_discord_id  bigint NOT NULL,
+  user_type        text   NOT NULL,
+  PRIMARY KEY (guild_discord_id, role_discord_id, user_type)
 );

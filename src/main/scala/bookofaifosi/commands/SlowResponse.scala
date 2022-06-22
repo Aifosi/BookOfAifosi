@@ -12,7 +12,7 @@ trait SlowResponse:
   override final def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     def switchToHook(slashAPI: Ref[IO, SlashAPI], repliedRef: Ref[IO, Boolean]) =
       for
-        _ <- IO.sleep(3.seconds)
+        _ <- IO.sleep(2.seconds)
         replied <- repliedRef.get
         _ <- if !replied then
           slashAPI.set(event.hook) *> event.deferReply(ephemeralResponses) *> repliedRef.set(true)

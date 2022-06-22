@@ -5,7 +5,7 @@ import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
 import bookofaifosi.commands.PatternOption
 import bookofaifosi.model.{TaskSubscription, User}
-import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, UserRepository, User as DBUser}
+import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, User as DBUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
@@ -20,7 +20,7 @@ import java.time.Instant
 import scala.concurrent.duration.*
 
 object Subscribe extends SlashCommand with Options with AutoCompleteString with Streams with SlowResponse:
-  override val defaultEnabled: Boolean = true
+  override val defaultEnabled: Boolean = false
   override val fullCommand: String = "wearer subscribe tasks"
   override val options: List[PatternOption] = List(
     _.addOption[String]("lock", "The lock you want to get messages about.", autoComplete = true)

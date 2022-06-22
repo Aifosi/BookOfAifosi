@@ -1,6 +1,7 @@
 package bookofaifosi.commands
 
 import bookofaifosi.Registration
+import bookofaifosi.Registration.Role
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
 import scala.concurrent.duration.*
@@ -13,7 +14,8 @@ object RegisterKeyholder extends SlashCommand:
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val timeout = 10.minutes
     for
-      uri <- Registration.register(event.author, timeout, "profile keyholder shared_locks")
+      authorMember <- event.authorMember
+      uri <- Registration.register(authorMember, timeout, Role.Keyholder)
       _ <- event.replyEphemeral(s"To complete registration please visit $uri, this link expires in $timeout")
     yield true
 

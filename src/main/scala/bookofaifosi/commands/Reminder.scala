@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.*
 
 object Reminder extends SlashCommand with Options with AutoCompleteString:
-  override val defaultEnabled: Boolean = true
+  override val defaultEnabled: Boolean = false
   override val fullCommand: String = "reminder create"
   override val options: List[PatternOption] = List(
     _.addOption[String]("name", "Name of the reminder."),

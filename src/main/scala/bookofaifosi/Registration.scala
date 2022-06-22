@@ -3,9 +3,10 @@ package bookofaifosi
 import bookofaifosi.Bot
 import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser}
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.db.{RegisteredUserRepository, UserRepository}
+import bookofaifosi.db.{RegisteredUserRepository, UserRoleRepository}
 import bookofaifosi.db.Filters.*
-import bookofaifosi.model.{RegisteredUser, User}
+import bookofaifosi.db.given_Put_DiscordID
+import bookofaifosi.model.{DiscordID, Guild, Member, RegisteredUser, User, UserRole}
 import cats.effect.{IO, Ref}
 import doobie.syntax.connectionio.*
 import io.circe.Decoder
@@ -15,7 +16,10 @@ import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.Method.*
 import org.http4s.client.dsl.io.*
 import org.http4s.headers.{Authorization, Location}
+import cats.syntax.option.*
 import cats.syntax.applicative.*
+import doobie.syntax.string.*
+import doobie.{Get, Put}
 import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
@@ -23,7 +27,15 @@ import scala.util.Try
 import bookofaifosi.syntax.logger.*
 
 object Registration:
-  private val registrations: Ref[IO, Map[UUID, (User, String)]] = Ref.unsafe(Map.empty)
+  enum Role(val scope: String):
+    case Wearer extends Role("profile locks")
+    case Keyholder extends Role("profile keyholder shared_locks")
+
+  object Role:
+    given Put[Role] = Put[String].contramap(_.toString.toLowerCase)
+
+
+  private val registrations: Ref[IO, Map[UUID, (Member, String, Role)]] = Ref.unsafe(Map.empty)
 
   given QueryParamDecoder[UUID] = QueryParamDecoder[String].emap(uuid => Try(UUID.fromString(uuid)).toEither.left.map(error => new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)))
   private object CodeParamMatcher extends QueryParamDecoderMatcher[String]("code")
@@ -35,7 +47,7 @@ object Registration:
 
   def addOrUpdateScope(
     chasterName: String,
-    discordID: Long,
+    discordID: DiscordID,
     accessToken: String,
     expiresAt: Instant,
     refreshToken: String,
@@ -52,7 +64,7 @@ object Registration:
 
   val routes: HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
-      def requestAccessToken(user: User): IO[Unit] = for
+      def requestAccessToken(member: Member, role: Role): IO[Unit] = for
         httpClient <- Bot.client.get
         accessToken <- Client.token(
           "grant_type" -> "authorization_code",
@@ -61,15 +73,22 @@ object Registration:
         )
         profileUri = Uri.unsafeFromString("https://api.chaster.app/auth/profile")
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
-        _ <- addOrUpdateScope(profile.username, user.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+        registeredUser <- addOrUpdateScope(profile.username, member.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         _ <- registrations.update(_ - uuid)
-        _ <- Bot.logger.info(s"Registration successful for $user -> ${profile.username}, UUID: $uuid")
+        //guild_discord_id, role_discord_id, user_type
+        guildRole <- UserRoleRepository.find(fr"guild_discord_id = ${member.guild.discordID}".some, fr"user_type = $role".some)
+        _ <- guildRole.fold(IO.unit)(role => member.addRole(role.role))
+        _ <- Bot.logger.info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
       yield ()
 
       registrations.get.flatMap {
         case registrations if !registrations.contains(uuid) => ExpectationFailed()
         case registrations                                  =>
-          requestAccessToken(registrations(uuid)._1).start *> Ok("Registration Successful")
+          val (member, _, role) = registrations(uuid)
+          for
+            registeredUser <- requestAccessToken(member, role).start
+            response <- Ok("Registration Successful")
+          yield response
       }
     case GET -> Root / "register" / "authenticate" :? UUIDParamMatcher(uuid) =>
       registrations.get.flatMap {
@@ -83,13 +102,13 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def register(user: User, timeout: FiniteDuration, scope: String): IO[Uri] =
+  def register(member: Member, timeout: FiniteDuration, role: Role): IO[Uri] =
     for
       uuid <- IO(UUID.randomUUID())
-      _ <- Bot.logger.info(s"Starting registration for $user, UUID: $uuid, scope: $scope")
-      registeredUser <- RegisteredUserRepository.find(user.discordID.equalID)
-      fullScope = registeredUser.fold(scope)(user => joinScopes(user.scope, scope))
-      _ <- registrations.update(_ + (uuid -> (user, fullScope)))
+      _ <- Bot.logger.info(s"Starting registration for $member, UUID: $uuid, role: $role")
+      registeredUser <- RegisteredUserRepository.find(member.discordID.equalID)
+      fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.scope, role.scope))
+      _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))
       _ <- invalidateRegistration(uuid, timeout)
       authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
     yield authenticateUri

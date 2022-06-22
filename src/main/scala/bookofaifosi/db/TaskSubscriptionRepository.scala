@@ -5,7 +5,6 @@ import bookofaifosi.chaster.Client
 import bookofaifosi.db.mkFragment
 import bookofaifosi.db.Filters.*
 import bookofaifosi.model.{TaskSubscription as TaskSubscriptionModel, User}
-import bookofaifosi.db.UserRepository
 import cats.effect.IO
 import doobie.{ConnectionIO, Fragment}
 import doobie.syntax.string.*
