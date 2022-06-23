@@ -19,7 +19,7 @@ import io.circe.Json
 import java.time.Instant
 import scala.concurrent.duration.*
 
-object Subscribe extends SlashCommand with Options with AutoCompleteString with Streams with SlowResponse:
+object Subscribe extends SlashCommand with Options with AutoCompleteString with RepeatedStreams with SlowResponse:
   override val defaultEnabled: Boolean = false
   override val fullCommand: String = "wearer subscribe tasks"
   override val options: List[PatternOption] = List(
@@ -28,7 +28,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   private def lockNames(user: User): IO[List[String]] =
     (for
-      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalID))
+      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalUserID))
       lock <- Stream.evalSeq(user.locks)
     yield lock.title).compile.toList
 
@@ -36,9 +36,10 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     "lock" -> ((event: AutoCompleteEvent) => lockNames(event.author))
   )
 
-  override def stream(delay: FiniteDuration): Stream[IO, Unit] =
+  override def repeatedStream(delay: FiniteDuration): Stream[IO, Unit] =
     for
-      subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list()).metered(delay).repeat
+      _ <- Stream.awakeEvery[IO](delay)
+      subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list())
       event <- registeredUser.lockHistory(lockID, mostRecentEventTime)
       _ <- Stream.eval(if mostRecentEventTime.forall(_.isBefore(event.createdAt)) then TaskSubscriptionRepository.update(registeredUser.id, lockID, event.createdAt.some) else IO.unit)
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
@@ -51,7 +52,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
     val response = for
-      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
+      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalUserID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id

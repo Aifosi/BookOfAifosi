@@ -15,18 +15,13 @@ import doobie.syntax.connectionio.*
 import bookofaifosi.db.Filters.*
 
 object TagRepository extends Repository[Tag]:
-  override protected val selectAll = fr"select name, description from tags"
+  override protected val table: Fragment = fr"tags"
+  override protected val selectColumns: Fragment = fr"name, description"
   def add(name: String, description: Option[String]): IO[Unit] =
     sql"insert into tags(name, description) values ($name, $description)"
       .updateWithLogHandler(Log.handler)
       .run
       .void
-      .transact(Bot.xa)
-
-  def remove(name: String): IO[Int] =
-    sql"delete from tags where name = $name"
-      .updateWithLogHandler(Log.handler)
-      .run
       .transact(Bot.xa)
 
   def update(name: String, newName: Option[String], newDescription: Option[Option[String]]): IO[Int] =

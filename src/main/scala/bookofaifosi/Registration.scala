@@ -25,11 +25,13 @@ import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
 import bookofaifosi.syntax.logger.*
+import bookofaifosi.db.Filter
 
 object Registration:
   enum Role(val scope: String):
     case Wearer extends Role("profile locks")
     case Keyholder extends Role("profile keyholder shared_locks")
+    def equalUserType: Filter = fr"user_type = $this".some
 
   object Role:
     given Put[Role] = Put[String].contramap(_.toString.toLowerCase)
@@ -55,7 +57,7 @@ object Registration:
   ): IO[RegisteredUser] =
     RegisteredUserRepository.add(chasterName, discordID, accessToken, expiresAt, refreshToken, scope).attempt.flatMap {
       _.fold(
-        throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
+        throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalUserID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
           RegisteredUserRepository.update(user.id, accessToken, expiresAt, refreshToken, joinScopes(user.scope, scope))
         }),
         _.pure
@@ -75,8 +77,7 @@ object Registration:
         profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
         registeredUser <- addOrUpdateScope(profile.username, member.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
         _ <- registrations.update(_ - uuid)
-        //guild_discord_id, role_discord_id, user_type
-        guildRole <- UserRoleRepository.find(fr"guild_discord_id = ${member.guild.discordID}".some, fr"user_type = $role".some)
+        guildRole <- UserRoleRepository.find(member.guild.discordID.equalGuildID, role.equalUserType)
         _ <- guildRole.fold(IO.unit)(role => member.addRole(role.role))
         _ <- Bot.logger.info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
       yield ()
@@ -106,7 +107,7 @@ object Registration:
     for
       uuid <- IO(UUID.randomUUID())
       _ <- Bot.logger.info(s"Starting registration for $member, UUID: $uuid, role: $role")
-      registeredUser <- RegisteredUserRepository.find(member.discordID.equalID)
+      registeredUser <- RegisteredUserRepository.find(member.discordID.equalUserID)
       fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.scope, role.scope))
       _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))
       _ <- invalidateRegistration(uuid, timeout)

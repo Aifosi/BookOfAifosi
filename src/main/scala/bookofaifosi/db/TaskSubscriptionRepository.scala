@@ -25,7 +25,8 @@ case class TaskSubscription(
 )
 
 object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, TaskSubscriptionModel]:
-  override protected val selectAll: Fragment = fr"select user_id, lock_id, most_recent_event_time from task_subscriptions"
+  override protected val table: Fragment = fr"task_subscriptions"
+  override protected val selectColumns: Fragment = fr"user_id, lock_id, most_recent_event_time"
 
   override def toModel(taskSubscription: TaskSubscription): IO[TaskSubscriptionModel] =
     for

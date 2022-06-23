@@ -60,6 +60,9 @@ object Bot extends IOApp:
     commands.AddDeadline,
     RoleSetWearer,
     RoleSetKeyholder,
+    EnablePilloryBitches,
+    DisablePilloryBitches,
+    PilloryChecker,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -75,7 +78,7 @@ object Bot extends IOApp:
     case command: AutoCompletable => command
   }
   lazy val commandStreams: Stream[IO, Unit] = allCommands.collect {
-    case command: Streams => command.stream(config.checkFrequency)
+    case command: Streams => command.stream
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =
@@ -83,10 +86,10 @@ object Bot extends IOApp:
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
-    //jda.deleteCommandById(988593784617058384L).toIO *>
-    SlashPattern.buildCommands(slashCommands.map(_.pattern)).traverse_ { data =>
+    //jda.deleteCommandById(989318936577310770L).toIO *>
+    SlashPattern.buildCommands(slashCommands.map(_.pattern)).parTraverse_ { data =>
       jda.upsertCommand(data).toIO
-    }
+    } *> Bot.logger.info("All Slash commands registered.")
 
   val httpServer: Stream[IO, ExitCode] = BlazeServerBuilder[IO]
     .bindHttp(config.port, config.host)
@@ -99,11 +102,11 @@ object Bot extends IOApp:
       _ <- Bot.logger.complete(logger).streamed
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Bot.client.complete(client).streamed
+      _ <- logger.info("HTTP client acquired.").streamed
       _ <- runMigrations.streamed
       jda <- jdaIO.streamed
       _ <- Bot.discord.complete(new Discord(jda)).streamed
-      _ <- registerSlashCommands(jda).streamed
-      exitCode <- httpServer
-        .concurrently(commandStreams)
-        .concurrently(Stream.eval(logger.info("Loading Finished")))
+      _ <- logger.info("Loaded JDA").streamed
+      _ <- registerSlashCommands(jda).start.streamed
+      exitCode <- httpServer.concurrently(commandStreams)
     yield exitCode).compile.lastOrError

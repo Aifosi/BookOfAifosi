@@ -57,7 +57,7 @@ case class Lock(
   _id: String,
   endDate: Option[String],
   title: String,
-  totalDuration: Int, //The total duration, since the creation of the lock, in seconds
+  totalDuration: Long, //The total duration, since the creation of the lock, in seconds
   user: User,
   keyholder: Option[User],
   sharedLock: Option[SharedLock],
@@ -76,14 +76,14 @@ case class Lock(
 
 case class SharedLock (
   _id: String,
-  minDuration: Int, //Seconds
-  maxDuration: Int, //Seconds
-  calculatedMaxLimitDuration: Option[Int],
+  minDuration: Long, //Seconds
+  maxDuration: Long, //Seconds
+  calculatedMaxLimitDuration: Option[Long],
   user: User,
   requirePassword: Boolean,
   //durationMode: String, //[ duration, date ]
   password: Option[String],
-  maxLimitDuration: Option[Int],
+  maxLimitDuration: Option[Long],
   minDate: Option[Instant],
   maxDate: Option[Instant],
   maxLimitDate: Option[Instant],
@@ -136,6 +136,19 @@ case class Segment(
 case class WheelTurnedPayload(
   segment: Segment
 ) derives Decoder
+
+case class Data (
+  voteEndsAt: Instant,
+  createdAt: Option[Instant]
+) derives Decoder
+
+case class Post(
+  _id: String,
+  lock: Lock,
+  `type`: String,
+  user: User,
+  data: Data
+) extends WithID derives Decoder
 
 case class KeyholderLockSearch(
   status: String,

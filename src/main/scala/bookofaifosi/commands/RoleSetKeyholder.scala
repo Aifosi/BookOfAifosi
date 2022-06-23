@@ -20,9 +20,9 @@ object RoleSetKeyholder extends SlashCommand with Options:
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val role = event.getOption[Role]("role")
     for
-      keyholders <- RegisteredUserRepository.list(fr"is_keyholder = true".some)
+      keyholders <- RegisteredUserRepository.list(isKeyholder)
       guild = event.guild.get
-      existingUserRole <- UserRoleRepository.find(fr"guild_discord_id = ${guild.discordID}".some, fr"role_discord_id = ${role.discordID}".some, fr"user_type = 'keyholder'".some)
+      existingUserRole <- UserRoleRepository.find(guild.discordID.equalGuildID, role.discordID.equalRoleID, fr"user_type = 'keyholder'".some)
       _ <- existingUserRole.traverse_(userRole => keyholders.traverse_(_.removeRole(guild, userRole.role)))
       _ <- UserRoleRepository.addOrUpdate(guild.discordID, role.discordID, "keyholder")
       _ <- existingUserRole.traverse_(userRole => keyholders.traverse_(_.addRole(guild, role)))

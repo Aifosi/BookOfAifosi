@@ -19,7 +19,8 @@ case class UserRole(
 )
 
 object UserRoleRepository extends ModelRepository[UserRole, UserRoleModel]:
-  override protected val selectAll: Fragment = fr"select guild_discord_id, role_discord_id, user_type from user_roles"
+  override protected val table: Fragment = fr"user_roles"
+  override protected val selectColumns: Fragment = fr"guild_discord_id, role_discord_id, user_type"
 
   override def toModel(userRole: UserRole): IO[UserRoleModel] =
     for
@@ -61,15 +62,4 @@ object UserRoleRepository extends ModelRepository[UserRole, UserRoleModel]:
     sql"update user_roles set role_discord_id = $newRoleID where guild_discord_id = $guildID and role_discord_id = $roleID and user_type = $userType"
       .updateWithLogHandler(Log.handler)
       .withUniqueGeneratedKeys[UserRole]("guild_discord_id", "role_discord_id", "user_type")
-      .transact(Bot.xa)
-
-  def remove(
-    guildID: DiscordID,
-    roleID: DiscordID,
-    userType: String,
-  ): IO[Unit] =
-    sql"delete from user_roles where guild_discord_id = $guildID and role_discord_id = $roleID and user_type = $userType"
-      .updateWithLogHandler(Log.handler)
-      .run
-      .void
       .transact(Bot.xa)

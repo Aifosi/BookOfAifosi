@@ -25,7 +25,8 @@ case class LockTaskDeadline(
 )
 
 object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, LockTaskDeadlineModel]:
-  override protected val selectAll: Fragment = fr"select lock_id, keyholder_id, user_id, deadline, most_recent_event_time from lock_task_deadlines"
+  override protected val table: Fragment = fr"lock_task_deadlines"
+  override protected val selectColumns: Fragment = fr"lock_id, keyholder_id, user_id, deadline, most_recent_event_time"
   override def toModel(lockTaskDeadline: LockTaskDeadline): IO[LockTaskDeadlineModel] =
     for
       keyholder <- RegisteredUserRepository.get(lockTaskDeadline.keyholderID.equalID)
@@ -44,16 +45,6 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
       .withUniqueGeneratedKeys[LockTaskDeadline]("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
       .transact(Bot.xa)
       .flatMap(toModel)
-
-  def remove(
-    lockID: String,
-    keyholderID: UUID,
-  ): IO[Unit] =
-    sql"delete from lock_task_deadlines where lock_id = $lockID and keyholder_id = $keyholderID"
-      .updateWithLogHandler(Log.handler)
-      .run
-      .void
-      .transact(Bot.xa)
 
   def update(
     lockID: String,

@@ -11,6 +11,7 @@ case class Configuration(
   publicHost: String,
   port: Int,
   checkFrequency: FiniteDuration,
+  pilloryBitchesFrequency: FiniteDuration,
 ) derives ConfigReader
 
 object Configuration:

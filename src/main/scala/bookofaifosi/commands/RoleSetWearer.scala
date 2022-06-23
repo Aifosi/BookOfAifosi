@@ -22,9 +22,9 @@ object RoleSetWearer extends SlashCommand with Options:
   override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
     val role = event.getOption[Role]("role")
     for
-      wearers <- RegisteredUserRepository.list(fr"is_wearer = true".some)
+      wearers <- RegisteredUserRepository.list(isWearer)
       guild = event.guild.get
-      existingUserRole <- UserRoleRepository.find(fr"guild_discord_id = ${guild.discordID}".some, fr"role_discord_id = ${role.discordID}".some, fr"user_type = 'wearer'".some)
+      existingUserRole <- UserRoleRepository.find(guild.discordID.equalGuildID, role.discordID.equalRoleID, fr"user_type = 'wearer'".some)
       _ <- existingUserRole.traverse_(userRole => wearers.traverse_(_.removeRole(guild, userRole.role)))
       _ <- UserRoleRepository.addOrUpdate(guild.discordID, role.discordID, "wearer")
       _ <- existingUserRole.traverse_(userRole => wearers.traverse_(_.addRole(guild, role)))

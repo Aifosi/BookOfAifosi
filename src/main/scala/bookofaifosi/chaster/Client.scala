@@ -121,7 +121,7 @@ object Client:
               val next = client.expect[Result[A]](POST(WithLastID(lastID.some), uri, authorization))
               (result.results, next.map(_ -> continue)).some
           }
-        }.metered(60.seconds / 200)
+        }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
 
@@ -141,7 +141,7 @@ object Client:
               val next = client.expect[Result[A]](POST(createBody(lastID.some), uri, authorization))
               (result.results, next.map(_ -> continue)).some
           }
-        }.metered(60.seconds / 200)
+        }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
 
@@ -151,7 +151,7 @@ object Client:
     def lockHistory(id: String, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =
       getAll[Event[Json]](API / "locks" / id / "history")
         .takeWhile(event => eventsAfter.forall(_.isBefore(event.createdAt)))
-    def keyholderLocks: Stream[IO, Lock] = //getAll[Lock](API / "keyholder" / "locks" / "search")
+    def keyholderLocks: Stream[IO, Lock] =
       for
         user <- Stream.eval(user.updatedAccessToken)
         client <- Stream.eval(Bot.client.get)
@@ -165,7 +165,7 @@ object Client:
               val next = client.expect[PagesResult[Lock]](POST(Paged(newPage), uri, authorization))
               (result.locks, next.map(_ -> newPage)).some
           }
-        }.metered(60.seconds / 200)
+        }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
     def modifyTime(lock: String, modification: FiniteDuration): IO[Unit] =
@@ -174,3 +174,5 @@ object Client:
         IO.raiseError(new Exception("Only keyholders can remove time."))
       else
         expectUserAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))
+    def posts: Stream[IO, Post] = getAll[Post](API / "posts")
+    def post(id: String): IO[Post] = expectUserAuthenticated[Post](GET(API / "posts" / id))

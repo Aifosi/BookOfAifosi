@@ -24,7 +24,8 @@ private case class PendingTask(
 )
 
 object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskModel]:
-  override protected val selectAll: Fragment = fr"select id, task, user_id, keyholder_id, deadline from pending_tasks"
+  override protected val table: Fragment = fr"pending_tasks"
+  override protected val selectColumns: Fragment = fr"id, task, user_id, keyholder_id, deadline"
 
   override def toModel(pendingTask: PendingTask): IO[PendingTaskModel] =
     for
@@ -43,13 +44,3 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
       .withUniqueGeneratedKeys[PendingTask]("id", "task", "user_id", "keyholder_id", "deadline")
       .transact(Bot.xa)
       .flatMap(toModel)
-
-  def remove(
-    id: UUID,
-  ): IO[Unit] =
-    sql"delete from pending_tasks where id = $id"
-      .updateWithLogHandler(Log.handler)
-      .run
-      .void
-      .transact(Bot.xa)
-
