@@ -36,7 +36,6 @@ jobs:
           host: ${{ secrets.HOST }}
           port: ${{ secrets.PORT }}
           username: ${{ secrets.USERNAME }}
-          passphrase: ${{ secrets.PASSPHRASE }}
           key: ${{ secrets.KEY }}
           script: |
             docker pull aifosi/bookofaifosi
