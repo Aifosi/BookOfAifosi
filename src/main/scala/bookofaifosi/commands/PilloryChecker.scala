@@ -46,31 +46,29 @@ object PilloryChecker extends TextCommand with Streams:
       _ <- channel.sendMessage(winnerMessage).streamed
     yield ()
 
-  private def validatePost(post: Post, user: RegisteredUser): IO[Boolean] =
-    val userSubmitted = post.user.username == user.chasterName
-    val votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
+  private def validatePost(post: Post, user: RegisteredUser): EitherT[IO, String, ()] =
     val notTooOld = post.data.voteEndsAt.isAfter(Instant.now.minus(1, ChronoUnit.DAYS))
-    if notTooOld && ((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded)) then
-      for
-        alreadySubmitted <- PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).map(_.isDefined)
-        keyholderIsRegistered <- post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
-          RegisteredUserRepository.find(keyholder.username.equalChasterName).map(_.isDefined)
-        }
-      yield !alreadySubmitted && keyholderIsRegistered
-    else
-      IO.pure(false)
+    for
+      _ <- EitherT.cond(notTooOld, (), "Pillory is too old, must not be older than 1 day.")
+      userSubmitted = post.user.username == user.chasterName
+      votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
+      _ <- EitherT.cond((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded), (), "You must either submit one of your  pillories after it ended or someone else's before it ends.")
+      alreadySubmitted <- EitherT.liftF(PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).map(_.isDefined))
+      _ <- EitherT.cond(!alreadySubmitted, (), "That pillory was already submitted.")
+      keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
+        RegisteredUserRepository.find(keyholder.username.equalChasterName).map(_.isDefined)
+      })
+      _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered as a keyholder.")
+    yield ()
 
   private def addReaction(post: Post, user: RegisteredUser, channel: Channel, event: MessageEvent): IO[Unit] =
     if channel.discordID != event.channel.discordID then
       event.message.addReaction("\uD83D\uDEAB")
     else
-      for
-        valid <- validatePost(post, user)
-        _ <- if valid then
-          event.message.addReaction("✅") *> PilloryLinkRepository.add(user.id, event.guild.get.discordID, post._id)
-        else
-          event.message.addReaction("❌")
-      yield ()
+      validatePost(post, user).foldF(
+        failReason => event.message.addReaction("❌") *> user.sendMessage(failReason),
+        _ => event.message.addReaction("✅") *> PilloryLinkRepository.add(user.id, event.guild.get.discordID, post._id)
+      ).void
 
   override def apply(pattern: Regex, event: MessageEvent): IO[Boolean] =
     (for

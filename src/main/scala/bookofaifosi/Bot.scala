@@ -26,6 +26,7 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scala.concurrent.duration.*
 
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992185408
+//https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot&permissions=534992185408 - Test
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
