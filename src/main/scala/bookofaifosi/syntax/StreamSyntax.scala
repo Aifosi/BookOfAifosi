@@ -19,3 +19,11 @@ trait StreamSyntax:
     def emit[F[_], A](a: => Iterable[A]): Stream[F, A] = Stream.emits(a.toSeq)
     //def println[A](a: A)(using S: Show[A] = Show.fromToString[A]): Stream[IO, Unit] = Stream.eval(IO.println(a))
     def unit: Stream[IO, Unit] = Stream.eval(IO.unit)
+
+  extension [F[_], O](stream: Stream[F, O])
+    def handleErrorAndContinue[F2[x] >: F[x], O2 >: O](h: Throwable => Stream[F2, O2]): Stream[F2, O] =
+      stream.handleErrorWith(h) >> stream.handleErrorAndContinue(h)
+
+  extension [O](stream: Stream[IO, O])
+    def logErrorAndContinue: Stream[IO, O] =
+      stream.handleErrorAndContinue(error => Stream.eval(Bot.logger.error(error.getMessage)))

@@ -39,5 +39,5 @@ jobs:
           key: ${{ secrets.KEY }}
           script: |
             docker pull aifosi/bookofaifosi
-            docker compose -f bookofaifosi-compose.yml down
+            docker compose -f bookofaifosi-compose.yml stop
             docker compose -f bookofaifosi-compose.yml up -d

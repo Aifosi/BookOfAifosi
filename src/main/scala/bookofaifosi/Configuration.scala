@@ -8,8 +8,9 @@ import scala.concurrent.duration.FiniteDuration
 
 case class Configuration(
   host: String,
-  publicHost: String,
   port: Int,
+  publicHost: String,
+  publicPort: Int,
   checkFrequency: FiniteDuration,
   pilloryBitchesFrequency: FiniteDuration,
 ) derives ConfigReader

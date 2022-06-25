@@ -49,7 +49,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     scope: String,
   ): IO[RegisteredUser] =
     sql"insert into users(chaster_name, user_discord_id, access_token, expires_at, refresh_token, scope, is_wearer, is_keyholder) values ($chasterName, $discordID, $accessToken, $expiresAt, $refreshToken, $scope, ${isWearer(scope)}, ${isKeyholder(scope)})"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "user_discord_id", "access_token", "expires_at", "refresh_token", "scope", "is_wearer", "is_keyholder")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -62,7 +62,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     scope: String,
   ): IO[RegisteredUser] =
     sql"update users set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope, is_wearer = ${isWearer(scope)}, is_keyholder = ${isKeyholder(scope)} where id = $id"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "user_discord_id", "access_token", "expires_at", "refresh_token", "scope", "is_wearer", "is_keyholder")
       .transact(Bot.xa)
       .flatMap(toModel)

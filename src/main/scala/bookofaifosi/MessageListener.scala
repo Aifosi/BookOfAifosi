@@ -10,11 +10,11 @@ import bookofaifosi.model.event.SlashCommandEvent.*
 import bookofaifosi.model.event.SlashCommandEvent.given
 import bookofaifosi.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 import bookofaifosi.syntax.logger.*
+import bookofaifosi.syntax.io.*
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.hooks.ListenerAdapter
-import cats.effect.unsafe.implicits.global
 
 object MessageListener extends ListenerAdapter:
   private def runCommandList[T, E <: Event](
@@ -29,7 +29,7 @@ object MessageListener extends ListenerAdapter:
         .foldLeft(IO.pure(false)) {
           case (io, command) if command.matches(event) =>
             for
-              stopped <- io
+              stopped <- io.logError(true)
               stop <-
                 if stopped then
                   IO.pure(true)
@@ -49,17 +49,17 @@ object MessageListener extends ListenerAdapter:
         Bot.logger.info(s"${event.author} issued text command $command $subgroups".trim)
       else
         IO.unit
-    }.unsafeRunSync()
+    }.unsafeRunSync()(Bot.ioRuntime)
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
     runCommandList(event, Bot.reactionCommands) { (event, command) =>
       Bot.logger.info(s"${event.author} issued reaction command $command".trim)
-    }.unsafeRunSync()
+    }.unsafeRunSync()(Bot.ioRuntime)
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
       Bot.logger.info(s"${event.author} issued slash command $command".trim)
-    }.unsafeRunSync()
+    }.unsafeRunSync()(Bot.ioRuntime)
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
     Bot.autoCompletableCommands.foldLeft(IO.pure(false)) {
@@ -71,5 +71,5 @@ object MessageListener extends ListenerAdapter:
       case (io, _) => io
     }
       .as(())
-      .unsafeRunSync()
+      .unsafeRunSync()(Bot.ioRuntime)
 

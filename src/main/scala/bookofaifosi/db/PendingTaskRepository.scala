@@ -40,7 +40,7 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     deadline: Instant,
   ): IO[PendingTaskModel] =
     sql"insert into pending_tasks(task, user_id, keyholder_id, deadline) values ($task, $userID, $keyholderID, $deadline)"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[PendingTask]("id", "task", "user_id", "keyholder_id", "deadline")
       .transact(Bot.xa)
       .flatMap(toModel)

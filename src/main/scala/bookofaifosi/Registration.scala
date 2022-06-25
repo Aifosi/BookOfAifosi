@@ -43,7 +43,9 @@ object Registration:
   private object CodeParamMatcher extends QueryParamDecoderMatcher[String]("code")
   private object UUIDParamMatcher extends QueryParamDecoderMatcher[UUID]("state")
 
-  val registerUri = Uri.unsafeFromString(s"http://${Bot.config.publicHost}/register")
+  val registerUri =
+    val port = if Bot.config.publicPort != 80 then s":${Bot.config.publicPort}" else ""
+    Uri.unsafeFromString(s"http://${Bot.config.publicHost}$port/register")
 
   private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
 

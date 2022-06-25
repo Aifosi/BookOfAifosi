@@ -49,7 +49,7 @@ object UserRoleRepository extends ModelRepository[UserRole, UserRoleModel]:
     userType: String,
   ): IO[UserRole] =
     sql"insert into user_roles(guild_discord_id, role_discord_id, user_type) values ($guildID, $roleID, $userType)"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[UserRole]("guild_discord_id", "role_discord_id", "user_type")
       .transact(Bot.xa)
 
@@ -60,6 +60,6 @@ object UserRoleRepository extends ModelRepository[UserRole, UserRoleModel]:
     newRoleID: DiscordID,
   ): IO[UserRole] =
     sql"update user_roles set role_discord_id = $newRoleID where guild_discord_id = $guildID and role_discord_id = $roleID and user_type = $userType"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[UserRole]("guild_discord_id", "role_discord_id", "user_type")
       .transact(Bot.xa)

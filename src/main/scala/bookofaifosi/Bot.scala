@@ -12,6 +12,7 @@ import bookofaifosi.commands.*
 import bookofaifosi.commands
 import bookofaifosi.syntax.all.*
 import bookofaifosi.model.{Channel, Discord, Role, User}
+import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
@@ -21,10 +22,10 @@ import org.http4s.dsl.io.*
 import org.http4s.client.*
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import scala.concurrent.duration.*
 
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992185408
-//Needs Manage Roles
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
@@ -35,6 +36,8 @@ object Bot extends IOApp:
   val discord: Deferred[IO, Discord] = Deferred.unsafe
   val logger: Deferred[IO, SelfAwareStructuredLogger[IO]] = Deferred.unsafe
 
+  def ioRuntime: IORuntime = runtime
+  
   val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
     dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
   )
@@ -78,7 +81,7 @@ object Bot extends IOApp:
     case command: AutoCompletable => command
   }
   lazy val commandStreams: Stream[IO, Unit] = allCommands.collect {
-    case command: Streams => command.stream
+    case command: Streams => command.stream.logErrorAndContinue
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =

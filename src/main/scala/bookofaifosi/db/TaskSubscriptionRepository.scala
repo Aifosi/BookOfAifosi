@@ -41,7 +41,7 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
     sql"insert into task_subscriptions(user_id, lock_id, most_recent_event_time) values ($userID, $lockID, $mostRecentEventTime)"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -52,7 +52,7 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
     sql"update task_subscriptions set most_recent_event_time = $mostRecentEventTime where user_id = $userID and lock_id = $lockID"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.xa)
       .flatMap(toModel)

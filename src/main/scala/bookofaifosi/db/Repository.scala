@@ -72,7 +72,7 @@ trait Remove:
   protected val table: Fragment
   def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
     (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters)
-      .updateWithLogHandler(Log.handler)
+      .update
       .run
       .transact(Bot.xa)
 

@@ -44,7 +44,7 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
     channelID: DiscordID,
   ): IO[PilloryBitches] =
     sql"insert into pillory_bitches(guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
       .transact(Bot.xa)
 
@@ -53,6 +53,6 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
     newChannelID: DiscordID,
   ): IO[PilloryBitches] =
     sql"update pillory_bitches set channel_discord_id = $newChannelID where guild_discord_id = $guildID"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
       .transact(Bot.xa)

@@ -39,7 +39,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
     postID: String,
   ): IO[PilloryLinkModel] =
     sql"insert into pillory_links(user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
-      .updateWithLogHandler(Log.handler)
+      .update
       .withUniqueGeneratedKeys[PilloryLink]("user_id", "guild_discord_id", "post_id", "counted")
       .transact(Bot.xa)
       .flatMap(toModel)
@@ -48,7 +48,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
     guildID: DiscordID,
   ): IO[Unit] =
     sql"update pillory_links set counted = TRUE where guild_discord_id = $guildID"
-      .updateWithLogHandler(Log.handler)
+      .update
       .run
       .void
       .transact(Bot.xa)

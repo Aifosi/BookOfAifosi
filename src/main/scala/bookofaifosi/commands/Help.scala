@@ -16,7 +16,6 @@ object Help extends SlashCommand:
     val message = Bot.allCommands.filter(!_.isInstanceOf[Hidden]).map { command =>
       s"`${command.pattern}` - ${command.description}"
     }.mkString("\n")
-
     event.replyEphemeral(message).as(true)
 
   override val description: String = "Show all existing commands and their descriptions"
