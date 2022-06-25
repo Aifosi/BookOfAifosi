@@ -72,4 +72,3 @@ object MessageListener extends ListenerAdapter:
     }
       .as(())
       .unsafeRunSync()(Bot.ioRuntime)
-

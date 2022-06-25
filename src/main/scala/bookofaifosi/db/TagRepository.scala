@@ -29,4 +29,3 @@ object TagRepository extends Repository[Tag]:
       .update
       .run
       .transact(Bot.xa)
-

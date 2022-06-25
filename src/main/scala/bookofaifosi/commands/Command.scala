@@ -56,5 +56,3 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
 
   override def matches(event: SlashCommandEvent): Boolean =
     event.fullCommand.equalsIgnoreCase(fullCommand)
-
-
