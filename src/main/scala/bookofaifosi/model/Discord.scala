@@ -18,3 +18,5 @@ class Discord(jda: JDA):
     IO.fromOption(Option(jda.getChannelById(classOf[MessageChannel], id.toLong)))(new Exception(s"Failed to get channel with id $id")).map(new Channel(_))
 
   def roles(guildID: DiscordID): IO[List[Role]] = guildByID(guildID.toLong).map(_.roles)
+
+  jda.retrieveApplicationInfo()

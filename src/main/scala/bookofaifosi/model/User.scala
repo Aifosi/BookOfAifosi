@@ -20,6 +20,7 @@ open class User(private[model] val user: JDAUser):
   lazy val privateChannel: IO[PrivateChannel] = user.openPrivateChannel.toIO.map(new PrivateChannel(_))
 
   def sendMessage(message: String): IO[Message] = privateChannel.flatMap(_.sendMessage(message))
+  def sendMessage(message: Message): IO[Message] = privateChannel.flatMap(_.sendMessage(message))
 
   def member(guild: Guild): IO[Member] = guild.getMember(this)
 

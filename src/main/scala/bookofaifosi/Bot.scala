@@ -25,8 +25,9 @@ import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.duration.*
 
-//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992185408
-//https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot&permissions=534992185408 - Test
+//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992186432
+//https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot&permissions=534992186432 - Test
+//Add view channels permission
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
@@ -67,6 +68,7 @@ object Bot extends IOApp:
     EnablePilloryBitches,
     DisablePilloryBitches,
     PilloryChecker,
+    TriggerMessage,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {

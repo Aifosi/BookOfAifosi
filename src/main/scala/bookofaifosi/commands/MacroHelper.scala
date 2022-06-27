@@ -1,6 +1,6 @@
 package bookofaifosi.commands
 
-import bookofaifosi.model.{Role, User}
+import bookofaifosi.model.{Role, User, Channel}
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.interactions.commands.build.{SlashCommandData, SubcommandData}
 import net.dv8tion.jda.api.interactions.commands.{OptionMapping, OptionType}
@@ -27,6 +27,7 @@ object MacroHelper:
       case '[Option[Boolean]] => '{ partial(OptionType.BOOLEAN, false) }
       case '[Option[User]] => '{ partial(OptionType.USER, false) }
       case '[Option[Role]] => '{ partial(OptionType.ROLE, false) }
+      case '[Option[Channel]] => '{ partial(OptionType.CHANNEL, false) }
       //case '[Option[Mentionable]] => '{ partial(OptionType.MENTIONABLE, false) }
       case '[Int] => '{ partial(OptionType.INTEGER, true) }
       case '[Long] => '{ partial(OptionType.INTEGER, true) }
@@ -35,6 +36,7 @@ object MacroHelper:
       case '[Boolean] => '{ partial(OptionType.BOOLEAN, true) }
       case '[User] => '{ partial(OptionType.USER, true) }
       case '[Role] => '{ partial(OptionType.ROLE, true) }
+      case '[Channel] => '{ partial(OptionType.CHANNEL, true) }
       //case '[Mentionable] => '{ partial(OptionType.MENTIONABLE, true) }
       case _ => '{ error("Options of given type not supported") }
     }
@@ -53,6 +55,7 @@ object MacroHelper:
       case '[Option[Boolean]] => '{ subCommandPartial(OptionType.BOOLEAN, false) }
       case '[Option[User]] => '{ subCommandPartial(OptionType.USER, false) }
       case '[Option[Role]] => '{ subCommandPartial(OptionType.ROLE, false) }
+      case '[Option[Channel]] => '{ subCommandPartial(OptionType.CHANNEL, false) }
       //case '[Option[Mentionable]] => '{ subCommandPartial(OptionType.MENTIONABLE, false) }
       case '[Int] => '{ subCommandPartial(OptionType.INTEGER, true) }
       case '[Long] => '{ subCommandPartial(OptionType.INTEGER, true) }
@@ -61,6 +64,7 @@ object MacroHelper:
       case '[Boolean] => '{ subCommandPartial(OptionType.BOOLEAN, true) }
       case '[User] => '{ subCommandPartial(OptionType.USER, true) }
       case '[Role] => '{ subCommandPartial(OptionType.ROLE, true) }
+      case '[Channel] => '{ subCommandPartial(OptionType.CHANNEL, true) }
       //case '[Mentionable] => '{ subCommandPartial(OptionType.MENTIONABLE, true) }
       case _ => '{ error("Options of given type not supported") }
     }
@@ -83,6 +87,7 @@ object MacroHelper:
       case '[Option[Boolean]] => '{ getOptionT[Boolean](_.getAsBoolean)(_, _).asInstanceOf[T] }
       case '[Option[User]] => '{ getOptionT[User](mapping => new User(mapping.getAsUser))(_, _).asInstanceOf[T] }
       case '[Option[Role]] => '{ getOptionT[Role](mapping => new Role(mapping.getAsRole))(_, _).asInstanceOf[T] }
+      case '[Option[Channel]] => '{ getOptionT[Channel](mapping => new Channel(mapping.getAsMessageChannel))(_, _).asInstanceOf[T] }
       //case '[Option[Mentionable]] => '{ getOptionT[Mentionable](_.getAsMentionable)(_, _).asInstanceOf[T] }
       case '[Int] => '{ getT[Int](_.getAsLong.toInt)(_, _).asInstanceOf[T] }
       case '[Long] => '{ getT[Long](_.getAsLong)(_, _).asInstanceOf[T] }
@@ -91,6 +96,7 @@ object MacroHelper:
       case '[Boolean] => '{ getT[Boolean](_.getAsBoolean)(_, _).asInstanceOf[T] }
       case '[User] => '{ getT[User](mapping => new User(mapping.getAsUser))(_, _).asInstanceOf[T] }
       case '[Role] => '{ getT[Role](mapping => new Role(mapping.getAsRole))(_, _).asInstanceOf[T] }
+      case '[Channel] => '{ getT[Channel](mapping => new Channel(mapping.getAsMessageChannel))(_, _).asInstanceOf[T] }
       //case '[Mentionable] => '{ getT[Mentionable](_.getAsMentionable)(_, _).asInstanceOf[T] }
       case _ => '{ error("Options of given type not supported") }
     }

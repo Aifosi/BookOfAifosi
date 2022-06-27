@@ -6,7 +6,7 @@ import cats.instances.list.*
 import cats.syntax.foldable.*
 import net.dv8tion.jda.api.entities.Message as JDAMessage
 
-class Message(message: JDAMessage):
+class Message(private[model] val message: JDAMessage):
   lazy val content: String = message.getContentRaw
 
   def addReactions(reactions: String*): IO[Unit] =
