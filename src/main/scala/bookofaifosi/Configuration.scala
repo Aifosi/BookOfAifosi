@@ -6,13 +6,18 @@ import pureconfig.generic.derivation.default.derived
 
 import scala.concurrent.duration.FiniteDuration
 
+case class PilloryBitches(
+    hours: Int,
+    minutes: Int,
+) derives ConfigReader
+
 case class Configuration(
   host: String,
   port: Int,
   publicHost: String,
   publicPort: Int,
   checkFrequency: FiniteDuration,
-  pilloryBitchesFrequency: FiniteDuration,
+  pilloryBitches: PilloryBitches,
 ) derives ConfigReader
 
 object Configuration:

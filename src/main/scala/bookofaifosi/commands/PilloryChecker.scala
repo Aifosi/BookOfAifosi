@@ -17,7 +17,7 @@ import cats.syntax.option.*
 import doobie.syntax.string.*
 import doobie.postgres.implicits.*
 
-import java.time.Instant
+import java.time.{Instant, ZoneOffset}
 import scala.util.matching.Regex
 import scala.util.chaining.*
 import fs2.Stream
@@ -28,9 +28,17 @@ import scala.concurrent.duration.*
 object PilloryChecker extends TextCommand with Streams:
   override val pattern: Regex = ".*http(?:s)?://chaster.app/activity/(\\w{24}).*".r
 
+  private def offsetFromConfig: Stream[IO, Unit] =
+    val now = Instant.now.atOffset(ZoneOffset.UTC)
+    val withHourMinute = now.withSecond(0).withHour(Bot.config.pilloryBitches.hours).withMinute(Bot.config.pilloryBitches.minutes)
+    val target = if now.isAfter(withHourMinute) then withHourMinute.plusDays(1) else withHourMinute
+    val offset = ChronoUnit.SECONDS.between(now, target).seconds
+    IO.sleep(offset).streamed
+
   override lazy val stream: Stream[IO, Unit] =
     for
-      _ <- Stream.awakeEvery[IO](Bot.config.pilloryBitchesFrequency)
+      _ <- offsetFromConfig
+      _ <- Stream.unit ++ Stream.awakeEvery[IO](24.hours)
       PilloryBitches(guild, channel) <- Stream.evalSeq(PilloryBitchesRepository.list())
       //timeFilter = fr"created_at >= ${Instant.now.minus(Bot.config.pilloryBitchesFrequency.toMinutes + 1, ChronoUnit.MINUTES)}".some
       notCountedFilter = fr"counted = FALSE".some

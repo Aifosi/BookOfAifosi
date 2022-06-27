@@ -6,6 +6,7 @@ import cats.{Applicative, Functor, Show}
 import cats.syntax.functor.*
 import cats.syntax.show.*
 import cats.syntax.traverse.*
+import cats.syntax.either.*
 import bookofaifosi.syntax.logger.*
 import fs2.Stream
 
@@ -21,9 +22,12 @@ trait StreamSyntax:
     def unit: Stream[IO, Unit] = Stream.eval(IO.unit)
 
   extension [F[_], O](stream: Stream[F, O])
-    def handleErrorAndContinue[F2[x] >: F[x], O2 >: O](h: Throwable => Stream[F2, O2]): Stream[F2, O] =
-      stream.handleErrorWith(h) >> stream.handleErrorAndContinue(h)
+    def handleErrorAndContinue[F2[x] >: F[x]](h: Throwable => Stream[F2, O]): Stream[F2, O] =
+      stream.map(_.asRight[O]).handleErrorWith(error => h(error).map(_.asLeft)).flatMap {
+        case Right(output) => Stream.emit(output)
+        case Left(value) => Stream.emit(value) ++ stream.handleErrorAndContinue(h)
+      }
 
-  extension [O](stream: Stream[IO, O])
-    def logErrorAndContinue: Stream[IO, O] =
+  extension [O](stream: Stream[IO, Unit])
+    def logErrorAndContinue: Stream[IO, Unit] =
       stream.handleErrorAndContinue(error => Stream.eval(Bot.logger.error(error.getMessage)))

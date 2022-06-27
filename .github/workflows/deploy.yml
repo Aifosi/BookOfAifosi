@@ -25,19 +25,3 @@ jobs:
 
       - name: Create Dockerfile
         run: sbt "Docker / publish"
-
-  deploy:
-    needs: docker
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fetch from dockerhub on remote
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          port: ${{ secrets.PORT }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.KEY }}
-          script: |
-            docker pull aifosi/bookofaifosi
-            docker compose -f bookofaifosi-compose.yml stop
-            docker compose -f bookofaifosi-compose.yml up -d
