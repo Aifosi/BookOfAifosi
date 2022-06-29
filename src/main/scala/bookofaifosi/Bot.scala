@@ -22,11 +22,11 @@ import org.http4s.dsl.io.*
 import org.http4s.client.*
 import org.typelevel.log4cats.SelfAwareStructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-
+import scala.jdk.CollectionConverters.*
 import scala.concurrent.duration.*
 
-//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot&permissions=534992186432
-//https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot&permissions=534992186432 - Test
+//https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot%20applications.commands&permissions=534992186432
+//https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot%20applications.commands&permissions=534992186432 - Test
 //Add view channels permission
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
@@ -92,10 +92,9 @@ object Bot extends IOApp:
     IO(jda.build().awaitReady())
 
   def registerSlashCommands(jda: JDA): IO[Unit] =
-    //jda.deleteCommandById(989318936577310770L).toIO *>
-    SlashPattern.buildCommands(slashCommands.map(_.pattern)).parTraverse_ { data =>
-      jda.upsertCommand(data).toIO
-    } *> Bot.logger.info("All Slash commands registered.")
+    jda.getGuilds.asScala.toList
+      .traverse_(_.updateCommands().addCommands(SlashPattern.buildCommands(slashCommands.map(_.pattern))*).toIO)
+      *> Bot.logger.info("All Slash commands registered.")
 
   val httpServer: Stream[IO, ExitCode] = BlazeServerBuilder[IO]
     .bindHttp(config.port, config.host)
