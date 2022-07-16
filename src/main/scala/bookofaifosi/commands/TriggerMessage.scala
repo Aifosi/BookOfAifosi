@@ -1,8 +1,10 @@
 package bookofaifosi.commands
+
 import bookofaifosi.model.{Channel, User}
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.data.{OptionT, EitherT}
 import cats.effect.IO
+import cats.syntax.foldable.*
 
 object TriggerMessage extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -16,8 +18,8 @@ object TriggerMessage extends SlashCommand with Options:
     val user = event.getOption[User]("user")
     val channel = event.getOption[Channel]("channel")
     (for
-      lastMessage <- OptionT(channel.lastMessage).toRight(s"Failed to get message from $channel")
-      _ <- EitherT.liftF(user.sendMessage(lastMessage))
+      lastMessages <- EitherT(channel.allHistory.attempt).leftMap(_ => s"Failed to get message from $channel")
+      _ <- EitherT.liftF(lastMessages.traverse_(user.sendMessage))
     yield true).foldF(
       error => event.replyEphemeral(error),
       _ => event.replyEphemeral("Message sent"),
