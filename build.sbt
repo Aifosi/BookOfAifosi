@@ -1,6 +1,6 @@
 name := "BookOfAifosi"
 
-version := "0.5.2"
+version := "0.5.3"
 
 scalaVersion := "3.1.3"
 
