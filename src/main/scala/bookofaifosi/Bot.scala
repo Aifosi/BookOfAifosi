@@ -20,7 +20,7 @@ import org.http4s.*
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io.*
 import org.http4s.client.*
-import org.typelevel.log4cats.SelfAwareStructuredLogger
+import org.typelevel.log4cats.{SelfAwareStructuredLogger, Logger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scala.jdk.CollectionConverters.*
 import scala.concurrent.duration.*
@@ -36,7 +36,7 @@ object Bot extends IOApp:
 
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
   val discord: Deferred[IO, Discord] = Deferred.unsafe
-  val logger: Deferred[IO, SelfAwareStructuredLogger[IO]] = Deferred.unsafe
+  val logger: Deferred[IO, Logger[IO]] = Deferred.unsafe
 
   def ioRuntime: IORuntime = runtime
   
@@ -83,8 +83,8 @@ object Bot extends IOApp:
   lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
     case command: AutoCompletable => command
   }
-  lazy val commandStreams: Stream[IO, Unit] = allCommands.collect {
-    case command: Streams => command.stream.logErrorAndContinue
+  def commandStreams(using Logger[IO]): Stream[IO, Unit] = allCommands.collect {
+    case command: Streams => command.stream.logErrorAndContinue()
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
   private val jdaIO: IO[JDA] =
@@ -103,7 +103,8 @@ object Bot extends IOApp:
 
   override def run(args: List[String]): IO[ExitCode] =
     (for
-      logger <- Slf4jLogger.create[IO].streamed
+      logger  <- Slf4jLogger.create[IO].streamed
+      given Logger[IO] = logger
       _ <- Bot.logger.complete(logger).streamed
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Bot.client.complete(client).streamed

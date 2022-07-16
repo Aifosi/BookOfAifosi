@@ -14,7 +14,7 @@ class Channel(channel: MessageChannel):
   def sendFile(file: File): IO[Message] = channel.sendFile(file).toIO.map(new Message(_))
 
   private val history: MessageHistory = channel.getHistory
-  val allHistory: IO[List[Message]] = history.retrievePast(history.size).toIO.map(_.asScala.toList.reverse.map(new Message(_)))
+  val lastHundred: IO[List[Message]] = history.retrievePast(100).toIO.map(_.asScala.toList.reverse.map(new Message(_)))
   val lastMessage: IO[Option[Message]] = history.retrievePast(1).toIO.map(_.asScala.headOption.map(new Message(_)))
 
   override def toString: String = channel.getAsMention

@@ -9,6 +9,7 @@ import cats.syntax.traverse.*
 import cats.syntax.either.*
 import bookofaifosi.syntax.logger.*
 import fs2.Stream
+import org.typelevel.log4cats.Logger
 
 trait StreamSyntax:
   extension (stream: Stream.type)
@@ -28,6 +29,6 @@ trait StreamSyntax:
         case Left(value) => Stream.emit(value) ++ stream.handleErrorAndContinue(h)
       }
 
-  extension [O](stream: Stream[IO, Unit])
-    def logErrorAndContinue: Stream[IO, Unit] =
-      stream.handleErrorAndContinue(error => Stream.eval(Bot.logger.error(error.getMessage)))
+  extension [F[_], O](stream: Stream[F, O])
+    def logErrorAndContinue(message: Throwable => String = _.getMessage)(using Logger[F]): Stream[F, O] =
+      stream.handleErrorAndContinue(error => Stream.eval(Logger[F].error(message(error))) >> Stream.empty)

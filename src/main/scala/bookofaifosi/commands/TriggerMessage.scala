@@ -18,7 +18,7 @@ object TriggerMessage extends SlashCommand with Options:
     val user = event.getOption[User]("user")
     val channel = event.getOption[Channel]("channel")
     (for
-      lastMessages <- EitherT(channel.allHistory.attempt).leftMap(_ => s"Failed to get message from $channel")
+      lastMessages <- EitherT(channel.lastHundred.attempt).leftMap(_ => s"Failed to get message from $channel")
       _ <- EitherT.liftF(lastMessages.traverse_(user.sendMessage))
     yield true).foldF(
       error => event.replyEphemeral(error),
