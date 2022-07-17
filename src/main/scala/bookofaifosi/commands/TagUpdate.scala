@@ -6,6 +6,7 @@ import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
 import bookofaifosi.db.TagRepository
 import cats.effect.IO
 import doobie.syntax.connectionio.*
+import org.typelevel.log4cats.Logger
 
 object TagUpdate extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = false
@@ -23,7 +24,7 @@ object TagUpdate extends SlashCommand with Options with AutoCompleteString:
     "name" -> (_ => TagRepository.list().map(_.map(_.name)))
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val name = event.getOption[String]("name")
     val newName = event.getOption[Option[String]]("new_name")
     val newDescription = event.getOption[Option[String]]("new_description")

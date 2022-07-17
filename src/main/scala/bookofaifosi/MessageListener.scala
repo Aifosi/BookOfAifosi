@@ -1,7 +1,7 @@
 package bookofaifosi
 
 import cats.effect.IO
-import bookofaifosi.commands.{Command, ReactionCommand, SlashCommand, TextCommand, AutoCompletable}
+import bookofaifosi.commands.{AutoCompletable, Command, ReactionCommand, SlashCommand, TextCommand}
 import bookofaifosi.model.event.ReactionEvent.*
 import bookofaifosi.model.event.ReactionEvent.given
 import bookofaifosi.model.event.MessageEvent.*
@@ -11,12 +11,14 @@ import bookofaifosi.model.event.SlashCommandEvent.given
 import bookofaifosi.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 import bookofaifosi.syntax.logger.*
 import bookofaifosi.syntax.io.*
+import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.hooks.ListenerAdapter
+import org.typelevel.log4cats.Logger
 
-object MessageListener extends ListenerAdapter:
+class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
   private def runCommandList[T, E <: Event](
     event: E,
     commands: List[Command[T, E]],
@@ -46,20 +48,20 @@ object MessageListener extends ListenerAdapter:
     runCommandList(event, Bot.textCommands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
-        Bot.logger.info(s"${event.author} issued text command $command $subgroups".trim)
+        Logger[IO].info(s"${event.author} issued text command $command $subgroups".trim)
       else
         IO.unit
-    }.unsafeRunSync()(Bot.ioRuntime)
+    }.unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
     runCommandList(event, Bot.reactionCommands) { (event, command) =>
-      Bot.logger.info(s"${event.author} issued reaction command $command".trim)
-    }.unsafeRunSync()(Bot.ioRuntime)
+      Logger[IO].info(s"${event.author} issued reaction command $command".trim)
+    }.unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
-      Bot.logger.info(s"${event.author} issued slash command $command".trim)
-    }.unsafeRunSync()(Bot.ioRuntime)
+      Logger[IO].info(s"${event.author} issued slash command $command".trim)
+    }.unsafeRunSync()
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
     Bot.autoCompletableCommands.foldLeft(IO.pure(false)) {
@@ -71,4 +73,4 @@ object MessageListener extends ListenerAdapter:
       case (io, _) => io
     }
       .as(())
-      .unsafeRunSync()(Bot.ioRuntime)
+      .unsafeRunSync()

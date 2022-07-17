@@ -82,7 +82,7 @@ trait Repository[A: Read] extends Remove:
   protected lazy val selectAll = fr"select" ++ selectColumns ++ fr"from" ++ table
 
   private def query(filters: Iterable[Filter]) =
-    (selectAll ++ filters.toList.combineFilters).queryWithLogHandler[A](Log.handler)
+    (selectAll ++ filters.toList.combineFilters).query[A]
 
   def list(filters: Filter*): IO[List[A]] = query(filters).to[List].transact(Bot.xa)
 

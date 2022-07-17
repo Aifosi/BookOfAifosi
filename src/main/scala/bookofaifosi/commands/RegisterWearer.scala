@@ -6,13 +6,14 @@ import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
 
 import scala.concurrent.duration.*
+import org.typelevel.log4cats.Logger
 
 object RegisterWearer extends SlashCommand:
   override val defaultEnabled: Boolean = true
 
   override val fullCommand: String = "register wearer"
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val timeout = 10.minutes
     for
       authorMember <- event.authorMember

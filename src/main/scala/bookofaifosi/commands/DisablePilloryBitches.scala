@@ -4,12 +4,13 @@ import bookofaifosi.db.PilloryBitchesRepository
 import bookofaifosi.db.Filters.*
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
+import org.typelevel.log4cats.Logger
 
 object DisablePilloryBitches extends SlashCommand:
   override val defaultEnabled: Boolean = false
   override val fullCommand: String = "pillory bitches disable"
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     for
       _ <- PilloryBitchesRepository.remove(event.guild.get.discordID.equalGuildID)
       _ <- event.replyEphemeral(s"Pillory bitches disabled.")

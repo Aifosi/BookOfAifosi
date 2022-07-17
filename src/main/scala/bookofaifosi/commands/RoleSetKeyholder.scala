@@ -9,6 +9,7 @@ import cats.syntax.foldable.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
 import doobie.syntax.string.*
+import org.typelevel.log4cats.Logger
 
 object RoleSetKeyholder extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -17,7 +18,7 @@ object RoleSetKeyholder extends SlashCommand with Options:
     _.addOption[Role]("role", "Role to add to keyholders.")
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val role = event.getOption[Role]("role")
     for
       keyholders <- RegisteredUserRepository.list(isKeyholder)

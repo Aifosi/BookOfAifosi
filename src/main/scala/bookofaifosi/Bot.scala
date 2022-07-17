@@ -1,6 +1,5 @@
 package bookofaifosi
 
-import bookofaifosi.Bot.logger
 import doobie.util.transactor.Transactor
 import cats.data.NonEmptyList
 import cats.effect.{Deferred, ExitCode, IO, IOApp, Ref}
@@ -20,8 +19,9 @@ import org.http4s.*
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io.*
 import org.http4s.client.*
-import org.typelevel.log4cats.{SelfAwareStructuredLogger, Logger}
+import org.typelevel.log4cats.{Logger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import scala.jdk.CollectionConverters.*
 import scala.concurrent.duration.*
 
@@ -39,19 +39,13 @@ object Bot extends IOApp:
   val logger: Deferred[IO, Logger[IO]] = Deferred.unsafe
 
   def ioRuntime: IORuntime = runtime
-  
+  given IORuntime = runtime
+
   val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
     dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
   )
 
-  val runMigrations: IO[Unit] =
-    for
-      flyway <- IO(Flyway.configure.dataSource(dbConfig.url, dbConfig.user, dbConfig.password).baselineOnMigrate(true).load)
-      migrations <- IO(flyway.migrate())
-      _ <- logger.debug(s"Ran ${migrations.migrationsExecuted} migrations.")
-    yield ()
-
-  val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
+  lazy val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
     Help,
     TagAdd,
     TagInfo,
@@ -62,7 +56,7 @@ object Bot extends IOApp:
     RegisterWearer,
     RegisterKeyholder,
     Subscribe,
-    commands.AddDeadline,
+    AddDeadline,
     RoleSetWearer,
     RoleSetKeyholder,
     EnablePilloryBitches,
@@ -83,20 +77,28 @@ object Bot extends IOApp:
   lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
     case command: AutoCompletable => command
   }
+
   def commandStreams(using Logger[IO]): Stream[IO, Unit] = allCommands.collect {
     case command: Streams => command.stream.logErrorAndContinue()
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
 
-  private val jdaIO: IO[JDA] =
-    val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(MessageListener)
+  def runMigrations(using Logger[IO]): IO[Unit] =
+    for
+      flyway <- IO(Flyway.configure.dataSource(dbConfig.url, dbConfig.user, dbConfig.password).baselineOnMigrate(true).load)
+      migrations <- IO(flyway.migrate())
+      _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
+    yield ()
+
+  private def jdaIO(using Logger[IO]): IO[JDA] =
+    val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(new MessageListener)
     IO(jda.build().awaitReady())
 
-  def registerSlashCommands(jda: JDA): IO[Unit] =
+  def registerSlashCommands(jda: JDA)(using Logger[IO]): IO[Unit] =
     jda.getGuilds.asScala.toList
       .traverse_(_.updateCommands().addCommands(SlashPattern.buildCommands(slashCommands.map(_.pattern))*).toIO)
-      *> Bot.logger.info("All Slash commands registered.")
+      *> Logger[IO].info("All Slash commands registered.")
 
-  val httpServer: Stream[IO, ExitCode] = BlazeServerBuilder[IO]
+  def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
     .bindHttp(config.port, config.host)
     .withHttpApp(Registration.routes.orNotFound)
     .serve
@@ -108,11 +110,11 @@ object Bot extends IOApp:
       _ <- Bot.logger.complete(logger).streamed
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Bot.client.complete(client).streamed
-      _ <- logger.info("HTTP client acquired.").streamed
+      _ <- Logger[IO].info("HTTP client acquired.").streamed
       _ <- runMigrations.streamed
       jda <- jdaIO.streamed
       _ <- Bot.discord.complete(new Discord(jda)).streamed
-      _ <- logger.info("Loaded JDA").streamed
+      _ <- Logger[IO].info("Loaded JDA").streamed
       _ <- registerSlashCommands(jda).start.streamed
       exitCode <- httpServer.concurrently(commandStreams)
     yield exitCode).compile.lastOrError

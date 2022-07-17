@@ -21,6 +21,8 @@ import fs2.Stream
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.http4s.client.Client
 import bookofaifosi.syntax.logger.*
+import org.typelevel.log4cats.Logger
+
 import scala.concurrent.duration.*
 import java.time.Instant
 import java.util.UUID
@@ -87,13 +89,13 @@ object Client:
       .withQueryParam("scope", scope)
       .withQueryParam("state", uuid)
 
-  extension (user: RegisteredUser)
+  extension (user: RegisteredUser)(using Logger[IO])
     private def updatedAccessToken: IO[RegisteredUser] =
       if user.expiresAt.isAfter(Instant.now()) then
         IO.pure(user)
       else
         for
-          _ <- Bot.logger.debug(s"Refreshing access token for ${user.discordID}")
+          _ <- Logger[IO].debug(s"Refreshing access token for ${user.discordID}")
           accessToken <- Client.token(
             "grant_type" -> "refresh_token",
             "refresh_token" -> user.refreshToken,

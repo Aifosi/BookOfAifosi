@@ -1,4 +1,5 @@
 package bookofaifosi.commands
+
 import bookofaifosi.Bot
 import bookofaifosi.db.{PilloryBitchesRepository, PilloryLinkRepository, RegisteredUserRepository}
 import bookofaifosi.db.Filters.*
@@ -16,7 +17,7 @@ import cats.syntax.foldable.*
 import cats.syntax.option.*
 import doobie.syntax.string.*
 import doobie.postgres.implicits.*
-
+import org.typelevel.log4cats.Logger
 import java.time.{Instant, ZoneOffset}
 import scala.util.matching.Regex
 import scala.util.chaining.*
@@ -35,7 +36,7 @@ object PilloryChecker extends TextCommand with Streams:
     val offset = ChronoUnit.SECONDS.between(now, target).seconds
     IO.sleep(offset).streamed
 
-  override lazy val stream: Stream[IO, Unit] =
+  override def stream(using Logger[IO]): Stream[IO, Unit] =
     for
       _ <- offsetFromConfig
       _ <- Stream.unit ++ Stream.awakeEvery[IO](24.hours)
@@ -78,7 +79,7 @@ object PilloryChecker extends TextCommand with Streams:
         _ => event.message.addReaction("✅") *> PilloryLinkRepository.add(user.id, event.guild.get.discordID, post._id)
       ).void
 
-  override def apply(pattern: Regex, event: MessageEvent): IO[Boolean] =
+  override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     (for
       member <- OptionT.liftF(event.authorMember)
       id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1)))

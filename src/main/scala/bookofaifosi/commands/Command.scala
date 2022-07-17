@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.interactions.commands.build.{CommandData, Commands}
 import net.dv8tion.jda.api.utils.data.DataObject
 import bookofaifosi.commands.PatternOption
 import fs2.Stream
+import org.typelevel.log4cats.Logger
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.*
@@ -23,7 +24,7 @@ type AnyCommand = Command[?, ? <: Event]
 sealed abstract class Command[T, E <: Event] extends Named:
   def pattern: T
 
-  def apply(pattern: T, event: E): IO[Boolean]
+  def apply(pattern: T, event: E)(using Logger[IO]): IO[Boolean]
 
   val description: String
 

@@ -8,6 +8,7 @@ import cats.effect.IO
 import doobie.syntax.connectionio.*
 import bookofaifosi.db.Filters.*
 import cats.syntax.option.*
+import org.typelevel.log4cats.Logger
 
 object TagInfo extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = true
@@ -22,7 +23,7 @@ object TagInfo extends SlashCommand with Options with AutoCompleteString:
   
   override val fullCommand: String = "tag info"
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val tagName = event.getOption[String]("name")
     for
       tag <- TagRepository.find(tagName.some.equalName)

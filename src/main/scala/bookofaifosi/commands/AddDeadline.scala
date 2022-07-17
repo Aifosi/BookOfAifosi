@@ -1,4 +1,6 @@
 package bookofaifosi.commands
+
+import bookofaifosi.Bot
 import bookofaifosi.commands.PatternOption
 import bookofaifosi.db.{LockTaskDeadlineRepository, PendingTaskRepository, RegisteredUserRepository, TaskSubscriptionRepository}
 import bookofaifosi.model.{LockTaskDeadline, PendingTask, TaskSubscription, User}
@@ -13,6 +15,7 @@ import bookofaifosi.db.Filters.*
 import cats.data.{EitherT, OptionT}
 import cats.syntax.applicative.*
 import cats.syntax.option.*
+import org.typelevel.log4cats.Logger
 
 import java.time.Instant
 import scala.concurrent.duration.*
@@ -31,6 +34,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
   private def lockNames(user: User): IO[List[String]] =
     (for
       user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalUserID))
+      given Logger[IO] <- Bot.logger.get.streamed
       lock <- user.keyholderLocks
     yield lock.title).compile.toList
 
@@ -39,7 +43,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
     AutoComplete.timeUnit,
   )
 
-  private def addPendingTasks(delay: FiniteDuration): Stream[IO, Unit] =
+  private def addPendingTasks(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] =
     for
       _ <- Stream.awakeEvery[IO](delay)
       LockTaskDeadline(lockID, keyholder, user, deadline, mostRecentEventTime) <- Stream.evalSeq(LockTaskDeadlineRepository.list())
@@ -62,11 +66,11 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
       _ <- PendingTaskRepository.remove(id.equalID).streamed
     yield ()
 
-  override def repeatedStream(delay: FiniteDuration): Stream[IO, Unit] = addPendingTasks(delay).concurrently(notifyDeadlineFailed(delay))
+  override def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] = addPendingTasks(delay).concurrently(notifyDeadlineFailed(delay))
 
   override val ephemeralResponses: Boolean = true
   //TODO Adding new deadline replaces old one
-  override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
+  override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
       keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalUserID)).filter(_.isKeyholder)
         .toRight(s"You need to register as a keyholder use this command, please use `/${RegisterKeyholder.fullCommand}` to do so.")

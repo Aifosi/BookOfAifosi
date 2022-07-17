@@ -7,6 +7,7 @@ import cats.syntax.applicative.*
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.*
+import org.typelevel.log4cats.Logger
 
 object Reminder extends SlashCommand with Options with AutoCompleteString:
   override val defaultEnabled: Boolean = false
@@ -22,7 +23,7 @@ object Reminder extends SlashCommand with Options with AutoCompleteString:
     AutoComplete.timeUnit,
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val name = event.getOption[String]("name")
     val duration = event.getOption[Long]("duration")
     val unit = event.getOption[String]("unit")
