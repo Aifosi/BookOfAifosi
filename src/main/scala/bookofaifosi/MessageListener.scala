@@ -52,7 +52,7 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
         for
           logChannel <- Bot.config.logChannel
           _ <- logChannel.fold(IO.unit)(_.sendMessage(event.author.mention + message))
-          _ <- Logger[IO].info(event.author + message)
+          _ <- Logger[IO].info(event.author.toString + message)
         yield ()
       else
         IO.unit
@@ -64,7 +64,7 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
       for
         logChannel <- Bot.config.logChannel
         _ <- logChannel.fold(IO.unit)(_.sendMessage(event.author.mention + message))
-        _ <- Logger[IO].info(event.author + message)
+        _ <- Logger[IO].info(event.author.toString + message)
       yield ()
     }.unsafeRunSync()
 
@@ -74,7 +74,7 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
       for
         logChannel <- Bot.config.logChannel
         _ <- logChannel.fold(IO.unit)(_.sendMessage(event.author.mention + message))
-        _ <- Logger[IO].info(event.author + message)
+        _ <- Logger[IO].info(event.author.toString + message)
       yield ()
     }.unsafeRunSync()
 
