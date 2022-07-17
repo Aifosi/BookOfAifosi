@@ -48,19 +48,34 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
     runCommandList(event, Bot.textCommands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
-        Logger[IO].info(s"${event.author} issued text command $command $subgroups".trim)
+        val message = s"${event.author} issued text command $command $subgroups".trim
+        for
+          logChannel <- Bot.config.logChannel
+          _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
+          _ <- Logger[IO].info(message)
+        yield ()
       else
         IO.unit
     }.unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
     runCommandList(event, Bot.reactionCommands) { (event, command) =>
-      Logger[IO].info(s"${event.author} issued reaction command $command".trim)
+      val message = s"${event.author} issued reaction command $command".trim
+      for
+        logChannel <- Bot.config.logChannel
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
+        _ <- Logger[IO].info(message)
+      yield ()
     }.unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
-      Logger[IO].info(s"${event.author} issued slash command $command".trim)
+      val message = s"${event.author} issued slash command $command".trim
+      for
+        logChannel <- Bot.config.logChannel
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
+        _ <- Logger[IO].info(message)
+      yield ()
     }.unsafeRunSync()
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
