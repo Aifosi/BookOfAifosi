@@ -20,12 +20,14 @@ import cats.syntax.option.*
 import cats.syntax.applicative.*
 import doobie.syntax.string.*
 import doobie.{Get, Put}
+
 import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
 import bookofaifosi.syntax.logger.*
 import bookofaifosi.db.Filter
+import org.typelevel.log4cats.Logger
 
 object Registration:
   enum Role(val scope: String):
@@ -35,7 +37,6 @@ object Registration:
 
   object Role:
     given Put[Role] = Put[String].contramap(_.toString.toLowerCase)
-
 
   private val registrations: Ref[IO, Map[UUID, (Member, String, Role)]] = Ref.unsafe(Map.empty)
 
@@ -66,7 +67,7 @@ object Registration:
       )
     }
 
-  val routes: HttpRoutes[IO] = HttpRoutes.of {
+  def routes(using Logger[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
       def requestAccessToken(member: Member, role: Role): IO[Unit] = for
         httpClient <- Bot.client.get
@@ -81,7 +82,7 @@ object Registration:
         _ <- registrations.update(_ - uuid)
         guildRole <- UserRoleRepository.find(member.guild.discordID.equalGuildID, role.equalUserType)
         _ <- guildRole.fold(IO.unit)(role => member.addRole(role.role))
-        _ <- Bot.logger.info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
+        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
       yield ()
 
       registrations.get.flatMap {
@@ -105,10 +106,10 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def register(member: Member, timeout: FiniteDuration, role: Role): IO[Uri] =
+  def register(member: Member, timeout: FiniteDuration, role: Role)(using Logger[IO]): IO[Uri] =
     for
       uuid <- IO(UUID.randomUUID())
-      _ <- Bot.logger.info(s"Starting registration for $member, UUID: $uuid, role: $role")
+      _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid, role: $role")
       registeredUser <- RegisteredUserRepository.find(member.discordID.equalUserID)
       fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.scope, role.scope))
       _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))

@@ -77,6 +77,7 @@ object Bot extends IOApp:
   lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
     case command: AutoCompletable => command
   }
+
   def commandStreams(using Logger[IO]): Stream[IO, Unit] = allCommands.collect {
     case command: Streams => command.stream.logErrorAndContinue()
   }.foldLeft(Stream.never[IO])(_.concurrently(_))
@@ -97,7 +98,7 @@ object Bot extends IOApp:
       .traverse_(_.updateCommands().addCommands(SlashPattern.buildCommands(slashCommands.map(_.pattern))*).toIO)
       *> Logger[IO].info("All Slash commands registered.")
 
-  val httpServer: Stream[IO, ExitCode] = BlazeServerBuilder[IO]
+  def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
     .bindHttp(config.port, config.host)
     .withHttpApp(Registration.routes.orNotFound)
     .serve
