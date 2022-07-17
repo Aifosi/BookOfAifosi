@@ -6,6 +6,7 @@ import bookofaifosi.model.event.SlashCommandEvent
 import bookofaifosi.db.TagRepository
 import cats.effect.IO
 import doobie.syntax.connectionio.*
+import org.typelevel.log4cats.Logger
 
 object TagAdd extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -17,7 +18,7 @@ object TagAdd extends SlashCommand with Options:
     _.addOption[Option[String]]("description", "Description of this tag."),
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val tag = event.getOption[String]("name")
     val description = event.getOption[Option[String]]("description")
     for

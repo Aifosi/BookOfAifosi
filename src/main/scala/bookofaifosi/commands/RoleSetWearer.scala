@@ -11,6 +11,7 @@ import cats.syntax.option.*
 import cats.syntax.traverse.*
 import cats.syntax.foldable.*
 import bookofaifosi.model.toLong
+import org.typelevel.log4cats.Logger
 
 object RoleSetWearer extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -19,7 +20,7 @@ object RoleSetWearer extends SlashCommand with Options:
     _.addOption[Role]("role", "Role to add to wearers.")
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val role = event.getOption[Role]("role")
     for
       wearers <- RegisteredUserRepository.list(isWearer)

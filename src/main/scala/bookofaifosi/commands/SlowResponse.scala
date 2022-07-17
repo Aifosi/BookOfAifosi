@@ -2,14 +2,16 @@ package bookofaifosi.commands
 
 import bookofaifosi.model.event.{SlashAPI, SlashCommandEvent}
 import cats.effect.{IO, Ref}
+import org.typelevel.log4cats.Logger
+
 import scala.concurrent.duration.*
 
 trait SlowResponse:
   this: SlashCommand =>
   val ephemeralResponses: Boolean
-  def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit]
+  def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit]
 
-  override final def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override final def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     def switchToHook(slashAPI: Ref[IO, SlashAPI], repliedRef: Ref[IO, Boolean]) =
       for
         _ <- IO.sleep(2.seconds)

@@ -5,6 +5,7 @@ import bookofaifosi.model.event.SlashCommandEvent
 import cats.data.{OptionT, EitherT}
 import cats.effect.IO
 import cats.syntax.foldable.*
+import org.typelevel.log4cats.Logger
 
 object TriggerMessage extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -14,7 +15,7 @@ object TriggerMessage extends SlashCommand with Options:
     _.addOption[Channel]("channel", "Channel with the message you want to send."),
   )
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val user = event.getOption[User]("user")
     val channel = event.getOption[Channel]("channel")
     (for

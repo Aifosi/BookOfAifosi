@@ -9,6 +9,7 @@ import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, Us
 import bookofaifosi.db.Filters.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
+import bookofaifosi.syntax.io.*
 import cats.effect.{IO, Ref}
 import cats.data.{EitherT, OptionT}
 import cats.syntax.option.*
@@ -18,6 +19,7 @@ import io.circe.Json
 
 import java.time.Instant
 import scala.concurrent.duration.*
+import org.typelevel.log4cats.Logger
 
 object Subscribe extends SlashCommand with Options with AutoCompleteString with RepeatedStreams with SlowResponse:
   override val defaultEnabled: Boolean = false
@@ -29,6 +31,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
   private def lockNames(user: User): IO[List[String]] =
     (for
       user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalUserID))
+      given Logger[IO] <- Bot.logger.get.streamed
       lock <- Stream.evalSeq(user.locks)
     yield lock.title).compile.toList
 
@@ -36,7 +39,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
     "lock" -> ((event: AutoCompleteEvent) => lockNames(event.author))
   )
 
-  override def repeatedStream(delay: FiniteDuration): Stream[IO, Unit] =
+  override def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] =
     for
       _ <- Stream.awakeEvery[IO](delay)
       subscription @ TaskSubscription(registeredUser, user, lockID, mostRecentEventTime) <- Stream.evalSeq(TaskSubscriptionRepository.list())
@@ -50,7 +53,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override val ephemeralResponses: Boolean = true
 
-  override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
+  override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
       user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalUserID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
       lockTitle = event.getOption[String]("lock")

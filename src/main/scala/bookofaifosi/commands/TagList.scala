@@ -6,13 +6,14 @@ import bookofaifosi.db.TagRepository
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
 import doobie.syntax.connectionio.*
+import org.typelevel.log4cats.Logger
 
 object TagList extends SlashCommand:
   override val defaultEnabled: Boolean = true
 
   override val fullCommand: String = "tag list"
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     for
       tags <- TagRepository.list()
       _ <- event.reply(s"Current tags: ${tags.map(_.name).mkString(", ")}")

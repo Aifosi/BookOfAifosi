@@ -4,6 +4,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import bookofaifosi.Bot
 import bookofaifosi.model.event.{MessageEvent, SlashCommandEvent}
+import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
 
@@ -12,7 +13,7 @@ object Help extends SlashCommand:
 
   override val fullCommand: String = "help"
 
-  override def apply(pattern: SlashPattern, event: SlashCommandEvent): IO[Boolean] =
+  override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val message = Bot.allCommands.filter(!_.isInstanceOf[Hidden]).map { command =>
       s"`${command.pattern}` - ${command.description}"
     }.mkString("\n")
