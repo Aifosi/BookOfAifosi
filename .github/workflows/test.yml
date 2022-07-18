@@ -5,7 +5,7 @@ on:
     types: ['opened', 'review_requested']
 
 jobs:
-  docker:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
