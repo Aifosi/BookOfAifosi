@@ -2,7 +2,7 @@ name: Test if a PR compiles
 
 on:
   pull_request:
-    types: ['opened', 'review_requested']
+    types: ['opened', 'synchronize']
 
 jobs:
   test:
@@ -11,5 +11,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Create Dockerfile
+      - name: Compile code
         run: sbt compile
