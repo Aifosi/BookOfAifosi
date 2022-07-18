@@ -1,0 +1,15 @@
+name: Test if a PR compiles
+
+on:
+  pull_request:
+    types: ['opened', 'review_requested']
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Create Dockerfile
+        run: sbt compile
