@@ -108,10 +108,10 @@ object Bot extends IOApp:
       logger  <- Slf4jLogger.create[IO].streamed
       given Logger[IO] = logger
       _ <- Bot.logger.complete(logger).streamed
+      _ <- runMigrations.streamed
       client <- Stream.resource(BlazeClientBuilder[IO].resource)
       _ <- Bot.client.complete(client).streamed
       _ <- Logger[IO].info("HTTP client acquired.").streamed
-      _ <- runMigrations.streamed
       jda <- jdaIO.streamed
       _ <- Bot.discord.complete(new Discord(jda)).streamed
       _ <- Logger[IO].info("Loaded JDA").streamed

@@ -6,7 +6,7 @@ package object model:
   opaque type DiscordID = Long
   
   object DiscordID:
-    given ConfigReader[DiscordID] = summon[ConfigReader[Long]]
+    given ConfigReader[DiscordID] = ConfigReader.longConfigReader
     def apply(id: Long): DiscordID = id
 
   extension (id: DiscordID)

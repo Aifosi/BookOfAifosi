@@ -14,8 +14,9 @@ object Help extends SlashCommand:
   override val fullCommand: String = "help"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
-    val message = Bot.allCommands.filter(!_.isInstanceOf[Hidden]).map { command =>
-      s"`${command.pattern}` - ${command.description}"
+    val message = Bot.allCommands.filter(!_.isInstanceOf[Hidden]).map {
+      case command: SlashCommand => s"`${command.fullCommand}` - ${command.description}"
+      case command => s"`${command.pattern}` - ${command.description}"
     }.mkString("\n")
     event.replyEphemeral(message).as(true)
 
