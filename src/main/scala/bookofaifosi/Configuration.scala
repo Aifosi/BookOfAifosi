@@ -23,7 +23,13 @@ case class Configuration(
   pilloryBitches: PilloryBitches,
   logChannelId: Option[DiscordID],
 ) derives ConfigReader:
-  lazy val logChannel: IO[Option[Channel]] = Bot.config.logChannelId.traverse(logChannelId => Bot.discord.get.flatMap(_.channelByID(logChannelId)))
+  lazy val logChannel: IO[Option[Channel]] =
+    logChannelId.flatTraverse { logChannelId =>
+      for
+        discord <- Bot.discord.get
+        channelAttempt <- discord.channelByID(logChannelId).attempt
+      yield channelAttempt.toOption
+    }
 
 object Configuration:
   def fromConfig(config: Config = ConfigFactory.load()): Configuration =

@@ -26,7 +26,7 @@ import fs2.Stream
 import java.time.temporal.ChronoUnit
 import scala.concurrent.duration.*
 
-object PilloryChecker extends TextCommand with Streams:
+object PilloryChecker extends TextCommand with Streams with Hidden:
   override val pattern: Regex = ".*http(?:s)?://chaster.app/activity/(\\w{24}).*".r
 
   private def offsetFromConfig: Stream[IO, Unit] =
