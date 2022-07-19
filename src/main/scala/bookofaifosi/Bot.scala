@@ -84,7 +84,7 @@ object Bot extends IOApp:
     UpdateWearers,
   )
 
-  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream).reduceLeft(_.concurrently(_)).logErrorAndContinue()
+  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
 
   def runMigrations(using Logger[IO]): IO[Unit] =
     for
