@@ -61,3 +61,5 @@ libraryDependencies ++= Seq(
 Docker / dockerRepository := Some("aifosi")
 
 dockerUpdateLatest := true
+
+dockerBaseImage := "openjdk:17-jdk"
