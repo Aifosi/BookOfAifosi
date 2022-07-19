@@ -29,6 +29,15 @@ case class User (
   discordUsername: Option[String],
 ) extends WithID derives Decoder
 
+case class PublicUser (
+  _id: String,
+  username: String,
+  gender: Option[String],
+  isDisabled: Boolean,
+  discordId: Option[String],
+  discordUsername: Option[String],
+) extends WithID derives Decoder
+
 case class SharedLockExtensions (
   slug: String,
   name: String,

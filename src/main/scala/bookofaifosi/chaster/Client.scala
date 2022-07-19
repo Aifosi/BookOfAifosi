@@ -7,6 +7,7 @@ import bookofaifosi.chaster.*
 import bookofaifosi.model.{RegisteredUser, UserToken}
 import cats.effect.{IO, Resource}
 import cats.syntax.option.*
+import cats.syntax.applicative.*
 import io.circe.syntax.*
 import org.http4s.*
 import org.http4s.dsl.io.*
@@ -16,6 +17,7 @@ import org.http4s.Method.*
 import org.http4s.client.dsl.io.*
 import org.http4s.client
 import org.http4s.headers.Authorization
+import org.http4s.client.UnexpectedStatus
 import doobie.syntax.connectionio.*
 import fs2.Stream
 import io.circe.{Decoder, Encoder, HCursor, Json}
@@ -151,6 +153,14 @@ object Client:
         response <- Stream.emits(responses)
       yield response
 
+    def publicProfileByID(id: String): IO[PublicUser] = expect[PublicUser](GET(API / "users" / "profile" / "by-id" / id))
+    def publicProfileByName(name: String): IO[Option[PublicUser]] = expect[PublicUser](GET(API / "users" / "profile" / name)).attempt.flatMap(_.fold(
+      {
+        case UnexpectedStatus(Status.NotFound, _, _) => None.pure
+        case error => IO.raiseError(error)
+      },
+      _.some.pure
+    ))
     def profile: IO[User] = expectAuthenticated[User](GET(API / "auth" / "profile"))
     def locks: IO[List[Lock]] = expectAuthenticated[List[Lock]](GET(API / "locks"))
     def lock(id: String): IO[Lock] = expectAuthenticated[Lock](GET(API / "locks" / id))

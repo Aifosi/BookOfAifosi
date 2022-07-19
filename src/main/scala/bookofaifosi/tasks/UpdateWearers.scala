@@ -17,6 +17,8 @@ object UpdateWearers extends RepeatedStreams:
     for
       _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list(isWearer))
+      profile <- user.publicProfileByName(user.chasterName).streamed
+      _ <- Stream.filter(profile.exists(!_.isDisabled))
       locks <- user.locks.streamed
       keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
       isLocked = locks.exists(_.status == LockStatus.Locked)

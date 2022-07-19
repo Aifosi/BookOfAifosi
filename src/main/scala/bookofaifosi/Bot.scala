@@ -83,8 +83,8 @@ object Bot extends IOApp:
     PilloryWinner,
     UpdateWearers,
   )
-  
-  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream).reduceLeft(_.concurrently(_))
+
+  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream).reduceLeft(_.concurrently(_)).logErrorAndContinue()
 
   def runMigrations(using Logger[IO]): IO[Unit] =
     for
