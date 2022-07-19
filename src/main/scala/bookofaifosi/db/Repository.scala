@@ -46,7 +46,7 @@ object Filters:
     def equalID: Filter = id.flatMap(_.equalID)
 
   extension (id: DiscordID)
-    def equalUserID: Filter = fr"user_discord_id = $id".some
+    def equalDiscordID: Filter = fr"user_discord_id = $id".some
     def equalGuildID: Filter = fr"guild_discord_id = $id".some
     def equalRoleID: Filter = fr"role_discord_id = $id".some
     def equalChannelID: Filter = fr"channel_discord_id = $id".some
@@ -58,6 +58,7 @@ object Filters:
     def equalChasterName: Filter = fr"chaster_name = $string".some
     def equalUserType: Filter = fr"user_type = $string".some
     def equalLockID: Filter = fr"lock_id = $string".some
+    def equalAccessToken: Filter = fr"access_token = $string".some
 
   extension (name: Option[String])
     def similarName: Filter = name.flatMap(_.similarName)

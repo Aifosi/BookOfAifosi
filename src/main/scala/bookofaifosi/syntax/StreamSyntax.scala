@@ -1,6 +1,5 @@
 package bookofaifosi.syntax
 
-import bookofaifosi.Bot
 import cats.effect.IO
 import cats.{Applicative, Functor, Show}
 import cats.syntax.functor.*

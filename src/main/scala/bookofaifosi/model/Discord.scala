@@ -7,7 +7,7 @@ import cats.data.OptionT
 import scala.jdk.CollectionConverters.*
 import net.dv8tion.jda.api.entities.MessageChannel
 
-class Discord(jda: JDA):
+class Discord(val jda: JDA):
   def userByID(id: DiscordID): IO[User] =
     OptionT.fromOption(Option(jda.getUserById(id.toLong))).getOrElseF(jda.retrieveUserById(id.toLong).toIO).map(new User(_))
   def guildByID(id: DiscordID): IO[Guild] =
@@ -18,5 +18,4 @@ class Discord(jda: JDA):
     IO.fromOption(Option(jda.getChannelById(classOf[MessageChannel], id.toLong)))(new Exception(s"Failed to get channel with id $id")).map(new Channel(_))
 
   def roles(guildID: DiscordID): IO[List[Role]] = guildByID(guildID.toLong).map(_.roles)
-
-  jda.retrieveApplicationInfo()
+  def guilds: List[Guild] = jda.getGuilds.asScala.toList.map(new Guild(_))

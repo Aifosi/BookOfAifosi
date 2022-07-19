@@ -8,12 +8,10 @@ import java.util.UUID
 class RegisteredUser(
   dbUser: DBUser,
   user: User,
+  val token: UserToken,
 ) extends User(user.user):
   val id: UUID = dbUser.id
   val chasterName: String = dbUser.chasterName
-  val accessToken: String = dbUser.accessToken
-  val expiresAt: Instant = dbUser.expiresAt
-  val refreshToken: String = dbUser.refreshToken
-  val scope: String = dbUser.scope
-  lazy val isWearer: Boolean = dbUser.isWearer
-  lazy val isKeyholder: Boolean = dbUser.isKeyholder
+  val isLocked: Boolean = dbUser.isLocked
+  val isWearer: Boolean = dbUser.isWearer
+  val isKeyholder: Boolean = dbUser.isKeyholder

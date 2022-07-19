@@ -10,8 +10,10 @@ import fs2.Stream
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.syntax.io.*
 import bookofaifosi.chaster.Client.*
+import bookofaifosi.chaster.Client.given
 import bookofaifosi.chaster.WheelTurnedPayload
 import bookofaifosi.db.Filters.*
+import bookofaifosi.tasks.RepeatedStreams
 import cats.data.{EitherT, OptionT}
 import cats.syntax.applicative.*
 import cats.syntax.option.*
@@ -33,7 +35,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
 
   private def lockNames(user: User): IO[List[String]] =
     (for
-      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalUserID))
+      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalDiscordID))
       given Logger[IO] <- Bot.logger.get.streamed
       lock <- user.keyholderLocks
     yield lock.title).compile.toList
@@ -72,7 +74,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
   //TODO Adding new deadline replaces old one
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
-      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalUserID)).filter(_.isKeyholder)
+      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID)).filter(_.isKeyholder)
         .toRight(s"You need to register as a keyholder use this command, please use `/${RegisterKeyholder.fullCommand}` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(keyHolder.keyholderLocks.find(_.title == lockTitle).compile.last)

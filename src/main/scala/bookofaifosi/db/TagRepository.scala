@@ -18,7 +18,7 @@ object TagRepository extends Repository[Tag]:
   override protected val table: Fragment = fr"tags"
   override protected val selectColumns: Fragment = fr"name, description"
   def add(name: String, description: Option[String]): IO[Unit] =
-    sql"insert into tags(name, description) values ($name, $description)"
+    sql"insert into $table (name, description) values ($name, $description)"
       .update
       .run
       .void

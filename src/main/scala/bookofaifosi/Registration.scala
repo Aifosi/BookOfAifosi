@@ -1,12 +1,13 @@
 package bookofaifosi
 
 import bookofaifosi.Bot
-import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser}
+import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser, Lock, LockStatus}
+import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.db.{RegisteredUserRepository, UserRoleRepository}
+import bookofaifosi.db.{RegisteredUserRepository, UserTokenRepository, User}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.given_Put_DiscordID
-import bookofaifosi.model.{DiscordID, Guild, Member, RegisteredUser, User, UserRole}
+import bookofaifosi.model.{DiscordID, Guild, Member, RegisteredUser, User, UserToken}
 import cats.effect.{IO, Ref}
 import doobie.syntax.connectionio.*
 import io.circe.Decoder
@@ -18,6 +19,7 @@ import org.http4s.client.dsl.io.*
 import org.http4s.headers.{Authorization, Location}
 import cats.syntax.option.*
 import cats.syntax.applicative.*
+import cats.syntax.traverse.*
 import doobie.syntax.string.*
 import doobie.{Get, Put}
 
@@ -44,25 +46,23 @@ object Registration:
   private object CodeParamMatcher extends QueryParamDecoderMatcher[String]("code")
   private object UUIDParamMatcher extends QueryParamDecoderMatcher[UUID]("state")
 
-  val registerUri =
+  val registerUri: Uri =
     val port = if Bot.config.publicPort != 80 then s":${Bot.config.publicPort}" else ""
     Uri.unsafeFromString(s"http://${Bot.config.publicHost}$port/register")
 
   private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
 
-  def addOrUpdateScope(
-    chasterName: String,
-    discordID: DiscordID,
+  private def addOrUpdateTokenScope(
     accessToken: String,
     expiresAt: Instant,
     refreshToken: String,
     scope: String,
-  ): IO[RegisteredUser] =
-    RegisteredUserRepository.add(chasterName, discordID, accessToken, expiresAt, refreshToken, scope).attempt.flatMap {
+  ): IO[UserToken] =
+    UserTokenRepository.add(accessToken, expiresAt, refreshToken, scope).attempt.flatMap {
       _.fold(
-        throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalUserID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
-          RegisteredUserRepository.update(user.id, accessToken, expiresAt, refreshToken, joinScopes(user.scope, scope))
-        }),
+        throwable => UserTokenRepository.get(accessToken.equalAccessToken).flatMap { userToken =>
+          UserTokenRepository.update(userToken.id, accessToken, expiresAt, refreshToken, joinScopes(userToken.scope, scope))
+        },
         _.pure
       )
     }
@@ -76,13 +76,20 @@ object Registration:
           "code" -> authorizationCode,
           "redirect_uri" -> registerUri.renderString,
         )
-        profileUri = Uri.unsafeFromString("https://api.chaster.app/auth/profile")
-        profile <- httpClient.expect[ChasterUser](GET(profileUri, Authorization(Credentials.Token(AuthScheme.Bearer, accessToken.access_token))))
-        registeredUser <- addOrUpdateScope(profile.username, member.discordID, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+        userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+        profile <- userToken.profile
+        locks <- userToken.locks
+        keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
+        isLocked = locks.exists(_.status == LockStatus.Locked)
+        isWearer = accessToken.scope.split(" ").contains("locks")
+        isKeyholder = accessToken.scope.split(" ").contains("keyholder")
+        registeredUser <- RegisteredUserRepository.add(profile.username, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
+        //TODO: Maybe add role from config
         _ <- registrations.update(_ - uuid)
-        guildRole <- UserRoleRepository.find(member.guild.discordID.equalGuildID, role.equalUserType)
-        _ <- guildRole.fold(IO.unit)(role => member.addRole(role.role))
-        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
+        logChannel <- Bot.config.logChannel
+        message = s"Registration successful for $member -> ${profile.username}, UUID: $uuid"
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
+        _ <- Logger[IO].info(message)
       yield ()
 
       registrations.get.flatMap {
@@ -106,13 +113,22 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def register(member: Member, timeout: FiniteDuration, role: Role)(using Logger[IO]): IO[Uri] =
+  def register(member: Member, timeout: FiniteDuration, role: Role)(using Logger[IO]): IO[Option[Uri]] =
     for
       uuid <- IO(UUID.randomUUID())
       _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid, role: $role")
-      registeredUser <- RegisteredUserRepository.find(member.discordID.equalUserID)
-      fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.scope, role.scope))
-      _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))
-      _ <- invalidateRegistration(uuid, timeout)
-      authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
+      registeredUser <- RegisteredUserRepository.find(member.discordID.equalDiscordID)
+      alreadyRegistered = role match {
+        case Role.Wearer    => registeredUser.fold(false)(_.isWearer)
+        case Role.Keyholder => registeredUser.fold(false)(_.isKeyholder)
+      }
+
+      authenticateUri <- Option.unless(alreadyRegistered) {
+        val fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.token.scope, role.scope))
+        for
+          _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))
+          _ <- invalidateRegistration(uuid, timeout)
+          authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
+        yield authenticateUri
+      }.sequence
     yield authenticateUri

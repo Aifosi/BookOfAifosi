@@ -7,10 +7,11 @@ import cats.syntax.parallel.*
 import cats.syntax.foldable.*
 import cats.syntax.traverse.*
 import fs2.Stream
-import bookofaifosi.commands.*
 import bookofaifosi.commands
+import bookofaifosi.commands.*
 import bookofaifosi.syntax.all.*
 import bookofaifosi.model.{Channel, Discord, Role, User}
+import bookofaifosi.tasks.*
 import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
@@ -57,8 +58,6 @@ object Bot extends IOApp:
     RegisterKeyholder,
     Subscribe,
     AddDeadline,
-    RoleSetWearer,
-    RoleSetKeyholder,
     EnablePilloryBitches,
     DisablePilloryBitches,
     PilloryChecker,
@@ -78,9 +77,14 @@ object Bot extends IOApp:
     case command: AutoCompletable => command
   }
 
-  def commandStreams(using Logger[IO]): Stream[IO, Unit] = allCommands.collect {
-    case command: Streams => command.stream.logErrorAndContinue()
-  }.foldLeft(Stream.never[IO])(_.concurrently(_))
+  lazy val tasks: NonEmptyList[Streams] = NonEmptyList.of(
+    Subscribe,
+    AddDeadline,
+    PilloryWinner,
+    UpdateUsers,
+  )
+  
+  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream).reduceLeft(_.concurrently(_))
 
   def runMigrations(using Logger[IO]): IO[Unit] =
     for
@@ -93,9 +97,9 @@ object Bot extends IOApp:
     val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(new MessageListener)
     IO(jda.build().awaitReady())
 
-  def registerSlashCommands(jda: JDA)(using Logger[IO]): IO[Unit] =
-    jda.getGuilds.asScala.toList
-      .traverse_(_.updateCommands().addCommands(SlashPattern.buildCommands(slashCommands.map(_.pattern))*).toIO)
+  def registerSlashCommands(discord: Discord)(using Logger[IO]): IO[Unit] =
+    val patterns = SlashPattern.buildCommands(slashCommands.map(_.pattern))
+    discord.guilds.traverse_(_.addCommands(patterns))
       *> Logger[IO].info("All Slash commands registered.")
 
   def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
@@ -113,8 +117,10 @@ object Bot extends IOApp:
       _ <- Bot.client.complete(client).streamed
       _ <- Logger[IO].info("HTTP client acquired.").streamed
       jda <- jdaIO.streamed
-      _ <- Bot.discord.complete(new Discord(jda)).streamed
+      discord = new Discord(jda)
+      _ <- discord.jda.updateCommands().toIO.streamed //TODO Remove me - Delete all global commands 
+      _ <- Bot.discord.complete(discord).streamed
       _ <- Logger[IO].info("Loaded JDA").streamed
-      _ <- registerSlashCommands(jda).start.streamed
-      exitCode <- httpServer.concurrently(commandStreams)
+      _ <- registerSlashCommands(discord).start.streamed
+      exitCode <- httpServer.concurrently(tasks)
     yield exitCode).compile.lastOrError

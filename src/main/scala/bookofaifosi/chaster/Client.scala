@@ -1,10 +1,10 @@
 package bookofaifosi.chaster
 
 import bookofaifosi.{Bot, Registration}
-import bookofaifosi.db.{RegisteredUserRepository, User as DBUser}
+import bookofaifosi.db.{RegisteredUserRepository, UserTokenRepository, User as DBUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.chaster.*
-import bookofaifosi.model.RegisteredUser
+import bookofaifosi.model.{RegisteredUser, UserToken}
 import cats.effect.{IO, Resource}
 import cats.syntax.option.*
 import io.circe.syntax.*
@@ -89,31 +89,35 @@ object Client:
       .withQueryParam("scope", scope)
       .withQueryParam("state", uuid)
 
-  extension (user: RegisteredUser)(using Logger[IO])
-    private def updatedAccessToken: IO[RegisteredUser] =
-      if user.expiresAt.isAfter(Instant.now()) then
-        IO.pure(user)
+  given Conversion[RegisteredUser, UserToken] = _.token
+  
+  extension (token: UserToken)(using Logger[IO])
+    private def updatedToken: IO[UserToken] =
+      if token.expiresAt.isAfter(Instant.now()) then
+        IO.pure(token)
       else
         for
-          _ <- Logger[IO].debug(s"Refreshing access token for ${user.discordID}")
+          _ <- Logger[IO].debug(s"Refreshing access token with ID: ${token.id}")
           accessToken <- Client.token(
             "grant_type" -> "refresh_token",
-            "refresh_token" -> user.refreshToken,
+            "refresh_token" -> token.refreshToken,
           )
-          user <- RegisteredUserRepository.update(user.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
-        yield user
-    private def expectUserAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
+          token <- UserTokenRepository.update(token.id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+        yield token
+
+    private def authorizationHeader: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, token.accessToken))
+    private def expectAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
       for
-        user <- user.updatedAccessToken
-        request = req.putHeaders(Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken)))
+        token <- token.updatedToken
+        request = req.putHeaders(token.authorizationHeader)
         response <- expect[A](request)
       yield response
-
+  
     private def getAll[A <: WithID: Decoder](uri: Uri): Stream[IO, A] =
       for
-        user <- Stream.eval(user.updatedAccessToken)
+        token <- Stream.eval(token.updatedToken)
         client <- Stream.eval(Bot.client.get)
-        authorization = Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken))
+        authorization = token.authorizationHeader
         responses <- Stream.unfoldEval(client.expect[Result[A]](POST(WithLastID(), uri, authorization)).map(_ -> true)) { result =>
           result.map {
             case (result, false) => None
@@ -126,14 +130,14 @@ object Client:
         }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
-
+  
     private def getAllBody[A <: WithID: Decoder, Body: Encoder](uri: Uri, body: Body): Stream[IO, A] =
       def createBody(lastId: Option[String] = None, limit: Option[Int] = 50.some): Json =
         body.asJson.deepMerge(WithLastID(lastId, limit).asJson)
       for
-        user <- Stream.eval(user.updatedAccessToken)
+        token <- Stream.eval(token.updatedToken)
         client <- Stream.eval(Bot.client.get)
-        authorization = Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken))
+        authorization = token.authorizationHeader
         responses <- Stream.unfoldEval(client.expect[Result[A]](POST(createBody(), uri, authorization)).map(_ -> true)) { result =>
           result.map {
             case (result, false) => None
@@ -147,18 +151,18 @@ object Client:
         response <- Stream.emits(responses)
       yield response
 
-    //def profile: IO[User] = expectUserAuthenticated[User](GET(API / "auth" / "profile"))
-    def locks: IO[List[Lock]] = expectUserAuthenticated[List[Lock]](GET(API / "locks"))
-    def lock(id: String): IO[Lock] = expectUserAuthenticated[Lock](GET(API / "locks" / id))
+    def profile: IO[User] = expectAuthenticated[User](GET(API / "auth" / "profile"))
+    def locks: IO[List[Lock]] = expectAuthenticated[List[Lock]](GET(API / "locks"))
+    def lock(id: String): IO[Lock] = expectAuthenticated[Lock](GET(API / "locks" / id))
     def lockHistory(id: String, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =
       getAll[Event[Json]](API / "locks" / id / "history")
         .takeWhile(event => eventsAfter.forall(_.isBefore(event.createdAt)))
     def keyholderLocks: Stream[IO, Lock] =
       for
-        user <- Stream.eval(user.updatedAccessToken)
+        token <- Stream.eval(token.updatedToken)
         client <- Stream.eval(Bot.client.get)
         uri = API / "keyholder" / "locks" / "search"
-        authorization = Authorization(Credentials.Token(AuthScheme.Bearer, user.accessToken))
+        authorization = token.authorizationHeader
         responses <- Stream.unfoldEval(client.expect[PagesResult[Lock]](POST(Paged(0), uri, authorization)).map(_ -> 0)) { result =>
           result.map {
             case (result, page) if page == result.pages + 1 => None
@@ -170,11 +174,11 @@ object Client:
         }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
-    def modifyTime(lock: String, modification: FiniteDuration): IO[Unit] =
-      val seconds = modification.toSeconds
+    def modifyTime(lock: String, modification: FiniteDuration): IO[Unit] = ???
+      /*val seconds = modification.toSeconds
       if seconds < 0 && !user.isKeyholder then
         IO.raiseError(new Exception("Only keyholders can remove time."))
       else
-        expectUserAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))
+        expectAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))*/
     def posts: Stream[IO, Post] = getAll[Post](API / "posts")
-    def post(id: String): IO[Post] = expectUserAuthenticated[Post](GET(API / "posts" / id))
+    def post(id: String): IO[Post] = expectAuthenticated[Post](GET(API / "posts" / id))

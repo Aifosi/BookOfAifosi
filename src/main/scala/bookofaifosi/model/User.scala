@@ -29,6 +29,8 @@ open class User(private[model] val user: JDAUser):
   def addRole(guild: Guild, role: Role): IO[Unit] = member(guild).flatMap(_.addRole(role))
 
   def removeRole(guild: Guild, role: Role): IO[Unit] = member(guild).flatMap(_.removeRole(role))
+  
+  def hasRole(guild: Guild, role: Role): IO[Boolean] = member(guild).map(_.hasRole(role))
 
   override def toString: String = s"$tag($discordID)"
 

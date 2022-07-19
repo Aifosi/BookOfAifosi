@@ -2,7 +2,8 @@ package bookofaifosi.commands
 
 import bookofaifosi.Bot
 import bookofaifosi.chaster.Client.*
-import bookofaifosi.chaster.{Event, WheelTurnedPayload}
+import bookofaifosi.chaster.Client.given
+import bookofaifosi.chaster.{Client, Event, WheelTurnedPayload}
 import bookofaifosi.commands.PatternOption
 import bookofaifosi.model.{TaskSubscription, User}
 import bookofaifosi.db.{RegisteredUserRepository, TaskSubscriptionRepository, User as DBUser}
@@ -10,6 +11,7 @@ import bookofaifosi.db.Filters.*
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.syntax.io.*
+import bookofaifosi.tasks.RepeatedStreams
 import cats.effect.{IO, Ref}
 import cats.data.{EitherT, OptionT}
 import cats.syntax.option.*
@@ -30,7 +32,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   private def lockNames(user: User): IO[List[String]] =
     (for
-      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalUserID))
+      user <- Stream.evalOption(RegisteredUserRepository.find(user.discordID.equalDiscordID))
       given Logger[IO] <- Bot.logger.get.streamed
       lock <- Stream.evalSeq(user.locks)
     yield lock.title).compile.toList
@@ -55,7 +57,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
-      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalUserID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
+      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id
