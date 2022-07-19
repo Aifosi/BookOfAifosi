@@ -17,7 +17,8 @@ object RegisterKeyholder extends SlashCommand:
     for
       authorMember <- event.authorMember
       uri <- Registration.register(authorMember, timeout, Role.Keyholder)
-      _ <- event.replyEphemeral(s"To complete registration please visit $uri, this link expires in $timeout")
+      message = uri.fold("You are already registered as a keyholder.")(uri => s"To complete registration please visit $uri, this link expires in $timeout")
+      _ <- event.replyEphemeral(message)
     yield true
 
   override val description: String = "Register with Book of Aifosi as keyholder."

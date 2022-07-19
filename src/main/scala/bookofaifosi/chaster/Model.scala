@@ -52,8 +52,14 @@ case class Extensions (
   nextActionDate: Option[String], //Wrong on swagger
 ) extends WithID derives Decoder
 
+enum LockStatus:
+  case Locked, Unlocked, Deserted
+
+object LockStatus:
+  given Decoder[LockStatus] = Decoder[String].emapTry(string => Try(LockStatus.valueOf(string.capitalize)))
+
 case class Lock(
-  status: String,
+  status: LockStatus,
   _id: String,
   endDate: Option[String],
   title: String,

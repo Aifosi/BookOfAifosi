@@ -9,7 +9,7 @@ import scala.jdk.CollectionConverters.*
 
 class Member(member: JDAMember) extends User(member.getUser):
   lazy val guild: Guild = new Guild(member.getGuild)
-  
+
   lazy val effectiveName: String = member.getEffectiveName
 
   def isSelfMuted: Boolean = member.getVoiceState.isSelfMuted

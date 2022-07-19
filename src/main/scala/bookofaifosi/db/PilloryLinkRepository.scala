@@ -38,7 +38,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
     guildID: DiscordID,
     postID: String,
   ): IO[PilloryLinkModel] =
-    sql"insert into pillory_links(user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
+    sql"insert into $table (user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
       .update
       .withUniqueGeneratedKeys[PilloryLink]("user_id", "guild_discord_id", "post_id", "counted")
       .transact(Bot.xa)

@@ -43,7 +43,7 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
     guildID: DiscordID,
     channelID: DiscordID,
   ): IO[PilloryBitches] =
-    sql"insert into pillory_bitches(guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
+    sql"insert into $table (guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
       .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
       .transact(Bot.xa)

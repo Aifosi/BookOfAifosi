@@ -2,6 +2,9 @@ package bookofaifosi.commands
 
 import bookofaifosi.Registration
 import bookofaifosi.Registration.Role
+import bookofaifosi.db.RegisteredUserRepository
+import bookofaifosi.db.Filters.*
+import bookofaifosi.model.RegisteredUser
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
 
@@ -18,7 +21,8 @@ object RegisterWearer extends SlashCommand:
     for
       authorMember <- event.authorMember
       uri <- Registration.register(authorMember, timeout, Role.Wearer)
-      _ <- event.replyEphemeral(s"To complete registration please visit $uri, this link expires in $timeout")
+      message = uri.fold("You are already registered as a wearer.")(uri => s"To complete registration please visit $uri, this link expires in $timeout")
+      _ <- event.replyEphemeral(message)
     yield true
 
   override val description: String = "Register with Book of Aifosi as wearer."
