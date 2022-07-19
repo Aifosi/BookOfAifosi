@@ -16,13 +16,18 @@ import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
-import org.http4s.*
+import org.http4s.{Request, *}
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io.*
 import org.http4s.client.*
+import org.http4s.client.middleware.{Retry, RetryPolicy}
+import org.typelevel.ci.*
 import org.typelevel.log4cats.{Logger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import scala.jdk.CollectionConverters.*
 import scala.concurrent.duration.*
 
@@ -84,28 +89,51 @@ object Bot extends IOApp:
     UpdateWearers,
   )
 
-  def tasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
+  private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
 
-  def runMigrations(using Logger[IO]): IO[Unit] =
+  private def runMigrations(using Logger[IO]): IO[Unit] =
     for
       flyway <- IO(Flyway.configure.dataSource(dbConfig.url, dbConfig.user, dbConfig.password).baselineOnMigrate(true).load)
       migrations <- IO(flyway.migrate())
       _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
     yield ()
 
-  private def jdaIO(using Logger[IO]): IO[JDA] =
+  private def acquireDiscordClient(using Logger[IO]): IO[Discord] =
     val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(new MessageListener)
-    IO(jda.build().awaitReady())
+    for
+      jda <- IO(jda.build().awaitReady())
+      discord = new Discord(jda)
+      _ <- Bot.discord.complete(discord)
+      _ <- Logger[IO].info("Loaded JDA")
+    yield discord
 
-  def registerSlashCommands(discord: Discord)(using Logger[IO]): IO[Unit] =
+  private def registerSlashCommands(discord: Discord)(using Logger[IO]): IO[Unit] =
     val patterns = SlashPattern.buildCommands(slashCommands.map(_.pattern))
     discord.guilds.traverse_(_.addCommands(patterns))
       *> Logger[IO].info("All Slash commands registered.")
 
-  def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
+  private def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
     .bindHttp(config.port, config.host)
     .withHttpApp(Registration.routes.orNotFound)
     .serve
+
+  private def acquireHttpClient(using Logger[IO]): Stream[IO, Client[IO]] =
+    def retryPolicy(request: Request[IO], response: Either[Throwable, Response[IO]], retries: Int): Option[FiniteDuration] =
+      response.toOption.flatMap {
+        case response if response.status == Status.TooManyRequests =>
+          response.headers.get(ci"x-ratelimit-reset")
+            .map(_.head.value)
+            .map(LocalDateTime.parse(_, DateTimeFormatter.ofPattern("EEE, dd MMM yyy HH:mm:ss zzz")))
+            .map(ChronoUnit.SECONDS.between(LocalDateTime.now, _).seconds)
+        case _ => None
+      }
+
+    for
+      client <- Stream.resource(BlazeClientBuilder[IO].resource)
+      clientWithRetry = Retry(retryPolicy)(client)
+      _ <- Bot.client.complete(clientWithRetry).streamed
+      _ <- Logger[IO].info("HTTP client acquired.").streamed
+    yield clientWithRetry
 
   override def run(args: List[String]): IO[ExitCode] =
     (for
@@ -113,14 +141,8 @@ object Bot extends IOApp:
       given Logger[IO] = logger
       _ <- Bot.logger.complete(logger).streamed
       _ <- runMigrations.streamed
-      client <- Stream.resource(BlazeClientBuilder[IO].resource)
-      _ <- Bot.client.complete(client).streamed
-      _ <- Logger[IO].info("HTTP client acquired.").streamed
-      jda <- jdaIO.streamed
-      discord = new Discord(jda)
-      _ <- discord.jda.updateCommands().toIO.streamed //TODO Remove me - Delete all global commands 
-      _ <- Bot.discord.complete(discord).streamed
-      _ <- Logger[IO].info("Loaded JDA").streamed
+      _ <- acquireHttpClient
+      discord <- acquireDiscordClient.streamed
       _ <- registerSlashCommands(discord).start.streamed
-      exitCode <- httpServer.concurrently(tasks)
+      exitCode <- httpServer.concurrently(combinedTasks)
     yield exitCode).compile.lastOrError
