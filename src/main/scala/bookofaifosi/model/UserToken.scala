@@ -10,3 +10,7 @@ case class UserToken(
   refreshToken: String,
   scope: String,
 )
+
+object UserToken:
+  //Useful to do request that do not require authentication
+  lazy val empty: UserToken = UserToken(UUID.randomUUID(), "", Instant.MAX, "", "")
