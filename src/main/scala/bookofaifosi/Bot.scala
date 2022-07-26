@@ -34,6 +34,7 @@ import scala.concurrent.duration.*
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot%20applications.commands&permissions=534992186432
 //https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot%20applications.commands&permissions=534992186432 - Test
 //Add view channels permission
+//TODO use streams to list from database
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
@@ -86,7 +87,7 @@ object Bot extends IOApp:
     Subscribe,
     AddDeadline,
     PilloryWinner,
-    UpdateWearers,
+    UpdateUsers,
   )
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))

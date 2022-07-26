@@ -9,9 +9,17 @@ import cats.effect.IO
 
 import scala.concurrent.duration.FiniteDuration
 
+given ConfigReader[DiscordID] = ConfigReader[Long].map(DiscordID.apply)
+
 case class PilloryBitches(
-    hours: Int,
-    minutes: Int,
+  hours: Int,
+  minutes: Int,
+) derives ConfigReader
+
+case class Roles(
+  visitor: DiscordID,
+  keyholder: DiscordID,
+  locked: DiscordID,
 ) derives ConfigReader
 
 case class Configuration(
@@ -22,6 +30,7 @@ case class Configuration(
   checkFrequency: FiniteDuration,
   pilloryBitches: PilloryBitches,
   logChannelId: Option[DiscordID],
+  roles: Roles,
 ) derives ConfigReader:
   lazy val logChannel: IO[Option[Channel]] =
     logChannelId.flatTraverse { logChannelId =>
