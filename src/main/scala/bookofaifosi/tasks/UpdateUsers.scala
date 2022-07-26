@@ -3,11 +3,11 @@ package bookofaifosi.tasks
 import bookofaifosi.Bot
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.chaster.LockStatus
+import bookofaifosi.chaster.{LockStatus, PublicUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.{RegisteredUserRepository, given}
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
-import bookofaifosi.model.{ChasterID, Discord, Guild, RegisteredUser, Role, toLong}
+import bookofaifosi.model.{Channel, ChasterID, Discord, Guild, RegisteredUser, Role, toLong}
 import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.RepeatedStreams
@@ -24,6 +24,14 @@ import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
 object UpdateUsers extends RepeatedStreams:
+  private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
+    for
+      logChannel <- Bot.config.logChannel.streamed
+      _ <- Logger[IO].info(message).streamed
+      _ <- logChannel.fold(IO.unit)(_.sendMessage(message)).streamed
+      n <- Stream.empty
+    yield n
+
   private def updateUser(user: RegisteredUser, keyholderIDs: List[ChasterID], isLocked: Boolean): IO[RegisteredUser] =
     if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
       RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, user.isWearer, user.isKeyholder, user.token.id)
@@ -54,14 +62,15 @@ object UpdateUsers extends RepeatedStreams:
       keyholderNames = keyholders.map(_.username)
       user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
+      _ <- Logger[IO].debug(s"registeredKeyholders = $registeredKeyholders of $user")
       _ <- updateRole(registeredKeyholders.nonEmpty)(user, guild, lockedRole)
     yield user
 
-  private def updateKeyholder(user: RegisteredUser, guild: Guild, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
+  private def updateKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
     if !user.isKeyholder then return IO.unit
     for
-      profile <- user.profile
-      registeredWearers <- RegisteredUserRepository.list(profile.username.equalChasterName, isWearer)
+      registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some, isWearer)
+      _ <- Logger[IO].debug(s"registeredWearers = $registeredWearers of $user")
       _ <- updateRole(registeredWearers.nonEmpty)(user, guild, keyholderRole)
     yield ()
 
@@ -72,26 +81,21 @@ object UpdateUsers extends RepeatedStreams:
       _ <- updateRole(!locked && !keyholder)(user, guild, visitorRole)
     yield ()
 
-  private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
+  private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
       profile <- user.publicProfileByName(user.chasterName).streamed
-      logChannel <- Bot.config.logChannel.streamed
-      _ <- if profile.exists(!_.isDisabled) then
-        Stream.unit
-      else
-        lazy val message = s"Profile for ${user.mention} chaster user ${user.chasterName} not found, was it deleted?"
-        (Logger[IO].info(message) *> logChannel.fold(IO.unit)(_.sendMessage(message))).streamed >> Stream.empty
-    yield ()
+      profile <- profile.filter(!_.isDisabled).fold {
+        log(s"Profile for ${user.mention} chaster user ${user.chasterName} not found, was it deleted?")
+      }(Stream.emit)
+    yield profile
 
   private def checkDiscordUserDeleted(user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
     for
       member <- user.member(guild).attempt.streamed
-      logChannel <- Bot.config.logChannel.streamed
       _ <- if member.isRight then
         Stream.unit
       else
-        lazy val message = s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?"
-        (Logger[IO].info(message) *> logChannel.fold(IO.unit)(_.sendMessage(message))).streamed >> Stream.empty
+        log(s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?")
     yield ()
 
   override def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] =
@@ -103,11 +107,10 @@ object UpdateUsers extends RepeatedStreams:
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
       _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
-      profile <- user.publicProfileByName(user.chasterName).streamed
-      _ <- checkChasterUserDeleted(user)
+      profile <- checkChasterUserDeleted(user)
       guild <- Stream.emits(discord.guilds)
       _ <- checkDiscordUserDeleted(user, guild)
       user <- updateWearer(user, guild, lockedRole).streamed
-      _ <- updateKeyholder(user, guild, keyholderRole).streamed
+      _ <- updateKeyholder(user, guild, profile, keyholderRole).streamed
       _ <- updateVisitor(user, guild, visitorRole, lockedRole, keyholderRole).streamed
     yield ()
