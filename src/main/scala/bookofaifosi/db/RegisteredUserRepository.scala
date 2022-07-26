@@ -3,13 +3,15 @@ package bookofaifosi.db
 import bookofaifosi.Bot
 import bookofaifosi.db.mkFragment
 import bookofaifosi.db.Filters.*
-import bookofaifosi.model.{DiscordID, RegisteredUser}
+import bookofaifosi.model.{ChasterID, DiscordID, RegisteredUser}
 import cats.data.OptionT
 import cats.effect.IO
 import doobie.{ConnectionIO, Fragment}
-import doobie.syntax.string.*
 import doobie.postgres.implicits.*
+import doobie.syntax.string.*
 import doobie.syntax.connectionio.*
+import doobie.util.Read
+import doobie.util.meta.Meta
 import cats.syntax.functor.*
 import cats.syntax.option.*
 
@@ -20,7 +22,7 @@ case class User(
   id: UUID,
   chasterName: String,
   discordID: DiscordID,
-  keyholderIDs: List[String],
+  keyholderIDs: List[ChasterID],
   isLocked: Boolean,
   isWearer: Boolean,
   isKeyholder: Boolean,
@@ -41,7 +43,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
   def add(
     chasterName: String,
     discordID: DiscordID,
-    keyholderIDs: List[String],
+    keyholderIDs: List[ChasterID],
     isLocked: Boolean,
     isWearer: Boolean,
     isKeyholder: Boolean,
@@ -55,7 +57,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
 
   def update(
     id: UUID,
-    keyholderIDs: List[String],
+    keyholderIDs: List[ChasterID],
     isLocked: Boolean,
     isWearer: Boolean,
     isKeyholder: Boolean,

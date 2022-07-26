@@ -5,8 +5,7 @@ import bookofaifosi.db.{PilloryBitchesRepository, PilloryLinkRepository, Registe
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.given
 import bookofaifosi.model.event.MessageEvent
-import bookofaifosi.model.{Channel, DiscordID, Member, PilloryBitches, RegisteredUser, UserToken}
-import cats.effect.IO
+import bookofaifosi.model.{Channel, ChasterID, DiscordID, Member, PilloryBitches, RegisteredUser, UserToken}
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.Client.given
 import bookofaifosi.chaster.Post
@@ -14,6 +13,7 @@ import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.Streams
 import cats.data.{EitherT, OptionT}
+import cats.effect.IO
 import cats.syntax.traverse.*
 import cats.syntax.foldable.*
 import cats.syntax.option.*
@@ -60,7 +60,7 @@ object PilloryChecker extends TextCommand with Hidden:
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     (for
       member <- OptionT.liftF(event.authorMember)
-      id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1)))
+      id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1))).map(ChasterID(_))
       PilloryBitches(_, channel) <- OptionT(PilloryBitchesRepository.find(event.guild.get.discordID.equalGuildID))
       post <- OptionT(UserToken.empty.post(id).attempt.map(_.toOption))
       _ <- OptionT.liftF(addReaction(post, member, channel, event))

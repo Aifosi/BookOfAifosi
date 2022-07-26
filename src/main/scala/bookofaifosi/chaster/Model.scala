@@ -1,5 +1,6 @@
 package bookofaifosi.chaster
 
+import bookofaifosi.model.ChasterID
 import io.circe.{Decoder, Encoder, HCursor, Json}
 
 import java.time.Instant
@@ -18,10 +19,10 @@ case class AccessToken(
   val expiresAt: Instant = Instant.now().plusSeconds(expires_in)
 
 trait WithID:
-  def _id: String
+  def _id: ChasterID
 
 case class User (
-  _id: String,
+  _id: ChasterID,
   username: String,
   gender: Option[String],
   role: String,
@@ -30,7 +31,7 @@ case class User (
 ) extends WithID derives Decoder
 
 case class PublicUser (
-  _id: String,
+  _id: ChasterID,
   username: String,
   gender: Option[String],
   isDisabled: Boolean,
@@ -49,7 +50,7 @@ case class SharedLockExtensions (
 case class Extensions (
   slug: String,
   //config: Any,
-  _id: String,
+  _id: ChasterID,
   displayName: String,
   summary: String,
   subtitle: String,
@@ -69,7 +70,7 @@ object LockStatus:
 
 case class Lock(
   status: LockStatus,
-  _id: String,
+  _id: ChasterID,
   endDate: Option[String],
   title: String,
   totalDuration: Long, //The total duration, since the creation of the lock, in seconds
@@ -90,7 +91,7 @@ case class Lock(
 ) extends WithID derives Decoder
 
 case class SharedLock (
-  _id: String,
+  _id: ChasterID,
   minDuration: Long, //Seconds
   maxDuration: Long, //Seconds
   calculatedMaxLimitDuration: Option[Long],
@@ -117,7 +118,7 @@ case class SharedLock (
 
 case class Event[T: Decoder] (
   extension: Option[String],
-  _id: String,
+  _id: ChasterID,
   `type`: String,
   role: String,
   description: String,
@@ -132,7 +133,7 @@ object Event {
   inline given decoder[T: Decoder]: Decoder[Event[T]] = (c: HCursor) =>
     for
       extension <- c.downField("extension").as[Option[String]]
-      id <- c.downField("_id").as[String]
+      id <- c.downField("_id").as[ChasterID]
       `type` <- c.downField("type").as[String]
       role <- c.downField("role").as[String]
       description <- c.downField("description").as[String]
@@ -158,7 +159,7 @@ case class Data (
 ) derives Decoder
 
 case class Post(
-  _id: String,
+  _id: ChasterID,
   lock: Lock,
   `type`: String,
   user: User,

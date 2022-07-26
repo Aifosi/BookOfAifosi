@@ -4,7 +4,7 @@ import bookofaifosi.{Bot, Registration}
 import bookofaifosi.db.{RegisteredUserRepository, UserTokenRepository, User as DBUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.chaster.*
-import bookofaifosi.model.{RegisteredUser, UserToken}
+import bookofaifosi.model.{ChasterID, RegisteredUser, UserToken}
 import cats.effect.{IO, Resource}
 import cats.syntax.option.*
 import cats.syntax.applicative.*
@@ -31,7 +31,7 @@ import java.util.UUID
 import scala.deriving.Mirror
 
 case class WithLastID(
-  lastId: Option[String] = None,
+  lastId: Option[ChasterID] = None,
   limit: Option[Int] = 50.some,
 ) derives Encoder.AsObject
 
@@ -134,7 +134,7 @@ object Client:
       yield response
   
     private def getAllBody[A <: WithID: Decoder, Body: Encoder](uri: Uri, body: Body): Stream[IO, A] =
-      def createBody(lastId: Option[String] = None, limit: Option[Int] = 50.some): Json =
+      def createBody(lastId: Option[ChasterID] = None, limit: Option[Int] = 50.some): Json =
         body.asJson.deepMerge(WithLastID(lastId, limit).asJson)
       for
         token <- Stream.eval(token.updatedToken)
@@ -153,7 +153,7 @@ object Client:
         response <- Stream.emits(responses)
       yield response
 
-    def publicProfileByID(id: String): IO[PublicUser] = expect[PublicUser](GET(API / "users" / "profile" / "by-id" / id))
+    def publicProfileByID(id: ChasterID): IO[PublicUser] = expect[PublicUser](GET(API / "users" / "profile" / "by-id" / id))
     def publicProfileByName(name: String): IO[Option[PublicUser]] = expect[PublicUser](GET(API / "users" / "profile" / name)).attempt.flatMap(_.fold(
       {
         case UnexpectedStatus(Status.NotFound, _, _) => None.pure
@@ -163,8 +163,8 @@ object Client:
     ))
     def profile: IO[User] = expectAuthenticated[User](GET(API / "auth" / "profile"))
     def locks: IO[List[Lock]] = expectAuthenticated[List[Lock]](GET(API / "locks"))
-    def lock(id: String): IO[Lock] = expectAuthenticated[Lock](GET(API / "locks" / id))
-    def lockHistory(id: String, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =
+    def lock(id: ChasterID): IO[Lock] = expectAuthenticated[Lock](GET(API / "locks" / id))
+    def lockHistory(id: ChasterID, eventsAfter: Option[Instant] = None): Stream[IO, Event[Json]] =
       getAll[Event[Json]](API / "locks" / id / "history")
         .takeWhile(event => eventsAfter.forall(_.isBefore(event.createdAt)))
     def keyholderLocks: Stream[IO, Lock] =
@@ -191,4 +191,4 @@ object Client:
       else
         expectAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))*/
     def posts: Stream[IO, Post] = getAll[Post](API / "posts")
-    def post(id: String): IO[Post] = expectAuthenticated[Post](GET(API / "posts" / id))
+    def post(id: ChasterID): IO[Post] = expectAuthenticated[Post](GET(API / "posts" / id))

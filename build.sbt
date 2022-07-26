@@ -5,8 +5,8 @@ scalaVersion := "3.1.3"
 // format: off
 javacOptions ++= Seq("-Xlint", "-encoding", "UTF-8")
 scalacOptions ++= Seq(
-  "-explain",                          // Explain errors in more detail.
-  "-explain-types",                    // Explain type errors in more detail.
+  //"-explain",                          // Explain errors in more detail.
+  //"-explain-types",                    // Explain type errors in more detail.
   "-indent",                           // Allow significant indentation.
   "-new-syntax",                       // Require `then` and `do` in control expressions.
   "-feature",                          // Emit warning and location for usages of features that should be imported explicitly.

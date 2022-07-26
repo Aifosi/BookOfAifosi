@@ -3,21 +3,23 @@ package bookofaifosi.db
 import bookofaifosi.Bot
 import doobie.postgres.implicits.*
 import doobie.syntax.string.*
-import bookofaifosi.model.PendingTask as PendingTaskModel
+import bookofaifosi.model.{ChasterID, PendingTask as PendingTaskModel}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.LockTaskDeadlineRepository.toModel
 import cats.effect.IO
 import doobie.Fragment
 import doobie.util.log.LogHandler
 import doobie.syntax.connectionio.*
+
 import java.time.Instant
 import java.util.UUID
 import cats.syntax.functor.*
+
 import scala.concurrent.duration.FiniteDuration
 
 private case class PendingTask(
   id: UUID,
-  task: String,
+  task: ChasterID,
   userID: UUID,
   keyholderID: UUID,
   deadline: Instant,
@@ -34,7 +36,7 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     yield PendingTaskModel(pendingTask.id, pendingTask.task, user, keyholder, pendingTask.deadline)
 
   def add(
-    task: String,
+    task: ChasterID,
     userID: UUID,
     keyholderID: UUID,
     deadline: Instant,

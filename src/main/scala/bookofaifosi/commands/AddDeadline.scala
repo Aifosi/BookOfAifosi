@@ -3,7 +3,7 @@ package bookofaifosi.commands
 import bookofaifosi.Bot
 import bookofaifosi.commands.PatternOption
 import bookofaifosi.db.{LockTaskDeadlineRepository, PendingTaskRepository, RegisteredUserRepository, TaskSubscriptionRepository}
-import bookofaifosi.model.{LockTaskDeadline, PendingTask, TaskSubscription, User}
+import bookofaifosi.model.{ChasterID, LockTaskDeadline, PendingTask, TaskSubscription, User}
 import bookofaifosi.model.event.*
 import cats.effect.{IO, Ref}
 import fs2.Stream
@@ -53,7 +53,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
       _ <- Stream.whenF(mostRecentEventTime.forall(_.isBefore(event.createdAt)))(LockTaskDeadlineRepository.update(lockID, keyholder.id, deadline, event.createdAt.some))
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       taskEvent <- Stream.when(wheelTurnedEvent.payload.segment.`type` == "text")(wheelTurnedEvent)
-      task = taskEvent.payload.segment.text
+      task = ChasterID(taskEvent.payload.segment.text)
       _ <- user.sendMessage(s"You have $deadline to finish the task \"$task\"").streamed
       _ <- PendingTaskRepository.add(task, user.id, keyholder.id, event.createdAt.plusSeconds(deadline.toSeconds)).streamed
     yield ()
