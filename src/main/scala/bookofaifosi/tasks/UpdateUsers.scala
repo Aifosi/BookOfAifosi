@@ -72,7 +72,7 @@ object UpdateUsers extends RepeatedStreams:
       _ <- updateRole(!locked && !keyholder)(user, guild, visitorRole)
     yield ()
 
-  private def checkUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
+  private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
     for
       profile <- user.publicProfileByName(user.chasterName).streamed
       logChannel <- Bot.config.logChannel.streamed
@@ -80,6 +80,17 @@ object UpdateUsers extends RepeatedStreams:
         Stream.unit
       else
         lazy val message = s"Profile for ${user.mention} chaster user ${user.chasterName} not found, was it deleted?"
+        (Logger[IO].info(message) *> logChannel.fold(IO.unit)(_.sendMessage(message))).streamed >> Stream.empty
+    yield ()
+
+  private def checkDiscordUserDeleted(user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
+    for
+      member <- user.member(guild).attempt.streamed
+      logChannel <- Bot.config.logChannel.streamed
+      _ <- if member.isRight then
+        Stream.unit
+      else
+        lazy val message = s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?"
         (Logger[IO].info(message) *> logChannel.fold(IO.unit)(_.sendMessage(message))).streamed >> Stream.empty
     yield ()
 
@@ -93,8 +104,9 @@ object UpdateUsers extends RepeatedStreams:
       _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- user.publicProfileByName(user.chasterName).streamed
-      _ <- checkUserDeleted(user)
+      _ <- checkChasterUserDeleted(user)
       guild <- Stream.emits(discord.guilds)
+      _ <- checkDiscordUserDeleted(user, guild)
       user <- updateWearer(user, guild, lockedRole).streamed
       _ <- updateKeyholder(user, guild, keyholderRole).streamed
       _ <- updateVisitor(user, guild, visitorRole, lockedRole, keyholderRole).streamed
