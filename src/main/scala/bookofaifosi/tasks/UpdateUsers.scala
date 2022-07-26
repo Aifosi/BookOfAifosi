@@ -30,6 +30,21 @@ object UpdateUsers extends RepeatedStreams:
     else
       user.pure
 
+  private def updateRole(addCondition: Boolean)(user: RegisteredUser, guild: Guild, role: Role)(using Logger[IO]): IO[Unit] =
+    val roleModifier = if addCondition then
+      user.addRole(guild, role)
+    else
+      user.removeRole(guild, role)
+    roleModifier.attempt.flatMap(_.fold(
+      error => for
+        logChannel <- Bot.config.logChannel
+         message = s"Failed to add or remove ${role.mention} to ${user.mention}, error: ${error.getMessage}"
+        _ <- Logger[IO].error(message)
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
+      yield (),
+      _.pure
+    ))
+
   private def updateWearer(user: RegisteredUser, guild: Guild, lockedRole: Role)(using Logger[IO]): IO[RegisteredUser] =
     if !user.isWearer then return user.pure
     for
@@ -38,29 +53,34 @@ object UpdateUsers extends RepeatedStreams:
       keyholders = lockedLocks.flatMap(_.keyholder)
       keyholderNames = keyholders.map(_.username)
       user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
-      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name in $keyholderNames".some, fr"user_type = 'keyholder'".some)
-      _ <- if registeredKeyholders.nonEmpty then
-        user.addRole(guild, lockedRole)
-      else
-        user.removeRole(guild, lockedRole)
+      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
+      _ <- updateRole(registeredKeyholders.nonEmpty)(user, guild, lockedRole)
     yield user
 
   private def updateKeyholder(user: RegisteredUser, guild: Guild, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
     if !user.isKeyholder then return IO.unit
     for
       profile <- user.profile
-      registeredWearers <- RegisteredUserRepository.list(fr"chaster_name = ${profile.username}".some, fr"user_type = 'wearer'".some)
-      _ <- if registeredWearers.nonEmpty then
-        user.addRole(guild, keyholderRole)
-      else
-        user.removeRole(guild, keyholderRole)
+      registeredWearers <- RegisteredUserRepository.list(profile.username.equalChasterName, isWearer)
+      _ <- updateRole(registeredWearers.nonEmpty)(user, guild, keyholderRole)
     yield ()
 
   private def updateVisitor(user: RegisteredUser, guild: Guild, visitorRole: Role, lockedRole: Role, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
     for
       locked <- user.hasRole(guild, lockedRole)
       keyholder <- user.hasRole(guild, keyholderRole)
-      _ <- if !locked && !keyholder then user.addRole(guild, visitorRole) else user.removeRole(guild, visitorRole)
+      _ <- updateRole(!locked && !keyholder)(user, guild, visitorRole)
+    yield ()
+
+  private def checkUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
+    for
+      profile <- user.publicProfileByName(user.chasterName).streamed
+      logChannel <- Bot.config.logChannel.streamed
+      _ <- if profile.exists(!_.isDisabled) then
+        Stream.unit
+      else
+        lazy val message = s"Profile for ${user.mention} chaster user ${user.chasterName} not found, was it deleted?"
+        (Logger[IO].info(message) *> logChannel.fold(IO.unit)(_.sendMessage(message))).streamed >> Stream.empty
     yield ()
 
   override def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] =
@@ -73,7 +93,7 @@ object UpdateUsers extends RepeatedStreams:
       _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- user.publicProfileByName(user.chasterName).streamed
-      _ <- Stream.filter(profile.exists(!_.isDisabled)) //TODO Log deleted user
+      _ <- checkUserDeleted(user)
       guild <- Stream.emits(discord.guilds)
       user <- updateWearer(user, guild, lockedRole).streamed
       _ <- updateKeyholder(user, guild, keyholderRole).streamed

@@ -1,13 +1,13 @@
 package bookofaifosi
 
 import bookofaifosi.Bot
-import bookofaifosi.chaster.{AccessToken, Client, User as ChasterUser, Lock, LockStatus}
+import bookofaifosi.chaster.{AccessToken, Client, Lock, LockStatus, User as ChasterUser}
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.db.{RegisteredUserRepository, UserTokenRepository, User}
+import bookofaifosi.db.{RegisteredUserRepository, User, UserTokenRepository}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.given_Put_DiscordID
-import bookofaifosi.model.{DiscordID, Guild, Member, RegisteredUser, User, UserToken}
+import bookofaifosi.model.{ChasterID, DiscordID, Guild, Member, RegisteredUser, User, UserToken}
 import cats.effect.{IO, Ref}
 import doobie.syntax.connectionio.*
 import io.circe.Decoder
@@ -67,6 +67,24 @@ object Registration:
       )
     }
 
+  def addOrUpdateScope(
+    chasterName: String,
+    discordID: DiscordID,
+    keyholderIDs: List[ChasterID],
+    isLocked: Boolean,
+    isWearer: Boolean,
+    isKeyholder: Boolean,
+    tokenID: UUID,
+  ): IO[RegisteredUser] =
+    RegisteredUserRepository.add(chasterName, discordID, keyholderIDs, isLocked, isWearer, isKeyholder, tokenID).attempt.flatMap {
+      _.fold(
+        throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalDiscordID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
+          RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, isWearer, isKeyholder, tokenID)
+        }),
+        _.pure
+      )
+    }
+
   def routes(using Logger[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
       def requestAccessToken(member: Member, role: Role): IO[Unit] = for
@@ -81,15 +99,14 @@ object Registration:
         locks <- userToken.locks
         keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
         isLocked = locks.exists(_.status == LockStatus.Locked)
-        isWearer = accessToken.scope.split(" ").contains("locks")
-        isKeyholder = accessToken.scope.split(" ").contains("keyholder")
-        registeredUser <- RegisteredUserRepository.add(profile.username, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
-        //TODO: Maybe add role from config
+        scopes = accessToken.scope.split(" ")
+        isWearer = scopes.contains("locks")
+        isKeyholder = scopes.contains("keyholder")
+        registeredUser <- addOrUpdateScope(profile.username, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
         _ <- registrations.update(_ - uuid)
         logChannel <- Bot.config.logChannel
-        message = s"Registration successful for $member -> ${profile.username}, UUID: $uuid"
-        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
-        _ <- Logger[IO].info(message)
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}, Wearer? $isWearer, Keyholder? $isKeyholder"))
+        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid, Wearer? $isWearer, Keyholder? $isKeyholder")
       yield ()
 
       registrations.get.flatMap {
