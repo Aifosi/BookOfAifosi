@@ -32,7 +32,6 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
       keyholder <- RegisteredUserRepository.get(lockTaskDeadline.keyholderID.equalID)
       user <- RegisteredUserRepository.get(lockTaskDeadline.userID.equalID)
     yield LockTaskDeadlineModel(lockTaskDeadline.lockID, keyholder, user, lockTaskDeadline.deadline, lockTaskDeadline.mostRecentEventTime)
-
   def add(
     lockID: String,
     keyholderID: UUID,

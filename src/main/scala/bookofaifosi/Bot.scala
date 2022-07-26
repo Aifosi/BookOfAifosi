@@ -64,7 +64,6 @@ object Bot extends IOApp:
     RegisterKeyholder,
     Subscribe,
     AddDeadline,
-    RoleSetLocked,
     EnablePilloryBitches,
     DisablePilloryBitches,
     PilloryChecker,
@@ -89,6 +88,7 @@ object Bot extends IOApp:
     AddDeadline,
     PilloryWinner,
     UpdateWearers,
+    UpdateUserRoles,
   )
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
