@@ -53,7 +53,7 @@ object UpdateUsers extends RepeatedStreams:
       keyholders = lockedLocks.flatMap(_.keyholder)
       keyholderNames = keyholders.map(_.username)
       user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
-      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, fr"is_keyholder = true".some)
+      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
       _ <- updateRole(registeredKeyholders.nonEmpty)(user, guild, lockedRole)
     yield user
 
@@ -61,7 +61,7 @@ object UpdateUsers extends RepeatedStreams:
     if !user.isKeyholder then return IO.unit
     for
       profile <- user.profile
-      registeredWearers <- RegisteredUserRepository.list(fr"chaster_name = ${profile.username}".some, fr"is_wearer = true".some)
+      registeredWearers <- RegisteredUserRepository.list(profile.username.equalChasterName, isWearer)
       _ <- updateRole(registeredWearers.nonEmpty)(user, guild, keyholderRole)
     yield ()
 
