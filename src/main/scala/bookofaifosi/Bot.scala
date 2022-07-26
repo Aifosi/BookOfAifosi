@@ -87,8 +87,7 @@ object Bot extends IOApp:
     Subscribe,
     AddDeadline,
     PilloryWinner,
-    UpdateWearers,
-    UpdateUserRoles,
+    UpdateUsers,
   )
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))

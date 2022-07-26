@@ -15,6 +15,7 @@ import cats.effect.IO
 import cats.syntax.foldable.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
+import cats.syntax.applicative.*
 import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
@@ -22,20 +23,27 @@ import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration.FiniteDuration
 
-object UpdateUserRoles extends RepeatedStreams:
-  private def updateWearer(user: RegisteredUser, guild: Guild, lockedRole: Role)(using Logger[IO]): IO[Unit] =
-    if !user.isWearer then return IO.unit
+object UpdateUsers extends RepeatedStreams:
+  private def updateUser(user: RegisteredUser, keyholderIDs: List[String], isLocked: Boolean): IO[RegisteredUser] =
+    if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
+      RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, user.isWearer, user.isKeyholder, user.token.id)
+    else
+      user.pure
+
+  private def updateWearer(user: RegisteredUser, guild: Guild, lockedRole: Role)(using Logger[IO]): IO[RegisteredUser] =
+    if !user.isWearer then return user.pure
     for
       locks <- user.locks
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
       keyholders = lockedLocks.flatMap(_.keyholder)
       keyholderNames = keyholders.map(_.username)
+      user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name in $keyholderNames".some, fr"user_type = 'keyholder'".some)
       _ <- if registeredKeyholders.nonEmpty then
         user.addRole(guild, lockedRole)
       else
         user.removeRole(guild, lockedRole)
-    yield ()
+    yield user
 
   private def updateKeyholder(user: RegisteredUser, guild: Guild, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
     if !user.isKeyholder then return IO.unit
@@ -63,9 +71,11 @@ object UpdateUserRoles extends RepeatedStreams:
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
       _ <- Stream.awakeEvery[IO](delay)
-      wearer <- Stream.evalSeq(RegisteredUserRepository.list(isWearer))
+      user <- Stream.evalSeq(RegisteredUserRepository.list())
+      profile <- user.publicProfileByName(user.chasterName).streamed
+      _ <- Stream.filter(profile.exists(!_.isDisabled)) //TODO Log deleted user
       guild <- Stream.emits(discord.guilds)
-      _ <- updateWearer(wearer, guild, lockedRole).streamed
-      _ <- updateKeyholder(wearer, guild, keyholderRole).streamed
-      _ <- updateVisitor(wearer, guild, visitorRole, lockedRole, keyholderRole).streamed
+      user <- updateWearer(user, guild, lockedRole).streamed
+      _ <- updateKeyholder(user, guild, keyholderRole).streamed
+      _ <- updateVisitor(user, guild, visitorRole, lockedRole, keyholderRole).streamed
     yield ()
