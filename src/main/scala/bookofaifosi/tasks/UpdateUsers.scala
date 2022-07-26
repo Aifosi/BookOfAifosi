@@ -7,7 +7,7 @@ import bookofaifosi.chaster.LockStatus
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.{RegisteredUserRepository, given}
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
-import bookofaifosi.model.{Discord, Guild, RegisteredUser, Role, toLong}
+import bookofaifosi.model.{ChasterID, Discord, Guild, RegisteredUser, Role, toLong}
 import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.RepeatedStreams
@@ -24,7 +24,7 @@ import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
 object UpdateUsers extends RepeatedStreams:
-  private def updateUser(user: RegisteredUser, keyholderIDs: List[String], isLocked: Boolean): IO[RegisteredUser] =
+  private def updateUser(user: RegisteredUser, keyholderIDs: List[ChasterID], isLocked: Boolean): IO[RegisteredUser] =
     if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
       RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, user.isWearer, user.isKeyholder, user.token.id)
     else

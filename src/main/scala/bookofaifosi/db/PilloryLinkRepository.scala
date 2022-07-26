@@ -1,7 +1,7 @@
 package bookofaifosi.db
 
 import bookofaifosi.Bot
-import bookofaifosi.model.{DiscordID, PilloryLink as PilloryLinkModel}
+import bookofaifosi.model.{ChasterID, DiscordID, PilloryLink as PilloryLinkModel}
 import bookofaifosi.db.Filters.*
 import cats.effect.IO
 import doobie.syntax.string.*
@@ -18,7 +18,7 @@ import java.util.UUID
 case class PilloryLink(
   userID: UUID,
   guildID: DiscordID,
-  postID: String,
+  postID: ChasterID,
   counted: Boolean,
 )
 
@@ -36,7 +36,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
   def add(
     userID: UUID,
     guildID: DiscordID,
-    postID: String,
+    postID: ChasterID,
   ): IO[PilloryLinkModel] =
     sql"insert into $table (user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
       .update

@@ -4,7 +4,7 @@ import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 case class LockTaskDeadline(
-  lockID: String,
+  lockID: ChasterID,
   keyholder: RegisteredUser,
   user: RegisteredUser,
   deadline: FiniteDuration,

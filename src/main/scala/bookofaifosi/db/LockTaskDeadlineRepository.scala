@@ -1,13 +1,13 @@
 package bookofaifosi.db
 
 import bookofaifosi.Bot
-import bookofaifosi.model.LockTaskDeadline as LockTaskDeadlineModel
+import bookofaifosi.model.{ChasterID, LockTaskDeadline as LockTaskDeadlineModel}
 import bookofaifosi.db.Filters.*
 import cats.effect.IO
-import doobie.syntax.string.*
-import doobie.postgres.implicits.*
 import cats.syntax.functor.*
 import cats.syntax.traverse.*
+import doobie.syntax.string.*
+import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
 import doobie.util.log.LogHandler
 import doobie.{ConnectionIO, Fragment}
@@ -17,7 +17,7 @@ import java.util.UUID
 import scala.concurrent.duration.FiniteDuration
 
 case class LockTaskDeadline(
-  lockID: String,
+  lockID: ChasterID,
   keyholderID: UUID,
   userID: UUID,
   deadline: FiniteDuration,
@@ -33,7 +33,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
       user <- RegisteredUserRepository.get(lockTaskDeadline.userID.equalID)
     yield LockTaskDeadlineModel(lockTaskDeadline.lockID, keyholder, user, lockTaskDeadline.deadline, lockTaskDeadline.mostRecentEventTime)
   def add(
-    lockID: String,
+    lockID: ChasterID,
     keyholderID: UUID,
     userID: UUID,
     deadline: FiniteDuration,
@@ -46,7 +46,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
       .flatMap(toModel)
 
   def update(
-    lockID: String,
+    lockID: ChasterID,
     keyholderID: UUID,
     deadline: FiniteDuration,
     mostRecentEventTime: Option[Instant],

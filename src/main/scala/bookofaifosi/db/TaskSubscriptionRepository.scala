@@ -4,7 +4,7 @@ import bookofaifosi.Bot
 import bookofaifosi.chaster.Client
 import bookofaifosi.db.mkFragment
 import bookofaifosi.db.Filters.*
-import bookofaifosi.model.{TaskSubscription as TaskSubscriptionModel, User}
+import bookofaifosi.model.{ChasterID, TaskSubscription as TaskSubscriptionModel, User}
 import cats.effect.IO
 import doobie.{ConnectionIO, Fragment}
 import doobie.syntax.string.*
@@ -20,7 +20,7 @@ import java.util.UUID
 
 case class TaskSubscription(
   id: UUID,
-  lockID: String,
+  lockID: ChasterID,
   mostRecentEventTime: Option[Instant]
 )
 
@@ -37,7 +37,7 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
 
   def add(
     userID: UUID,
-    lockID: String,
+    lockID: ChasterID,
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
     sql"insert into $table (user_id, lock_id, most_recent_event_time) values ($userID, $lockID, $mostRecentEventTime)"
@@ -48,7 +48,7 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
 
   def update(
     userID: UUID,
-    lockID: String,
+    lockID: ChasterID,
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
     sql"update task_subscriptions set most_recent_event_time = $mostRecentEventTime where user_id = $userID and lock_id = $lockID"

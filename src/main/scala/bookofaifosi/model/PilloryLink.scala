@@ -6,6 +6,6 @@ import java.util.UUID
 case class PilloryLink(
   user: RegisteredUser,
   guild: Guild,
-  postID: String,
+  postID: ChasterID,
   counted: Boolean,
 )
