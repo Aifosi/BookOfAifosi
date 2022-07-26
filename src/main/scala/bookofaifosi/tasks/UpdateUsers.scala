@@ -90,7 +90,7 @@ object UpdateUsers extends RepeatedStreams:
       visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
-      _ <- Stream.unit ++ Stream.awakeEvery[IO](delay)
+      _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- user.publicProfileByName(user.chasterName).streamed
       _ <- checkUserDeleted(user)
