@@ -16,6 +16,7 @@ import cats.syntax.foldable.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
 import cats.syntax.applicative.*
+import cats.syntax.parallel.*
 import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
@@ -38,12 +39,8 @@ object UpdateUsers extends RepeatedStreams:
     else
       user.pure
 
-  private def updateRole(addCondition: Boolean)(user: RegisteredUser, guild: Guild, role: Role)(using Logger[IO]): IO[Unit] =
-    val roleModifier = if addCondition then
-      user.addRole(guild, role)
-    else
-      user.removeRole(guild, role)
-    roleModifier.attempt.flatMap(_.fold(
+  private def modifyRole(user: RegisteredUser, guild: Guild, role: Role)(modifier: IO[Unit])(using Logger[IO]): IO[Unit] =
+    modifier.attempt.flatMap(_.fold(
       error => for
         logChannel <- Bot.config.logChannel
          message = s"Failed to add or remove ${role.mention} to ${user.mention}, error: ${error.getMessage}"
@@ -53,8 +50,8 @@ object UpdateUsers extends RepeatedStreams:
       _.pure
     ))
 
-  private def updateWearer(user: RegisteredUser, guild: Guild, lockedRole: Role)(using Logger[IO]): IO[RegisteredUser] =
-    if !user.isWearer then return user.pure
+  private def shouldAddLocked(user: RegisteredUser, guild: Guild)(using Logger[IO]): IO[Boolean] =
+    if !user.isWearer then return false.pure
     for
       locks <- user.locks
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
@@ -62,24 +59,13 @@ object UpdateUsers extends RepeatedStreams:
       keyholderNames = keyholders.map(_.username)
       user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
-      _ <- Logger[IO].debug(s"registeredKeyholders = $registeredKeyholders of $user")
-      _ <- updateRole(registeredKeyholders.nonEmpty)(user, guild, lockedRole)
-    yield user
+    yield registeredKeyholders.nonEmpty
 
-  private def updateKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
-    if !user.isKeyholder then return IO.unit
+  private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
+    if !user.isKeyholder then return false.pure
     for
       registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some, isWearer)
-      _ <- Logger[IO].debug(s"registeredWearers = $registeredWearers of $user")
-      _ <- updateRole(registeredWearers.nonEmpty)(user, guild, keyholderRole)
-    yield ()
-
-  private def updateVisitor(user: RegisteredUser, guild: Guild, visitorRole: Role, lockedRole: Role, keyholderRole: Role)(using Logger[IO]): IO[Unit] =
-    for
-      locked <- user.hasRole(guild, lockedRole)
-      keyholder <- user.hasRole(guild, keyholderRole)
-      _ <- updateRole(!locked && !keyholder)(user, guild, visitorRole)
-    yield ()
+    yield registeredWearers.nonEmpty
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
@@ -104,13 +90,23 @@ object UpdateUsers extends RepeatedStreams:
       discord <- Bot.discord.get.streamed
       visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
+      switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
       _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- checkChasterUserDeleted(user)
       guild <- Stream.emits(discord.guilds)
       _ <- checkDiscordUserDeleted(user, guild)
-      user <- updateWearer(user, guild, lockedRole).streamed
-      _ <- updateKeyholder(user, guild, profile, keyholderRole).streamed
-      _ <- updateVisitor(user, guild, visitorRole, lockedRole, keyholderRole).streamed
+      addLocked <- shouldAddLocked(user, guild).streamed
+      addKeyholder <- shouldAddKeyholder(user, guild, profile).streamed
+      userRoles <- List(visitorRole, lockedRole, switchRole, keyholderRole)
+        .flatTraverse(role => user.hasRole(guild, role).map(Option.when(_)(role).toList)).streamed
+      addRole = (role: Role) => if !userRoles.contains(role) then modifyRole(user, guild, role)(user.addRole(guild, role)) else IO.unit
+      removeRole = (role: Role) => if userRoles.contains(role) then modifyRole(user, guild, role)(user.removeRole(guild, role)) else IO.unit
+      addRoleRemoveOthers = (role: Role) => (addRole(role) *> userRoles.filter(_ != role).parTraverse(removeRole)).streamed
+      _ <- (addLocked, addKeyholder) match
+        case (true, true) => addRoleRemoveOthers(switchRole)
+        case (false, true) => addRoleRemoveOthers(keyholderRole)
+        case (true, false) => addRoleRemoveOthers(lockedRole)
+        case (false, false) => addRoleRemoveOthers(visitorRole)
     yield ()
