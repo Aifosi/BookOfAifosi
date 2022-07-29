@@ -25,7 +25,7 @@ object TagRepository extends Repository[Tag]:
       .transact(Bot.xa)
 
   def update(name: String, newName: Option[String], newDescription: Option[Option[String]]): IO[Int] =
-    List(newName.equalName, descriptionEqual(newDescription)).mkFragment(fr"update tags set", fr",", fr"where name = $name")
+    List(newName.equalName, descriptionEqual(newDescription), updatedAt.some).mkFragment(fr"update $table set", fr",", fr"where name = $name")
       .update
       .run
       .transact(Bot.xa)

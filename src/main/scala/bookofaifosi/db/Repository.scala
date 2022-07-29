@@ -76,8 +76,11 @@ trait Remove:
       .update
       .run
       .transact(Bot.xa)
+    
+trait UpdatedAt:
+  lazy val updatedAt: Fragment = fr"updated_at = NOW()"
 
-trait Repository[A: Read] extends Remove:
+trait Repository[A: Read] extends Remove with UpdatedAt:
   protected val table: Fragment
   protected val selectColumns: Fragment
   protected lazy val selectAll = fr"select" ++ selectColumns ++ fr"from" ++ table
@@ -91,7 +94,7 @@ trait Repository[A: Read] extends Remove:
 
   def get(filters: Filter*): IO[A] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 
-trait ModelRepository[A: Read, Model] extends Remove:
+trait ModelRepository[A: Read, Model] extends Remove with UpdatedAt:
   outer =>
   protected val table: Fragment
   protected val selectColumns: Fragment

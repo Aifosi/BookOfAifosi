@@ -51,7 +51,7 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
     lockID: ChasterID,
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
-    sql"update task_subscriptions set most_recent_event_time = $mostRecentEventTime where user_id = $userID and lock_id = $lockID"
+    sql"update task_subscriptions set most_recent_event_time = $mostRecentEventTime where user_id = $userID, $updatedAt and lock_id = $lockID"
       .update
       .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.xa)

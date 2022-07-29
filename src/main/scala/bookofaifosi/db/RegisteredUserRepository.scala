@@ -63,7 +63,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     isKeyholder: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    sql"update $table set keyholder_ids = $keyholderIDs, is_locked = $isLocked, is_wearer = $isWearer, is_keyholder = $isKeyholder, token_id = $tokenID where id = $id"
+    sql"update $table set keyholder_ids = $keyholderIDs, is_locked = $isLocked, is_wearer = $isWearer, is_keyholder = $isKeyholder, token_id = $tokenID, $updatedAt where id = $id"
       .update
       .withUniqueGeneratedKeys[User]("id", "chaster_name", "user_discord_id", "keyholder_ids", "is_locked", "is_wearer", "is_keyholder", "token_id")
       .transact(Bot.xa)
