@@ -47,7 +47,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
   def setCounted(
     guildID: DiscordID,
   ): IO[Unit] =
-    sql"update pillory_links set counted = TRUE where guild_discord_id = $guildID"
+    sql"update pillory_links set counted = TRUE, $updatedAt where guild_discord_id = $guildID"
       .update
       .run
       .void

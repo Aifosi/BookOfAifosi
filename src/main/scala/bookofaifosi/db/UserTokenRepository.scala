@@ -35,7 +35,7 @@ object UserTokenRepository extends Repository[UserToken]:
     refreshToken: String,
     scope: String,
   ): IO[UserToken] =
-    sql"update $table set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope where id = $id"
+    sql"update $table set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope, $updatedAt where id = $id"
       .update
       .withUniqueGeneratedKeys[UserToken]("id", "access_token", "expires_at", "refresh_token", "scope")
       .transact(Bot.xa)

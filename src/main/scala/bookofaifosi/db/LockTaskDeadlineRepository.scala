@@ -51,7 +51,7 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
     deadline: FiniteDuration,
     mostRecentEventTime: Option[Instant],
   ): IO[LockTaskDeadlineModel] =
-    sql"update lock_task_deadlines set most_recent_event_time = $mostRecentEventTime, deadline = $deadline where lock_id = $lockID and keyholder_id = $keyholderID"
+    sql"update lock_task_deadlines set most_recent_event_time = $mostRecentEventTime, deadline = $deadline, $updatedAt where lock_id = $lockID and keyholder_id = $keyholderID"
       .update
       .withUniqueGeneratedKeys[LockTaskDeadline]("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
       .transact(Bot.xa)
