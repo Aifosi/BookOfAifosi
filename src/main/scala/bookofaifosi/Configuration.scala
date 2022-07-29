@@ -20,6 +20,7 @@ case class Roles(
   visitor: DiscordID,
   keyholder: DiscordID,
   locked: DiscordID,
+  switch: DiscordID,
 ) derives ConfigReader
 
 case class Configuration(
