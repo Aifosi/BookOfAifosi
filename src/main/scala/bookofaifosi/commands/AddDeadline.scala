@@ -74,13 +74,13 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
   //TODO Adding new deadline replaces old one
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
-      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID)).filter(_.isKeyholder)
-        .toRight(s"You need to register as a keyholder use this command, please use `/${RegisterKeyholder.fullCommand}` to do so.")
+      keyHolder <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID))
+        .toRight(s"You need to register to use this command, please use `/${Register.fullCommand}` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(keyHolder.keyholderLocks.find(_.title == lockTitle).compile.last)
         .toRight(s"Can't find lock with name $lockTitle")
       user <- OptionT(RegisteredUserRepository.find(lock.user._id.equalChasterID))
-        .toRight(s"Your lockee needs to register as a wearer use this command, it can be done using `/${RegisterWearer.fullCommand}`.")
+        .toRight(s"Your lockee needs to registered to use this command, it can be done using `/${Register.fullCommand}`.")
       lockId = lock._id
       duration = event.getOption[Long]("deadline")
       unitName = event.getOption[String]("unit")

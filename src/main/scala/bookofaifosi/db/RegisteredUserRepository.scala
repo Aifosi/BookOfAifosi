@@ -25,8 +25,6 @@ case class User(
   discordID: DiscordID,
   keyholderIDs: List[ChasterID],
   isLocked: Boolean,
-  isWearer: Boolean,
-  isKeyholder: Boolean,
   tokenID: UUID,
   lastLocked: Option[Instant],
   lastKeyheld: Option[Instant],
@@ -34,7 +32,7 @@ case class User(
 
 object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
   override protected val table: Fragment = fr"users"
-  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "keyholder_ids", "is_locked", "is_wearer", "is_keyholder", "token_id", "last_locked", "last_keyheld")
+  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "keyholder_ids", "is_locked", "token_id", "last_locked", "last_keyheld")
 
   override def toModel(user: User): IO[RegisteredUser] =
     for
@@ -48,11 +46,9 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     discordID: DiscordID,
     keyholderIDs: List[ChasterID],
     isLocked: Boolean,
-    isWearer: Boolean,
-    isKeyholder: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    sql"insert into $table (chaster_id, user_discord_id, keyholder_ids, is_locked, is_wearer, is_keyholder, token_id) values ($chasterID, $discordID, $keyholderIDs, $isLocked, $isWearer, $isKeyholder, $tokenID)"
+    sql"insert into $table (chaster_id, user_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $keyholderIDs, $isLocked, $tokenID)"
       .update
       .withUniqueGeneratedKeys[User](columns*)
       .transact(Bot.xa)
@@ -62,8 +58,6 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     id: UUID,
     keyholderIDs: Option[List[ChasterID]] = None,
     isLocked: Option[Boolean] = None,
-    isWearer: Option[Boolean] = None,
-    isKeyholder: Option[Boolean] = None,
     tokenID: Option[UUID] = None,
     lastLocked: Option[Option[Instant]] = None,
     lastKeyheld: Option[Option[Instant]] = None,
@@ -71,15 +65,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     update(
       keyholderIDs.map(keyholderIDs => fr"keyholder_ids = $keyholderIDs"),
       isLocked.map(isLocked => fr"is_locked = $isLocked"),
-      isWearer.map(isWearer => fr"is_wearer = $isWearer"),
-      isKeyholder.map(isKeyholder => fr"is_keyholder = $isKeyholder"),
       tokenID.map(tokenID => fr"token_id = $tokenID"),
       lastLocked.map(lastLocked => fr"last_locked = $lastLocked"),
       lastKeyheld.map(lastKeyheld => fr"last_keyheld = $lastKeyheld"),
     )(fr"id = $id")
-
-  def updateChaster(
-    id: UUID,
-    chasterID: ChasterID,
-  ): IO[RegisteredUser] =
-    update(fr"chaster_id = $chasterID".some)(fr"id = $id")

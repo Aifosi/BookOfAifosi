@@ -57,7 +57,7 @@ object Subscribe extends SlashCommand with Options with AutoCompleteString with 
 
   override def slowResponse(pattern: SlashPattern, event: SlashCommandEvent, slashAPI: Ref[IO, SlashAPI])(using Logger[IO]): IO[Unit] =
     val response = for
-      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID)).filter(_.isWearer).toRight("You need to register as a wearer use this command, please use `/register wearer` to do so.")
+      user <- OptionT(RegisteredUserRepository.find(event.author.discordID.equalDiscordID)).toRight(s"You need to register to use this command, please use `/${Register.fullCommand}` to do so.")
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(user.locks.map(_.find(_.title == lockTitle))).toRight(s"Can't find lock with name $lockTitle")
       lockId = lock._id

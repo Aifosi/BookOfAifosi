@@ -52,19 +52,17 @@ object UpdateUsers extends RepeatedStreams:
     ))
 
   private def shouldAddLocked(user: RegisteredUser, guild: Guild)(using Logger[IO]): IO[Boolean] =
-    if !user.isWearer then return false.pure
     for
       locks <- user.locks
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
-      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some, isKeyholder)
+      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some)
     yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
-    if !user.isKeyholder then return false.pure
     for
-      registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some, isWearer)
+      registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
     yield user.lastKeyheld.exists(_.isAfter(Bot.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
 
