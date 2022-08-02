@@ -56,10 +56,9 @@ object UpdateUsers extends RepeatedStreams:
     for
       locks <- user.locks
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
-      keyholders = lockedLocks.flatMap(_.keyholder)
-      keyholderNames = keyholders.map(_.username)
-      user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
-      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
+      keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
+      user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
+      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some, isKeyholder)
     yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
