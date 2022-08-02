@@ -1,6 +1,7 @@
 package bookofaifosi.db
 
 import bookofaifosi.Bot
+import cats.syntax.option.*
 import doobie.{ConnectionIO, Fragment}
 import doobie.syntax.string.*
 import doobie.postgres.implicits.*
@@ -15,7 +16,7 @@ import java.util.UUID
 
 object UserTokenRepository extends Repository[UserToken]:
   override protected val table: Fragment = fr"user_tokens"
-  override protected val selectColumns: Fragment = fr"id, access_token, expires_at, refresh_token, scope"
+  override protected val columns: List[String] = List("id", "access_token", "expires_at", "refresh_token", "scope")
 
   def add(
     accessToken: String,
@@ -35,7 +36,9 @@ object UserTokenRepository extends Repository[UserToken]:
     refreshToken: String,
     scope: String,
   ): IO[UserToken] =
-    sql"update $table set access_token = $accessToken, expires_at = $expiresAt, refresh_token = $refreshToken, scope = $scope, $updatedAt where id = $id"
-      .update
-      .withUniqueGeneratedKeys[UserToken]("id", "access_token", "expires_at", "refresh_token", "scope")
-      .transact(Bot.xa)
+    update(
+      fr"access_token = $accessToken".some,
+      fr"expires_at = $expiresAt".some,
+      fr"refresh_token = $refreshToken".some,
+      fr"scope = $scope".some,
+    )(fr"id = $id")

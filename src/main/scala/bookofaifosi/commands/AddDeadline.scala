@@ -50,7 +50,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
       _ <- Stream.awakeEvery[IO](delay)
       LockTaskDeadline(lockID, keyholder, user, deadline, mostRecentEventTime) <- Stream.evalSeq(LockTaskDeadlineRepository.list())
       event <- user.lockHistory(lockID, mostRecentEventTime)
-      _ <- Stream.whenF(mostRecentEventTime.forall(_.isBefore(event.createdAt)))(LockTaskDeadlineRepository.update(lockID, keyholder.id, deadline, event.createdAt.some))
+      _ <- Stream.whenF(mostRecentEventTime.forall(_.isBefore(event.createdAt)))(LockTaskDeadlineRepository.update(lockID, keyholder.id, deadline.some, event.createdAt.some.some))
       wheelTurnedEvent <- Stream.whenS(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       taskEvent <- Stream.when(wheelTurnedEvent.payload.segment.`type` == "text")(wheelTurnedEvent)
       task = ChasterID(taskEvent.payload.segment.text)

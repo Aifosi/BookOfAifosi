@@ -16,7 +16,7 @@ import bookofaifosi.db.Filters.*
 
 object TagRepository extends Repository[Tag]:
   override protected val table: Fragment = fr"tags"
-  override protected val selectColumns: Fragment = fr"name, description"
+  override protected val columns: List[String] = List("name", "description")
   def add(name: String, description: Option[String]): IO[Unit] =
     sql"insert into $table (name, description) values ($name, $description)"
       .update
@@ -24,8 +24,12 @@ object TagRepository extends Repository[Tag]:
       .void
       .transact(Bot.xa)
 
-  def update(name: String, newName: Option[String], newDescription: Option[Option[String]]): IO[Int] =
-    List(newName.equalName, descriptionEqual(newDescription), updatedAt.some).mkFragment(fr"update $table set", fr",", fr"where name = $name")
+  def update(
+    name: String,
+    newName: Option[String],
+    newDescription: Option[Option[String]]
+  ): IO[Int] =
+    List(newName.equalName, descriptionEqual(newDescription)).mkFragment(fr"update $table set", fr",", fr"where name = $name")
       .update
       .run
       .transact(Bot.xa)

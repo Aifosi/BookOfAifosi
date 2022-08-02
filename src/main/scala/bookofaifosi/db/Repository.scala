@@ -76,14 +76,21 @@ trait Remove:
       .update
       .run
       .transact(Bot.xa)
-    
-trait UpdatedAt:
-  lazy val updatedAt: Fragment = fr"updated_at = NOW()"
 
-trait Repository[A: Read] extends Remove with UpdatedAt:
+sealed trait RepositoryFields:
   protected val table: Fragment
-  protected val selectColumns: Fragment
-  protected lazy val selectAll = fr"select" ++ selectColumns ++ fr"from" ++ table
+  protected val columns: List[String]
+
+trait Repository[A: Read] extends RepositoryFields with Remove:
+  private val updatedAt: Filter = fr"updated_at = NOW()".some
+
+  inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] =
+    (updates.toList :+ updatedAt).mkFragment(fr"update $table set", fr",", (where +: more.toList).map(_.some).combineFilters)
+      .update
+      .withUniqueGeneratedKeys[A](columns*)
+      .transact(Bot.xa)
+
+  protected lazy val selectAll: Fragment = Fragment.const(columns.mkString("select ", ", ", " from")) ++ table
 
   private def query(filters: Iterable[Filter]) =
     (selectAll ++ filters.toList.combineFilters).query[A]
@@ -94,18 +101,20 @@ trait Repository[A: Read] extends Remove with UpdatedAt:
 
   def get(filters: Filter*): IO[A] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 
-trait ModelRepository[A: Read, Model] extends Remove with UpdatedAt:
+  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] = innerUpdate(updates*)(where, more*)
+
+trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
   outer =>
-  protected val table: Fragment
-  protected val selectColumns: Fragment
   def toModel(a: A): IO[Model]
 
   private object Repo extends Repository[A]:
     override protected val table: Fragment = outer.table
-    override protected val selectColumns: Fragment = outer.selectColumns
+    override protected val columns: List[String] = outer.columns
 
   def list(filters: Filter*): IO[List[Model]] = Repo.list(filters*).flatMap(_.traverse(toModel))
 
   def find(filters: Filter*): IO[Option[Model]] = Repo.find(filters*).flatMap(_.traverse(toModel))
 
   def get(filters: Filter*): IO[Model] = Repo.get(filters*).flatMap(toModel)
+
+  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] = Repo.update(updates*)(where, more*).flatMap(toModel)

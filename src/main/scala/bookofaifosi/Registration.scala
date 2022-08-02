@@ -67,7 +67,7 @@ object Registration:
       )
     }
 
-  def addOrUpdateScope(
+  def addOrUpdateToken(
     chasterName: String,
     discordID: DiscordID,
     keyholderIDs: List[ChasterID],
@@ -79,7 +79,7 @@ object Registration:
     RegisteredUserRepository.add(chasterName, discordID, keyholderIDs, isLocked, isWearer, isKeyholder, tokenID).attempt.flatMap {
       _.fold(
         throwable => RegisteredUserRepository.find(chasterName.equalChasterName, discordID.equalDiscordID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
-          RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, isWearer, isKeyholder, tokenID)
+          RegisteredUserRepository.update(user.id, tokenID = tokenID.some)
         }),
         _.pure
       )
@@ -102,7 +102,7 @@ object Registration:
         scopes = accessToken.scope.split(" ")
         isWearer = scopes.contains("locks")
         isKeyholder = scopes.contains("keyholder")
-        registeredUser <- addOrUpdateScope(profile.username, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
+        registeredUser <- addOrUpdateToken(profile.username, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
         _ <- registrations.update(_ - uuid)
         logChannel <- Bot.config.logChannel
         _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}, Wearer? $isWearer, Keyholder? $isKeyholder"))
