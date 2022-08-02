@@ -26,7 +26,7 @@ case class TaskSubscription(
 
 object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, TaskSubscriptionModel]:
   override protected val table: Fragment = fr"task_subscriptions"
-  override protected val selectColumns: Fragment = fr"user_id, lock_id, most_recent_event_time"
+  override protected val columns: List[String] = List("user_id", "lock_id", "most_recent_event_time")
 
   override def toModel(taskSubscription: TaskSubscription): IO[TaskSubscriptionModel] =
     for
@@ -51,8 +51,6 @@ object TaskSubscriptionRepository extends ModelRepository[TaskSubscription, Task
     lockID: ChasterID,
     mostRecentEventTime: Option[Instant],
   ): IO[TaskSubscriptionModel] =
-    sql"update task_subscriptions set most_recent_event_time = $mostRecentEventTime where user_id = $userID, $updatedAt and lock_id = $lockID"
-      .update
-      .withUniqueGeneratedKeys[TaskSubscription]("user_id", "lock_id", "most_recent_event_time")
-      .transact(Bot.xa)
-      .flatMap(toModel)
+    update(
+      fr"most_recent_event_time = $mostRecentEventTime".some,
+    )(fr"user_id = $userID", fr"lock_id = $lockID")

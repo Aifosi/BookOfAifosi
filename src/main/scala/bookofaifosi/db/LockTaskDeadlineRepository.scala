@@ -26,7 +26,7 @@ case class LockTaskDeadline(
 
 object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, LockTaskDeadlineModel]:
   override protected val table: Fragment = fr"lock_task_deadlines"
-  override protected val selectColumns: Fragment = fr"lock_id, keyholder_id, user_id, deadline, most_recent_event_time"
+  override protected val columns: List[String] = List("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
   override def toModel(lockTaskDeadline: LockTaskDeadline): IO[LockTaskDeadlineModel] =
     for
       keyholder <- RegisteredUserRepository.get(lockTaskDeadline.keyholderID.equalID)
@@ -48,11 +48,10 @@ object LockTaskDeadlineRepository extends ModelRepository[LockTaskDeadline, Lock
   def update(
     lockID: ChasterID,
     keyholderID: UUID,
-    deadline: FiniteDuration,
-    mostRecentEventTime: Option[Instant],
+    deadline: Option[FiniteDuration] = None,
+    mostRecentEventTime: Option[Option[Instant]] = None,
   ): IO[LockTaskDeadlineModel] =
-    sql"update lock_task_deadlines set most_recent_event_time = $mostRecentEventTime, deadline = $deadline, $updatedAt where lock_id = $lockID and keyholder_id = $keyholderID"
-      .update
-      .withUniqueGeneratedKeys[LockTaskDeadline]("lock_id", "keyholder_id", "user_id", "deadline", "most_recent_event_time")
-      .transact(Bot.xa)
-      .flatMap(toModel)
+    update(
+      deadline.map(deadline => fr"deadline = $deadline"),
+      mostRecentEventTime.map(mostRecentEventTime => fr"most_recent_event_time = $mostRecentEventTime"),
+    )(fr"lock_id = $lockID", fr"keyholder_id = $keyholderID")

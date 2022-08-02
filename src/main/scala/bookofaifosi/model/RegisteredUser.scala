@@ -16,3 +16,5 @@ class RegisteredUser(
   val isLocked: Boolean = dbUser.isLocked
   val isWearer: Boolean = dbUser.isWearer
   val isKeyholder: Boolean = dbUser.isKeyholder
+  val lastLocked: Option[Instant] = dbUser.lastLocked
+  val lastKeyheld: Option[Instant] = dbUser.lastKeyheld

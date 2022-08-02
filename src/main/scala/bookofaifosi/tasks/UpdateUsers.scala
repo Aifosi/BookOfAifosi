@@ -22,6 +22,7 @@ import doobie.syntax.string.*
 import fs2.Stream
 import org.typelevel.log4cats.Logger
 
+import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 object UpdateUsers extends RepeatedStreams:
@@ -35,7 +36,7 @@ object UpdateUsers extends RepeatedStreams:
 
   private def updateUser(user: RegisteredUser, keyholderIDs: List[ChasterID], isLocked: Boolean): IO[RegisteredUser] =
     if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
-      RegisteredUserRepository.update(user.id, keyholderIDs, isLocked, user.isWearer, user.isKeyholder, user.token.id)
+      RegisteredUserRepository.update(user.id, keyholderIDs = keyholderIDs.some, isLocked = isLocked.some, lastLocked = Option.when(isLocked)(Instant.now.some))
     else
       user.pure
 
@@ -59,13 +60,14 @@ object UpdateUsers extends RepeatedStreams:
       keyholderNames = keyholders.map(_.username)
       user <- updateUser(user, keyholders.map(_._id), lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_name = ANY ($keyholderNames)".some, isKeyholder)
-    yield registeredKeyholders.nonEmpty
+    yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
     if !user.isKeyholder then return false.pure
     for
       registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some, isWearer)
-    yield registeredWearers.nonEmpty
+      _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
+    yield user.lastKeyheld.exists(_.isAfter(Bot.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for

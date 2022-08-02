@@ -19,7 +19,7 @@ case class PilloryBitches(
 
 object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryBitchesModel]:
   override protected val table: Fragment = fr"pillory_bitches"
-  override protected val selectColumns: Fragment = fr"guild_discord_id, channel_discord_id"
+  override protected val columns: List[String] = List("guild_discord_id", "channel_discord_id")
 
   override def toModel(pilloryBitches: PilloryBitches): IO[PilloryBitchesModel] =
     for
@@ -31,7 +31,7 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
   def addOrUpdate(
     guildID: DiscordID,
     channelID: DiscordID,
-  ): IO[PilloryBitches] =
+  ): IO[PilloryBitchesModel] =
     add(guildID, channelID).attempt.flatMap {
       _.fold(
         throwable => update(guildID, channelID),
@@ -42,17 +42,17 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
   def add(
     guildID: DiscordID,
     channelID: DiscordID,
-  ): IO[PilloryBitches] =
+  ): IO[PilloryBitchesModel] =
     sql"insert into $table (guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
       .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
       .transact(Bot.xa)
+      .flatMap(toModel)
 
   def update(
     guildID: DiscordID,
     newChannelID: DiscordID,
-  ): IO[PilloryBitches] =
-    sql"update pillory_bitches set channel_discord_id = $newChannelID, $updatedAt where guild_discord_id = $guildID"
-      .update
-      .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
-      .transact(Bot.xa)
+  ): IO[PilloryBitchesModel] =
+    update(
+      fr"channel_discord_id = $newChannelID".some,
+    )(fr"guild_discord_id = $guildID")

@@ -7,6 +7,7 @@ import pureconfig.generic.derivation.default.derived
 import cats.syntax.traverse.*
 import cats.effect.IO
 
+import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
 given ConfigReader[DiscordID] = ConfigReader[Long].map(DiscordID.apply)
@@ -21,7 +22,11 @@ case class Roles(
   keyholder: DiscordID,
   locked: DiscordID,
   switch: DiscordID,
-) derives ConfigReader
+  private val lastLockedThreshold: FiniteDuration,
+  private val lastKeyheldThreshold: FiniteDuration,
+) derives ConfigReader:
+  def lastLockedCutoff: Instant = Instant.now.minusSeconds(lastLockedThreshold.toSeconds)
+  def lastKeyheldCutoff: Instant = Instant.now.minusSeconds(lastKeyheldThreshold.toSeconds)
 
 case class Configuration(
   host: String,

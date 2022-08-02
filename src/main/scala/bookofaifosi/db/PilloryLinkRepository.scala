@@ -8,6 +8,7 @@ import doobie.syntax.string.*
 import doobie.postgres.implicits.*
 import cats.syntax.functor.*
 import cats.syntax.traverse.*
+import cats.syntax.option.*
 import doobie.syntax.connectionio.*
 import doobie.util.log.LogHandler
 import doobie.Fragment
@@ -24,7 +25,7 @@ case class PilloryLink(
 
 object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkModel]:
   override protected val table: Fragment = fr"pillory_links"
-  override protected val selectColumns: Fragment = fr"user_id, guild_discord_id, post_id, counted"
+  override protected val columns: List[String] = List("user_id", "guild_discord_id", "post_id", "counted")
 
   override def toModel(pilloryLink: PilloryLink): IO[PilloryLinkModel] =
     for
@@ -47,8 +48,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
   def setCounted(
     guildID: DiscordID,
   ): IO[Unit] =
-    sql"update pillory_links set counted = TRUE, $updatedAt where guild_discord_id = $guildID"
-      .update
-      .run
+    update(
+      fr"counted = TRUE".some
+    )(fr"guild_discord_id = $guildID")
       .void
-      .transact(Bot.xa)

@@ -27,7 +27,7 @@ private case class PendingTask(
 
 object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskModel]:
   override protected val table: Fragment = fr"pending_tasks"
-  override protected val selectColumns: Fragment = fr"id, task, user_id, keyholder_id, deadline"
+  override protected val columns: List[String] = List("id", "task", "user_id", "keyholder_id", "deadline")
 
   override def toModel(pendingTask: PendingTask): IO[PendingTaskModel] =
     for
