@@ -32,15 +32,7 @@ import bookofaifosi.db.Filter
 import org.typelevel.log4cats.Logger
 
 object Registration:
-  enum Role(val scope: String):
-    case Wearer extends Role("profile locks")
-    case Keyholder extends Role("profile keyholder shared_locks")
-    def equalUserType: Filter = fr"user_type = $this".some
-
-  object Role:
-    given Put[Role] = Put[String].contramap(_.toString.toLowerCase)
-
-  private val registrations: Ref[IO, Map[UUID, (Member, String, Role)]] = Ref.unsafe(Map.empty)
+  private val registrations: Ref[IO, Map[UUID, (Member, String)]] = Ref.unsafe(Map.empty)
 
   given QueryParamDecoder[UUID] = QueryParamDecoder[String].emap(uuid => Try(UUID.fromString(uuid)).toEither.left.map(error => new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)))
   private object CodeParamMatcher extends QueryParamDecoderMatcher[String]("code")
@@ -72,11 +64,9 @@ object Registration:
     discordID: DiscordID,
     keyholderIDs: List[ChasterID],
     isLocked: Boolean,
-    isWearer: Boolean,
-    isKeyholder: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    RegisteredUserRepository.add(chasterID, discordID, keyholderIDs, isLocked, isWearer, isKeyholder, tokenID).attempt.flatMap {
+    RegisteredUserRepository.add(chasterID, discordID, keyholderIDs, isLocked, tokenID).attempt.flatMap {
       _.fold(
         throwable => RegisteredUserRepository.find(chasterID.equalChasterID, discordID.equalDiscordID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
           RegisteredUserRepository.update(user.id, tokenID = tokenID.some)
@@ -87,7 +77,7 @@ object Registration:
 
   def routes(using Logger[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
-      def requestAccessToken(member: Member, role: Role): IO[Unit] = for
+      def requestAccessToken(member: Member): IO[Unit] = for
         httpClient <- Bot.client.get
         accessToken <- Client.token(
           "grant_type" -> "authorization_code",
@@ -100,21 +90,19 @@ object Registration:
         keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
         isLocked = locks.exists(_.status == LockStatus.Locked)
         scopes = accessToken.scope.split(" ")
-        isWearer = scopes.contains("locks")
-        isKeyholder = scopes.contains("keyholder")
-        registeredUser <- addOrUpdateToken(profile._id, member.discordID, keyholderIDs, isLocked, isWearer, isKeyholder, userToken.id)
+        registeredUser <- addOrUpdateToken(profile._id, member.discordID, keyholderIDs, isLocked, userToken.id)
         _ <- registrations.update(_ - uuid)
         logChannel <- Bot.config.logChannel
-        _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}, Wearer? $isWearer, Keyholder? $isKeyholder"))
-        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid, Wearer? $isWearer, Keyholder? $isKeyholder")
+        _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}"))
+        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
       yield ()
 
       registrations.get.flatMap {
         case registrations if !registrations.contains(uuid) => ExpectationFailed()
         case registrations                                  =>
-          val (member, _, role) = registrations(uuid)
+          val member = registrations(uuid)._1
           for
-            registeredUser <- requestAccessToken(member, role).start
+            _ <- requestAccessToken(member).start
             response <- Ok("Registration Successful")
           yield response
       }
@@ -130,22 +118,17 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def register(member: Member, timeout: FiniteDuration, role: Role)(using Logger[IO]): IO[Option[Uri]] =
+  def register(member: Member, timeout: FiniteDuration)(using Logger[IO]): IO[Option[Uri]] =
     for
       uuid <- IO(UUID.randomUUID())
-      _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid, role: $role")
+      _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
       registeredUser <- RegisteredUserRepository.find(member.discordID.equalDiscordID)
-      alreadyRegistered = role match {
-        case Role.Wearer    => registeredUser.fold(false)(_.isWearer)
-        case Role.Keyholder => registeredUser.fold(false)(_.isKeyholder)
-      }
-
-      authenticateUri <- Option.unless(alreadyRegistered) {
-        val fullScope = registeredUser.fold(role.scope)(user => joinScopes(user.token.scope, role.scope))
+      authenticateUri <- if registeredUser.isDefined then
+        None.pure[IO]
+      else
         for
-          _ <- registrations.update(_ + (uuid -> (member, fullScope, role)))
+          _ <- registrations.update(_ + (uuid -> (member, "profile keyholder shared_locks locks")))
           _ <- invalidateRegistration(uuid, timeout)
           authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
-        yield authenticateUri
-      }.sequence
+        yield authenticateUri.some
     yield authenticateUri

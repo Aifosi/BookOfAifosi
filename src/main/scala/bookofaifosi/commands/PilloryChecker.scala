@@ -40,7 +40,7 @@ object PilloryChecker extends TextCommand with Hidden:
       keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
         RegisteredUserRepository.find(keyholder._id.equalChasterID).map(_.isDefined)
       })
-      _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered as a keyholder.")
+      _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered.")
       userSubmitted = user.chasterID.contains(post.user._id)
       votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
       _ <- EitherT.cond((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded), (), "You must either submit one of your pillories after it ended or someone else's before it ends.")

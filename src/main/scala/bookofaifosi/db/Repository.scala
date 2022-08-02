@@ -67,8 +67,6 @@ object Filters:
     def equalName: Filter = name.flatMap(_.equalName)
 
   def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${description.orNull}")
-  lazy val isWearer: Filter = fr"is_wearer = true".some
-  lazy val isKeyholder: Filter = fr"is_keyholder = true".some
 
 trait Remove:
   protected val table: Fragment
