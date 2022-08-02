@@ -43,6 +43,8 @@ object Registration:
     Uri.unsafeFromString(s"http://${Bot.config.publicHost}$port/register")
 
   private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
+  private def containsAllScopes(scope: String, other: String): Boolean =
+    scope.split(" ").toSet.subsetOf(other.split(" ").toSet)
 
   private def addOrUpdateTokenScope(
     accessToken: String,
@@ -123,11 +125,12 @@ object Registration:
       uuid <- IO(UUID.randomUUID())
       _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
       registeredUser <- RegisteredUserRepository.find(member.discordID.equalDiscordID)
-      authenticateUri <- if registeredUser.isDefined then
+      scope = "profile keyholder shared_locks locks"
+      authenticateUri <- if registeredUser.exists(user => containsAllScopes(scope, user.scope)) then
         None.pure[IO]
       else
         for
-          _ <- registrations.update(_ + (uuid -> (member, "profile keyholder shared_locks locks")))
+          _ <- registrations.update(_ + (uuid -> (member, scope)))
           _ <- invalidateRegistration(uuid, timeout)
           authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
         yield authenticateUri.some
