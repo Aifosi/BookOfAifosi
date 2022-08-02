@@ -2,8 +2,7 @@ package bookofaifosi.db
 
 import bookofaifosi.Bot
 import bookofaifosi.db.Filters.*
-import bookofaifosi.model.DiscordID
-import cats.effect.IO
+import bookofaifosi.model.{ChasterID, DiscordID, toLong}
 import doobie.{ConnectionIO, Fragment, Get, Put}
 import doobie.implicits.*
 import doobie.postgres.*
@@ -17,7 +16,7 @@ import java.util.UUID
 import scala.concurrent.duration.*
 import scala.util.chaining.*
 import bookofaifosi.model.DiscordID
-import bookofaifosi.model.toLong
+import cats.effect.IO
 
 given Get[FiniteDuration] = Get[Long].map(_.seconds)
 given Put[FiniteDuration] = Put[Long].contramap(_.toSeconds)
@@ -51,11 +50,13 @@ object Filters:
     def equalRoleID: Filter = fr"role_discord_id = $id".some
     def equalChannelID: Filter = fr"channel_discord_id = $id".some
 
+  extension (id: ChasterID)
+    def equalChasterID: Filter = fr"chaster_id = $id".some
+
   extension (string: String)
     def similarName: Filter = fr"name ILIKE $string".some
     def similarPartialName: Filter = fr"name ILIKE ${s"%$string%"}".some
     def equalName: Filter = fr"name = $string".some
-    def equalChasterName: Filter = fr"chaster_name = $string".some
     def equalUserType: Filter = fr"user_type = $string".some
     def equalLockID: Filter = fr"lock_id = $string".some
     def equalAccessToken: Filter = fr"access_token = $string".some

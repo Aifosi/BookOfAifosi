@@ -71,10 +71,11 @@ object UpdateUsers extends RepeatedStreams:
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
-      profile <- user.publicProfileByName(user.chasterName).streamed
-      profile <- profile.filter(!_.isDisabled).fold {
-        log(s"Profile for ${user.mention} chaster user ${user.chasterName} not found, was it deleted?")
-      }(Stream.emit)
+      profile <- user.chasterID.fold[Stream[IO, PublicUser]](Stream.empty)(chasterID => user.publicProfileByID(chasterID).streamed)
+      profile <- if profile.isDisabled then
+        log(s"Profile for ${user.mention} chaster id ${user.chasterID} not found, was it deleted?")
+      else
+        Stream.emit(profile)
     yield profile
 
   private def checkDiscordUserDeleted(user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
