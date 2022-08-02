@@ -23,10 +23,7 @@ trait StreamSyntax:
 
   extension [F[_], O](stream: Stream[F, O])
     def handleErrorAndContinue[F2[x] >: F[x]](h: Throwable => Stream[F2, O]): Stream[F2, O] =
-      stream.map(_.asRight[O]).handleErrorWith(error => h(error).map(_.asLeft)).flatMap {
-        case Right(output) => Stream.emit(output)
-        case Left(value) => Stream.emit(value) ++ stream.handleErrorAndContinue(h)
-      }
+      stream.handleErrorWith(error => h(error) ++ stream.handleErrorAndContinue(h))
 
   extension [F[_], O](stream: Stream[F, O])
     def logErrorAndContinue(message: Throwable => String = _.getMessage)(using Logger[F]): Stream[F, O] =

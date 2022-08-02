@@ -79,7 +79,7 @@ object AddDeadline extends SlashCommand with Options with AutoCompleteString wit
       lockTitle = event.getOption[String]("lock")
       lock <- OptionT(keyHolder.keyholderLocks.find(_.title == lockTitle).compile.last)
         .toRight(s"Can't find lock with name $lockTitle")
-      user <- OptionT(RegisteredUserRepository.find(lock.user.username.equalChasterName))
+      user <- OptionT(RegisteredUserRepository.find(lock.user._id.equalChasterID))
         .toRight(s"Your lockee needs to register as a wearer use this command, it can be done using `/${RegisterWearer.fullCommand}`.")
       lockId = lock._id
       duration = event.getOption[Long]("deadline")

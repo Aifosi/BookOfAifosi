@@ -21,7 +21,7 @@ import java.util.UUID
 
 case class User(
   id: UUID,
-  chasterName: String,
+  chasterID: Option[ChasterID],
   discordID: DiscordID,
   keyholderIDs: List[ChasterID],
   isLocked: Boolean,
@@ -34,7 +34,7 @@ case class User(
 
 object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
   override protected val table: Fragment = fr"users"
-  override protected val columns: List[String] = List("id", "chaster_name", "user_discord_id", "keyholder_ids", "is_locked", "is_wearer", "is_keyholder", "token_id", "last_locked", "last_keyheld")
+  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "keyholder_ids", "is_locked", "is_wearer", "is_keyholder", "token_id", "last_locked", "last_keyheld")
 
   override def toModel(user: User): IO[RegisteredUser] =
     for
@@ -44,7 +44,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     yield new RegisteredUser(user, discordUser, token)
 
   def add(
-    chasterName: String,
+    chasterID: ChasterID,
     discordID: DiscordID,
     keyholderIDs: List[ChasterID],
     isLocked: Boolean,
@@ -52,7 +52,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     isKeyholder: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    sql"insert into $table (chaster_name, user_discord_id, keyholder_ids, is_locked, is_wearer, is_keyholder, token_id) values ($chasterName, $discordID, $keyholderIDs, $isLocked, $isWearer, $isKeyholder, $tokenID)"
+    sql"insert into $table (chaster_id, user_discord_id, keyholder_ids, is_locked, is_wearer, is_keyholder, token_id) values ($chasterID, $discordID, $keyholderIDs, $isLocked, $isWearer, $isKeyholder, $tokenID)"
       .update
       .withUniqueGeneratedKeys[User](columns*)
       .transact(Bot.xa)
@@ -77,3 +77,9 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
       lastLocked.map(lastLocked => fr"last_locked = $lastLocked"),
       lastKeyheld.map(lastKeyheld => fr"last_keyheld = $lastKeyheld"),
     )(fr"id = $id")
+
+  def updateChaster(
+    id: UUID,
+    chasterID: ChasterID,
+  ): IO[RegisteredUser] =
+    update(fr"chaster_id = $chasterID".some)(fr"id = $id")

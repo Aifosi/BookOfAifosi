@@ -38,10 +38,10 @@ object PilloryChecker extends TextCommand with Hidden:
       notTooOld = post.data.voteEndsAt.isAfter(Instant.now.minus(1, ChronoUnit.DAYS))
       _ <- EitherT.cond(notTooOld, (), "Pillory is too old, must not be older than 1 day.")
       keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
-        RegisteredUserRepository.find(keyholder.username.equalChasterName).map(_.isDefined)
+        RegisteredUserRepository.find(keyholder._id.equalChasterID).map(_.isDefined)
       })
       _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered as a keyholder.")
-      userSubmitted = post.user.username == user.chasterName
+      userSubmitted = user.chasterID.contains(post.user._id)
       votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
       _ <- EitherT.cond((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded), (), "You must either submit one of your pillories after it ended or someone else's before it ends.")
       alreadySubmitted <- EitherT.liftF(PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).map(_.isDefined))

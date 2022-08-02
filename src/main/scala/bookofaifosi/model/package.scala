@@ -9,6 +9,8 @@ object Instances:
   import doobie.postgres.implicits.*
   lazy val stringListRead: Read[List[String]] = Read[List[String]]
   lazy val stringListWrite: Write[List[String]] = Write[List[String]]
+  lazy val stringOptionRead: Read[Option[String]] = Read[Option[String]]
+  lazy val stringOptionWrite: Write[Option[String]] = Write[Option[String]]
 
 package object model:
   opaque type DiscordID = Long
@@ -32,4 +34,6 @@ package object model:
     given Write[ChasterID] = Write.fromPut[String]
     given Read[List[ChasterID]] = Instances.stringListRead
     given Write[List[ChasterID]] = Instances.stringListWrite
+    given Read[Option[ChasterID]] = Instances.stringOptionRead
+    given Write[Option[ChasterID]] = Instances.stringOptionWrite
     def apply(id: String): ChasterID = id
