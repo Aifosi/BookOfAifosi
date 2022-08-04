@@ -12,6 +12,7 @@ import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.RepeatedStreams
 import cats.effect.IO
+import cats.effect.kernel.Ref
 import cats.syntax.foldable.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
@@ -21,9 +22,11 @@ import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
 import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.time.Instant
-import scala.concurrent.duration.FiniteDuration
+import java.util.UUID
+import scala.concurrent.duration.*
 
 object UpdateUsers extends RepeatedStreams:
   private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
@@ -51,7 +54,21 @@ object UpdateUsers extends RepeatedStreams:
       _.pure
     ))
 
+  val notified: Ref[IO, Set[UUID]] = Ref.unsafe(Set.empty)
+
+  def notify(user: RegisteredUser)(using Logger[IO]): IO[Unit] =
+    notified.get.flatMap {
+      case needReRegister if needReRegister.contains(user.id) => IO.unit
+      case _ =>
+        for
+          _ <- (IO.sleep(1.day) *> notified.update(_ - user.id)).start.void
+          _ <- notified.update(_ + user.id)
+          _ <- log(s"User ${user.mention} chaster id ${user.chasterID} lacks \"locks\" scope and needs to reregister").compile.drain
+        yield ()
+    }
+
   private def shouldAddLocked(user: RegisteredUser, guild: Guild)(using Logger[IO]): IO[Boolean] =
+    if !user.token.scope.split(" ").contains("locks") then return notify(user).as(false)
     for
       locks <- user.locks
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
@@ -61,6 +78,7 @@ object UpdateUsers extends RepeatedStreams:
     yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
+    if !user.token.scope.split(" ").contains("keyholder") then return notify(user).as(false)
     for
       registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
@@ -84,15 +102,16 @@ object UpdateUsers extends RepeatedStreams:
         log(s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?")
     yield ()
 
-  override def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit] =
+  override lazy val delay: FiniteDuration = Bot.config.checkFrequency
+
+  override lazy val repeatedStream: Stream[IO, Unit] =
     for
-      given Logger[IO] <- Bot.logger.get.streamed
+      given Logger[IO] <- Slf4jLogger.create[IO].streamed
       discord <- Bot.discord.get.streamed
       visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
       switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
-      _ <- Stream.awakeEvery[IO](delay)
       user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- checkChasterUserDeleted(user)
       guild <- Stream.emits(discord.guilds)

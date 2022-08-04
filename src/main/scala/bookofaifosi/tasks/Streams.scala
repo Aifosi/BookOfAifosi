@@ -8,9 +8,10 @@ import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.FiniteDuration
 
 trait Streams:
-  def stream(using Logger[IO]): Stream[IO, Unit]
+  def stream: Stream[IO, Unit]
 
 trait RepeatedStreams extends Streams:
-  def repeatedStream(delay: FiniteDuration)(using Logger[IO]): Stream[IO, Unit]
+  def delay: FiniteDuration
+  def repeatedStream: Stream[IO, Unit]
 
-  override def stream(using Logger[IO]): Stream[IO, Unit] = repeatedStream(Bot.config.checkFrequency)
+  override def stream: Stream[IO, Unit] = Stream.awakeEvery[IO](delay) >> repeatedStream

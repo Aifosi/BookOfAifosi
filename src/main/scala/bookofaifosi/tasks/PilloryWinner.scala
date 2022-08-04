@@ -27,7 +27,7 @@ object PilloryWinner extends Streams:
     val offset = ChronoUnit.SECONDS.between(now, target).seconds
     IO.sleep(offset).streamed
 
-  override def stream(using Logger[IO]): Stream[IO, Unit] =
+  override lazy val stream: Stream[IO, Unit] =
     for
       _ <- offsetFromConfig
       _ <- Stream.unit ++ Stream.awakeEvery[IO](24.hours)

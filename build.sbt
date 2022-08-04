@@ -39,10 +39,12 @@ val http4sVersion = "1.0.0-M32"
 val circeVersion = "0.14.2"
 val doobieVersion = "1.0.0-RC2"
 libraryDependencies ++= Seq(
-  "net.dv8tion"            % "JDA"                 % "5.0.0-alpha.11",
   "com.github.pureconfig" %% "pureconfig-core"     % "0.17.1",
-  "org.typelevel"         %% "cats-effect"         % "3.3.12",
+  "org.typelevel"         %% "cats-effect"         % "3.3.13",
   "co.fs2"                %% "fs2-core"            % "3.2.8",
+  //Discord
+  "net.dv8tion"            % "JDA"                 % "5.0.0-alpha.11",
+  //HTTP
   "org.http4s"            %% "http4s-dsl"          % http4sVersion,
   "org.http4s"            %% "http4s-core"         % http4sVersion,
   "org.http4s"            %% "http4s-circe"        % http4sVersion,
@@ -50,10 +52,12 @@ libraryDependencies ++= Seq(
   "org.http4s"            %% "http4s-blaze-client" % http4sVersion,
   "io.circe"              %% "circe-core"          % circeVersion,
   "io.circe"              %% "circe-parser"        % circeVersion,
+  //DB
   "org.postgresql"         % "postgresql"          % "42.3.6",
-  "org.flywaydb"           % "flyway-core"         % "8.5.12",
+  "org.flywaydb"           % "flyway-core"         % "9.0.4",
   "org.tpolecat"          %% "doobie-core"         % doobieVersion,
   "org.tpolecat"          %% "doobie-postgres"     % doobieVersion,
+  //Logging
   "ch.qos.logback"         % "logback-classic"     % "1.2.11",
   "org.typelevel"         %% "log4cats-slf4j"      % "2.3.0",
 )

@@ -54,15 +54,7 @@ object Bot extends IOApp:
 
   lazy val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
     Help,
-    TagAdd,
-    TagInfo,
-    TagList,
-    TagRemove,
-    TagUpdate,
-    Reminder,
     Register,
-    Subscribe,
-    AddDeadline,
     EnablePilloryBitches,
     DisablePilloryBitches,
     PilloryChecker,
@@ -83,8 +75,6 @@ object Bot extends IOApp:
   }
 
   lazy val tasks: NonEmptyList[Streams] = NonEmptyList.of(
-    Subscribe,
-    AddDeadline,
     PilloryWinner,
     UpdateUsers,
   )
