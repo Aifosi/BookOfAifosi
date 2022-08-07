@@ -21,7 +21,7 @@ import java.util.UUID
 
 case class User(
   id: UUID,
-  chasterID: Option[ChasterID],
+  chasterID: ChasterID,
   discordID: DiscordID,
   keyholderIDs: List[ChasterID],
   isLocked: Boolean,

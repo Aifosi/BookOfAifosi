@@ -11,7 +11,7 @@ class RegisteredUser(
   val token: UserToken,
 ) extends User(user.user):
   val id: UUID = dbUser.id
-  val chasterID: Option[ChasterID] = dbUser.chasterID
+  val chasterID: ChasterID = dbUser.chasterID
   val keyholderIDs: List[ChasterID] = dbUser.keyholderIDs
   val isLocked: Boolean = dbUser.isLocked
   val lastLocked: Option[Instant] = dbUser.lastLocked
