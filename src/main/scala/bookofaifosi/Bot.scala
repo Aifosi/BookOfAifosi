@@ -59,6 +59,9 @@ object Bot extends IOApp:
     DisablePilloryBitches,
     PilloryChecker,
     TriggerMessage,
+    MessageDeleter,
+    LockChannel,
+    UnlockChannel,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -83,7 +86,14 @@ object Bot extends IOApp:
 
   private def runMigrations(using Logger[IO]): IO[Unit] =
     for
-      flyway <- IO(Flyway.configure.dataSource(dbConfig.url, dbConfig.user, dbConfig.password).baselineOnMigrate(true).load)
+      flyway <- IO {
+        Flyway
+          .configure
+          .dataSource(dbConfig.url, dbConfig.user, dbConfig.password)
+          .validateMigrationNaming(true)
+          .baselineOnMigrate(true)
+          .load
+      }
       migrations <- IO(flyway.migrate())
       _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
     yield ()

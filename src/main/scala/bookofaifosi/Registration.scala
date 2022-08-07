@@ -61,7 +61,7 @@ object Registration:
       )
     }
 
-  def addOrUpdateToken(
+  def addOrUpdateUser(
     chasterID: ChasterID,
     discordID: DiscordID,
     keyholderIDs: List[ChasterID],
@@ -77,37 +77,39 @@ object Registration:
       )
     }
 
+  def requestAccessToken(member: Member, authorizationCode: String, uuid: UUID)(using Logger[IO]): IO[Unit] = for
+    httpClient <- Bot.client.get
+    accessToken <- Client.token(
+      "grant_type" -> "authorization_code",
+      "code" -> authorizationCode,
+      "redirect_uri" -> registerUri.renderString,
+    )
+    userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+    _ <- IO.println(userToken)
+    profile <- userToken.profile
+    locks <- userToken.locks
+    keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
+    isLocked = locks.exists(_.status == LockStatus.Locked)
+    scopes = accessToken.scope.split(" ")
+    registeredUser <- addOrUpdateUser(profile._id, member.discordID, keyholderIDs, isLocked, userToken.id)
+    _ <- registrations.update(_ - uuid)
+    logChannel <- Bot.config.logChannel
+    _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}"))
+    _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
+  yield ()
+
   def routes(using Logger[IO]): HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
-      def requestAccessToken(member: Member): IO[Unit] = for
-        httpClient <- Bot.client.get
-        accessToken <- Client.token(
-          "grant_type" -> "authorization_code",
-          "code" -> authorizationCode,
-          "redirect_uri" -> registerUri.renderString,
-        )
-        userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
-        profile <- userToken.profile
-        locks <- userToken.locks
-        keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
-        isLocked = locks.exists(_.status == LockStatus.Locked)
-        scopes = accessToken.scope.split(" ")
-        registeredUser <- addOrUpdateToken(profile._id, member.discordID, keyholderIDs, isLocked, userToken.id)
-        _ <- registrations.update(_ - uuid)
-        logChannel <- Bot.config.logChannel
-        _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}"))
-        _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
-      yield ()
-
       registrations.get.flatMap {
         case registrations if !registrations.contains(uuid) => ExpectationFailed()
         case registrations                                  =>
           val member = registrations(uuid)._1
           for
-            _ <- requestAccessToken(member).start
+            _ <- requestAccessToken(member, authorizationCode, uuid).start
             response <- Ok("Registration Successful")
           yield response
       }
+
     case GET -> Root / "register" / "authenticate" :? UUIDParamMatcher(uuid) =>
       registrations.get.flatMap {
         case registrations if !registrations.contains(uuid) => Ok("Registration link expired")

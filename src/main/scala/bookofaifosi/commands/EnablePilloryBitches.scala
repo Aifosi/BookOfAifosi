@@ -11,7 +11,8 @@ object EnablePilloryBitches extends SlashCommand:
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     for
-      _ <- PilloryBitchesRepository.addOrUpdate(event.guild.get.discordID, event.channel.discordID)
+      guild <- event.guild
+      _ <- PilloryBitchesRepository.addOrUpdate(guild.discordID, event.channel.discordID)
       _ <- event.replyEphemeral(s"Pillory bitches enabled on this channel. Winner messages will be sent on this channel.")
     yield true
 

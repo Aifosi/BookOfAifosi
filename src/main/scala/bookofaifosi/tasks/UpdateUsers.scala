@@ -63,6 +63,7 @@ object UpdateUsers extends RepeatedStreams:
         for
           _ <- (IO.sleep(1.day) *> notified.update(_ - user.id)).start.void
           _ <- notified.update(_ + user.id)
+          _ <- user.sendMessage("You are missing permissions from chaster, please use `/register` to update them.")
           _ <- log(s"User ${user.mention} chaster id ${user.chasterID} lacks \"locks\" scope and needs to reregister").compile.drain
         yield ()
     }
@@ -86,7 +87,7 @@ object UpdateUsers extends RepeatedStreams:
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
-      profile <- user.chasterID.fold[Stream[IO, PublicUser]](Stream.empty)(chasterID => user.publicProfileByID(chasterID).streamed)
+      profile <- user.publicProfileByID(user.chasterID).streamed
       profile <- if profile.isDisabled then
         log(s"Profile for ${user.mention} chaster id ${user.chasterID} not found, was it deleted?")
       else

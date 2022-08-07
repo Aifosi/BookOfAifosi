@@ -12,7 +12,8 @@ object DisablePilloryBitches extends SlashCommand:
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     for
-      _ <- PilloryBitchesRepository.remove(event.guild.get.discordID.equalGuildID)
+      guild <- event.guild
+      _ <- PilloryBitchesRepository.remove(guild.discordID.equalGuildID)
       _ <- event.replyEphemeral(s"Pillory bitches disabled.")
     yield true
 

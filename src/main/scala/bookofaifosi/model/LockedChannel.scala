@@ -1,6 +1,6 @@
 package bookofaifosi.model
 
-case class PilloryBitches(
+case class LockedChannel(
   guild: Guild,
   channel: Channel,
 )
