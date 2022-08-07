@@ -54,14 +54,15 @@ object PilloryChecker extends TextCommand with Hidden:
     else
       validatePost(post, member).foldF(
         failReason => event.message.addReaction("❌") *> member.sendMessage(failReason),
-        user => event.message.addReaction("✅") *> PilloryLinkRepository.add(user.id, event.guild.get.discordID, post._id)
+        user => event.message.addReaction("✅") *> event.guild.flatMap(guild => PilloryLinkRepository.add(user.id, guild.discordID, post._id))
       ).void
 
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     (for
       member <- OptionT.liftF(event.authorMember)
       id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1))).map(ChasterID(_))
-      PilloryBitches(_, channel) <- OptionT(PilloryBitchesRepository.find(event.guild.get.discordID.equalGuildID))
+      guild <- OptionT.liftF(event.guild)
+      PilloryBitches(_, channel) <- OptionT(PilloryBitchesRepository.find(guild.discordID.equalGuildID))
       post <- OptionT(UserToken.empty.post(id).attempt.map(_.toOption))
       _ <- OptionT.liftF(addReaction(post, member, channel, event))
     yield true).getOrElse(true)

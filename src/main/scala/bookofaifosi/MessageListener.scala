@@ -41,7 +41,7 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
             yield stop
           case (io, _) => io
         }
-        .as(())
+        .void
     else
       IO.unit
 
@@ -80,5 +80,5 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
         yield stop
       case (io, _) => io
     }
-      .as(())
+      .void
       .unsafeRunSync()
