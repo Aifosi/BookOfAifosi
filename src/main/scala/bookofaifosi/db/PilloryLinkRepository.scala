@@ -48,7 +48,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
   def setCounted(
     guildID: DiscordID,
   ): IO[Unit] =
-    update(
+    updateMany(
       fr"counted = TRUE".some
     )(fr"guild_discord_id = $guildID")
       .void

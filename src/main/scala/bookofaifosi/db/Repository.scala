@@ -83,11 +83,22 @@ sealed trait RepositoryFields:
 trait Repository[A: Read] extends RepositoryFields with Remove:
   private val updatedAt: Filter = fr"updated_at = NOW()".some
 
-  inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] =
+  inline private def updateQuery(updates: Filter*)(where: Fragment, more: Fragment*) =
     (updates.toList :+ updatedAt).mkFragment(fr"update $table set", fr",", (where +: more.toList).map(_.some).combineFilters)
       .update
+
+  inline protected def innerUpdateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[A]] =
+    updateQuery(updates*)(where, more*)
+      .withGeneratedKeys[A](columns*)
+      .compile
+      .toList
+      .transact(Bot.xa)
+
+  inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] =
+    updateQuery(updates*)(where, more*)
       .withUniqueGeneratedKeys[A](columns*)
       .transact(Bot.xa)
+
 
   protected lazy val selectAll: Fragment = Fragment.const(columns.mkString("select ", ", ", " from")) ++ table
 
@@ -101,6 +112,8 @@ trait Repository[A: Read] extends RepositoryFields with Remove:
   def get(filters: Filter*): IO[A] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 
   def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] = innerUpdate(updates*)(where, more*)
+
+  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[A]] = innerUpdateMany(updates*)(where, more*)
 
 trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
   outer =>
@@ -117,3 +130,5 @@ trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
   def get(filters: Filter*): IO[Model] = Repo.get(filters*).flatMap(toModel)
 
   def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] = Repo.update(updates*)(where, more*).flatMap(toModel)
+
+  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[Model]] = Repo.updateMany(updates*)(where, more*).flatMap(_.traverse(toModel))
