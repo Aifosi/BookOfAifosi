@@ -76,16 +76,18 @@ object UpdateUsers extends RepeatedStreams:
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some)
-      _ <- Logger[IO].debug(s"$user is locked by $registeredKeyholders")
-    yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
+      shouldAddLocked = user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
+      _ <- if shouldAddLocked then Logger[IO].debug(s"$user is locked by $registeredKeyholders") else IO.unit
+    yield shouldAddLocked
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
     if !user.token.scope.split(" ").contains("keyholder") then return notify(user).as(false)
     for
       registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
-      _ <- Logger[IO].debug(s"$user is keyholder of $registeredWearers")
-    yield user.lastKeyheld.exists(_.isAfter(Bot.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
+      shouldAddKeyholder = user.lastKeyheld.exists(_.isAfter(Bot.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
+      _ <- if shouldAddKeyholder then Logger[IO].debug(s"$user is keyholder of $registeredWearers") else IO.unit
+    yield shouldAddKeyholder
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
