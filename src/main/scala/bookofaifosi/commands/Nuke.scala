@@ -13,13 +13,13 @@ object Nuke extends SlashCommand with Options:
   override val fullCommand: String = "nuke"
   override val options: List[PatternOption] = List(
     _.addOption[Option[User]]("user", "Discord user mention to delete data for."),
-    _.addOption[Option[Long]]("discord_user_id", "Discord id to delete data for."),
+    _.addOption[Option[String]]("discord_user_id", "Discord id to delete data for."),
     _.addOption[Option[String]]("chaster_user_id", "Chaster id to delete data for."),
   )
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val user = event.getOption[Option[User]]("user")
-    val discordUserID = event.getOption[Option[Long]]("discord_user_id").map(DiscordID(_))
+    val discordUserID = event.getOption[Option[String]]("discord_user_id").flatMap(_.toLongOption).map(DiscordID(_))
     val chasterUserID = event.getOption[Option[String]]("chaster_user_id").map(ChasterID(_))
 
     (for

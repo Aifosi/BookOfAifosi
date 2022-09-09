@@ -71,7 +71,7 @@ object Filters:
 trait Remove:
   protected val table: Fragment
   def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
-    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters)
+    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
       .update
       .run
       .transact(Bot.xa)
