@@ -62,6 +62,7 @@ object Bot extends IOApp:
     MessageDeleter,
     LockChannel,
     UnlockChannel,
+    Nuke,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
