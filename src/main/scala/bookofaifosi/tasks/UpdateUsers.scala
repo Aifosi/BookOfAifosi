@@ -76,6 +76,7 @@ object UpdateUsers extends RepeatedStreams:
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
       registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some)
+      _ <- Logger[IO].debug(s"$user is locked by $registeredKeyholders")
     yield user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
 
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
@@ -83,6 +84,7 @@ object UpdateUsers extends RepeatedStreams:
     for
       registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
+      _ <- Logger[IO].debug(s"$user is keyholder of $registeredWearers")
     yield user.lastKeyheld.exists(_.isAfter(Bot.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
 
   private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =

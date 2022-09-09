@@ -32,7 +32,7 @@ open class User(private[model] val user: JDAUser):
   
   def hasRole(guild: Guild, role: Role): IO[Boolean] = member(guild).map(_.hasRole(role))
 
-  override def toString: String = s"$tag($discordID)"
+  override lazy val toString: String = s"$tag($discordID)"
 
   def canEqual(other: Any): Boolean = other.isInstanceOf[User]
 

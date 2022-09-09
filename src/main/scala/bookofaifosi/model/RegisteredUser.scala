@@ -16,3 +16,5 @@ class RegisteredUser(
   val isLocked: Boolean = dbUser.isLocked
   val lastLocked: Option[Instant] = dbUser.lastLocked
   val lastKeyheld: Option[Instant] = dbUser.lastKeyheld
+
+  override lazy val toString: String = user.toString
