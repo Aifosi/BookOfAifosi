@@ -11,6 +11,7 @@ import net.dv8tion.jda.api.interactions.InteractionHook as JDAInteractionHook
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
+import scala.jdk.CollectionConverters.*
 
 trait SlashAPI:
   def reply(string: String): IO[Unit]
@@ -45,6 +46,9 @@ class SlashCommandEvent(
     ImageIO.write(image, "png", outputStream)
     underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.void
   inline def getOption[T](option: String): T = MacroHelper.getOption[T](underlying, option)
+  lazy val allOptions: List[(String, String)] = underlying.getOptions.asScala.toList.map { option =>
+    option.getName -> option.getAsString
+  }
   lazy val commandName: String = underlying.getName
   lazy val subCommandGroupName: Option[String] = Option(underlying.getSubcommandGroup)
   lazy val subCommandName: Option[String] = Option(underlying.getSubcommandName)
