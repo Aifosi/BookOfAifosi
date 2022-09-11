@@ -68,7 +68,8 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
-      log(event, s" issued slash command $command".stripTrailing)
+      val options = event.allOptions.map((name, value) => s"$name: $value").mkString(", ")
+      log(event, s" issued slash command $command${if options.nonEmpty then s", options: $options" else ""}".stripTrailing)
     }.unsafeRunSync()
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
