@@ -52,13 +52,13 @@ object Filters:
 
   extension (id: ChasterID)
     def equalChasterID: Filter = fr"chaster_id = $id".some
+    def equalLockID: Filter = fr"lock_id = $id".some
 
   extension (string: String)
     def similarName: Filter = fr"name ILIKE $string".some
     def similarPartialName: Filter = fr"name ILIKE ${s"%$string%"}".some
     def equalName: Filter = fr"name = $string".some
     def equalUserType: Filter = fr"user_type = $string".some
-    def equalLockID: Filter = fr"lock_id = $string".some
     def equalAccessToken: Filter = fr"access_token = $string".some
 
   extension (name: Option[String])
@@ -67,14 +67,6 @@ object Filters:
     def equalName: Filter = name.flatMap(_.equalName)
 
   def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${description.orNull}")
-
-trait Remove:
-  protected val table: Fragment
-  def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
-    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
-      .update
-      .run
-      .transact(Bot.xa)
 
 sealed trait RepositoryFields:
   protected val table: Fragment
@@ -92,12 +84,12 @@ trait Repository[A: Read] extends RepositoryFields with Remove:
       .withGeneratedKeys[A](columns*)
       .compile
       .toList
-      .transact(Bot.xa)
+      .transact(Bot.postgresTransactor)
 
   inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] =
     updateQuery(updates*)(where, more*)
       .withUniqueGeneratedKeys[A](columns*)
-      .transact(Bot.xa)
+      .transact(Bot.postgresTransactor)
 
 
   protected lazy val selectAll: Fragment = Fragment.const(columns.mkString("select ", ", ", " from")) ++ table
@@ -105,9 +97,9 @@ trait Repository[A: Read] extends RepositoryFields with Remove:
   private def query(filters: Iterable[Filter]) =
     (selectAll ++ filters.toList.combineFilters).query[A]
 
-  def list(filters: Filter*): IO[List[A]] = query(filters).to[List].transact(Bot.xa)
+  def list(filters: Filter*): IO[List[A]] = query(filters).to[List].transact(Bot.postgresTransactor)
 
-  def find(filters: Filter*): IO[Option[A]] = query(filters).option.transact(Bot.xa)
+  def find(filters: Filter*): IO[Option[A]] = query(filters).option.transact(Bot.postgresTransactor)
 
   def get(filters: Filter*): IO[A] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 
@@ -132,3 +124,11 @@ trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
   def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] = Repo.update(updates*)(where, more*).flatMap(toModel)
 
   def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[Model]] = Repo.updateMany(updates*)(where, more*).flatMap(_.traverse(toModel))
+
+trait Remove:
+  protected val table: Fragment
+  def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
+    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
+      .update
+      .run
+      .transact(Bot.postgresTransactor)

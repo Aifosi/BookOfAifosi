@@ -51,7 +51,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
     sql"insert into $table (chaster_id, user_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $keyholderIDs, $isLocked, $tokenID)"
       .update
       .withUniqueGeneratedKeys[User](columns*)
-      .transact(Bot.xa)
+      .transact(Bot.postgresTransactor)
       .flatMap(toModel)
 
   def update(

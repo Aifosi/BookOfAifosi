@@ -14,7 +14,6 @@ import fs2.Stream
 import org.typelevel.log4cats.Logger
 import doobie.syntax.string.*
 import doobie.postgres.implicits.*
-
 import scala.concurrent.duration.*
 import java.time.temporal.ChronoUnit
 import java.time.{Instant, ZoneOffset}

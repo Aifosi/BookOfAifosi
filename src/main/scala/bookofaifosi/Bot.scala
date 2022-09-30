@@ -38,7 +38,8 @@ import scala.concurrent.duration.*
 object Bot extends IOApp:
   lazy val discordConfig = DiscordConfiguration.fromConfig()
   lazy val chasterConfig = ChasterConfiguration.fromConfig()
-  lazy val dbConfig = DatabaseConfiguration.fromConfig()
+  lazy val postgresConfig = PostgresConfiguration.fromConfig()
+  lazy val mysqlConfig = MysqlConfiguration.fromConfig()
   lazy val config = Configuration.fromConfig()
 
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
@@ -48,8 +49,12 @@ object Bot extends IOApp:
   def ioRuntime: IORuntime = runtime
   given IORuntime = runtime
 
-  val xa: Transactor[IO] = Transactor.fromDriverManager[IO](
-    dbConfig.driver, dbConfig.url, dbConfig.user, dbConfig.password
+  val postgresTransactor: Transactor[IO] = Transactor.fromDriverManager[IO](
+    postgresConfig.driver, postgresConfig.url, postgresConfig.user, postgresConfig.password
+  )
+
+  val mysqlTransactor: Transactor[IO] = Transactor.fromDriverManager[IO](
+    mysqlConfig.driver, mysqlConfig.url, mysqlConfig.user, mysqlConfig.password
   )
 
   lazy val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
@@ -63,6 +68,7 @@ object Bot extends IOApp:
     LockChannel,
     UnlockChannel,
     Nuke,
+    Task,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {
@@ -81,6 +87,7 @@ object Bot extends IOApp:
   lazy val tasks: NonEmptyList[Streams] = NonEmptyList.of(
     PilloryWinner,
     UpdateUsers,
+    WheelTasks,
   )
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
@@ -90,7 +97,7 @@ object Bot extends IOApp:
       flyway <- IO {
         Flyway
           .configure
-          .dataSource(dbConfig.url, dbConfig.user, dbConfig.password)
+          .dataSource(postgresConfig.url, postgresConfig.user, postgresConfig.password)
           .validateMigrationNaming(true)
           .baselineOnMigrate(true)
           .load

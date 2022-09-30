@@ -36,15 +36,20 @@ case class Configuration(
   checkFrequency: FiniteDuration,
   pilloryBitches: PilloryBitches,
   logChannelId: Option[DiscordID],
+  tortureChamberChannelId: Option[DiscordID],
   roles: Roles,
 ) derives ConfigReader:
-  lazy val logChannel: IO[Option[Channel]] =
-    logChannelId.flatTraverse { logChannelId =>
+  def getChannel(id: Option[DiscordID]): IO[Option[Channel]] =
+    id.flatTraverse { id =>
       for
         discord <- Bot.discord.get
-        channelAttempt <- discord.channelByID(logChannelId).attempt
+        channelAttempt <- discord.channelByID(id).attempt
       yield channelAttempt.toOption
     }
+  
+  lazy val logChannel: IO[Option[Channel]] = getChannel(logChannelId)
+  
+  lazy val tortureChamberChannel: IO[Option[Channel]] = getChannel(tortureChamberChannelId)
 
 object Configuration:
   def fromConfig(config: Config = ConfigFactory.load()): Configuration =

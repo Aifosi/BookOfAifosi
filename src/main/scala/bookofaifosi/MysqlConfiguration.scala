@@ -4,12 +4,12 @@ import com.typesafe.config.{Config, ConfigFactory}
 import pureconfig.*
 import pureconfig.generic.derivation.default.derived
 
-final case class DatabaseConfiguration(
+final case class MysqlConfiguration(
   driver: String,
   user: String,
   password: String,
   url: String
 ) derives ConfigReader
 
-object DatabaseConfiguration:
-  def fromConfig(config: Config = ConfigFactory.load()): DatabaseConfiguration = ConfigSource.fromConfig(config).at("db").loadOrThrow[DatabaseConfiguration]
+object MysqlConfiguration:
+  def fromConfig(config: Config = ConfigFactory.load()): MysqlConfiguration = ConfigSource.fromConfig(config).at("mysql").loadOrThrow[MysqlConfiguration]
