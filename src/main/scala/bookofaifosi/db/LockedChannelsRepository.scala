@@ -35,5 +35,5 @@ object LockedChannelsRepository extends ModelRepository[LockedChannel, LockedCha
     sql"insert into $table (guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
       .update
       .withUniqueGeneratedKeys[LockedChannel]("guild_discord_id", "channel_discord_id")
-      .transact(Bot.xa)
+      .transact(Bot.postgresTransactor)
       .flatMap(toModel)

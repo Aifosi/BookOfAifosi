@@ -2,9 +2,8 @@ package bookofaifosi.model
 
 import java.time.Instant
 
-case class TaskSubscription(
+case class RecentLockHistory(
   registeredUser: RegisteredUser,
-  user: User,
   lockID: ChasterID,
   mostRecentEventTime: Option[Instant],
 )
