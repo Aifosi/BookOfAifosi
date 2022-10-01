@@ -61,8 +61,8 @@ object WheelTasks extends RepeatedStreams:
         case event if event.payload.segment.`type` == "text" => event.payload.segment.text
       }
       .fold(IO.unit){
-        case taskRegex(task) => handleTask(task, user)
-        case text => sendMessageToTortureChamber(s"${user.mention} rolled $text")
+        case taskRegex(task) => Logger[IO].debug(s"$user rolled $task") *> handleTask(task, user)
+        case text => Logger[IO].debug(s"$user rolled $text") *> sendMessageToTortureChamber(s"${user.mention} rolled $text")
       }
 
 
