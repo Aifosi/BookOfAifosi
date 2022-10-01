@@ -48,9 +48,7 @@ object WheelTasks extends RepeatedStreams:
       for
         locks <- user.locks
         lock <- IO.fromOption(locks.headOption)(new Exception("Failed to get locks"))
-        lockID = lock._id
-        event <- (user.lockHistory(lockID, None): Stream[IO, Event[Json]]).compile.last
-        lockHistory <- RecentLockHistoryRepository.add(user.id, lockID, event.map(_.createdAt))
+        lockHistory <- RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some)
       yield lockHistory
     }
 
