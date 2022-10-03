@@ -16,6 +16,7 @@ import bookofaifosi.syntax.io.*
 import bookofaifosi.model.{ChasterID, RecentLockHistory, RegisteredUser}
 import cats.data.{EitherT, OptionT}
 import cats.syntax.option.*
+import cats.syntax.traverse.*
 import bookofaifosi.db.Filters.*
 import doobie.implicits.*
 import io.circe.Json
@@ -27,29 +28,32 @@ import scala.concurrent.duration.FiniteDuration
 object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
 
-  private def sendMessageToTortureChamber(message: String): IO[Unit] =
+  private def sendMessageToTortureChamber(message: String)(using Logger[IO]): IO[Unit] =
     for
       tortureChamber <- Bot.config.tortureChamberChannel
-      _ <- tortureChamber.fold(IO.unit)(_.sendMessage(message))
+      _ <- tortureChamber.fold(Logger[IO].debug("Torture chamber channel not configured."))(_.sendMessage(message))
     yield ()
 
-  private def handleTask(task: String, user: RegisteredUser): IO[Unit] =
-    for
-      maybeTask <- fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor)
-      task <- IO.fromOption(maybeTask)(new Exception("Failed to get task."))
-      _ <- user.sendMessage(s"Rolled task ${task.id} - ${task.tittle}")
-      _ <- user.sendMessage(task.description)
-      _ <- sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
-    yield ()
+  private def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): IO[Unit] =
+    fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
+      _.fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task")) { task =>
+        for
+          _ <- user.sendMessage(s"Rolled task ${task.id} - ${task.tittle}")
+          _ <- user.sendMessage(task.description)
+          _ <- sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
+        yield ()
+      }
+    }
 
+  private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
+    RecentLockHistoryRepository.list(user.id.equalUserID).streamed.flatMap {
+      case Nil =>
+        for
+          lock <- Stream.evalSeq(user.locks)
+          lockHistory <- RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed
+        yield lockHistory
 
-  private def getLockHistory(user: RegisteredUser)(using Logger[IO]) =
-    OptionT(RecentLockHistoryRepository.find(user.id.equalUserID)).getOrElseF {
-      for
-        locks <- user.locks
-        lock <- IO.fromOption(locks.headOption)(new Exception("Failed to get locks"))
-        lockHistory <- RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some)
-      yield lockHistory
+      case recentLockHistory => Stream.emits(recentLockHistory)
     }
 
   private def handleEvent(user: RegisteredUser, event: Event[Json])(using Logger[IO]): IO[Unit] =
@@ -76,9 +80,11 @@ object WheelTasks extends RepeatedStreams:
     for
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
       user <- Stream.evalSeq(RegisteredUserRepository.list().map(_.filter(user => user.isLocked && user.keyholderIDs.nonEmpty)))
-      RecentLockHistory(_, lockID, mostRecentEventTimeDB) <- Stream.eval(getLockHistory(user))
-      mostRecentEventTime <- handleHistory(user, lockID, mostRecentEventTimeDB).compile.last.streamed
-      _ <- mostRecentEventTime.fold(Stream.unit) { mostRecentEventTime =>
-        if mostRecentEventTimeDB.forall(_.isBefore(mostRecentEventTime)) then RecentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed else Stream.unit
+      RecentLockHistory(_, lockID, mostRecentEventTimeDB) <- getLockHistory(user)
+      mostRecentEventTime <- handleHistory(user, lockID, mostRecentEventTimeDB).compile.toList.map(_.maxOption).streamed
+      _ <- mostRecentEventTime.fold(Stream.unit) {
+        case mostRecentEventTime if mostRecentEventTimeDB.forall(_.isBefore(mostRecentEventTime)) =>
+          RecentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed
+        case _ => Stream.unit
       }
     yield ()
