@@ -34,16 +34,15 @@ object WheelTasks extends RepeatedStreams:
       _ <- tortureChamber.fold(Logger[IO].debug("Torture chamber channel not configured."))(_.sendMessage(message))
     yield ()
 
-  private def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): IO[Unit] =
-    fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
-      _.fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task")) { task =>
-        for
-          _ <- user.sendMessage(s"Rolled task ${task.id} - ${task.tittle}")
-          _ <- user.sendMessage(task.description)
-          _ <- sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
-        yield ()
+  def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): OptionT[IO, String] =
+    OptionT(
+      fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
+        _.fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task").as(None)) { task =>
+          sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
+            .as(s"Rolled task ${task.id} - ${task.tittle}\n${task.description}".some)
+        }
       }
-    }
+    )
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
     RecentLockHistoryRepository.list(user.id.equalUserID).streamed.flatMap {
@@ -63,8 +62,14 @@ object WheelTasks extends RepeatedStreams:
         case event if event.payload.segment.`type` == "text" => event.payload.segment.text
       }
       .fold(IO.unit){
-        case taskRegex(task) => Logger[IO].debug(s"$user rolled $task") *> handleTask(task, user)
-        case text => Logger[IO].debug(s"$user rolled $text") *> sendMessageToTortureChamber(s"${user.mention} rolled $text")
+        case taskRegex(task) =>
+          for
+            _ <- Logger[IO].debug(s"$user rolled $task")
+            _ <- handleTask(task, user).foldF(IO.unit)(user.sendMessage)
+          yield ()
+
+        case text =>
+          Logger[IO].debug(s"$user rolled $text") *> sendMessageToTortureChamber(s"${user.mention} rolled $text")
       }
 
 
