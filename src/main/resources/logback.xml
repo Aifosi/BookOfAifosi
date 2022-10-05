@@ -8,6 +8,7 @@
     <logger name="net.dv8tion.jda" level="INFO" />
     <logger name="org.flywaydb" level="INFO" />
     <logger name="bookofaifosi.db" level="INFO" />
+    <logger name="bookofaifosi.tasks.UpdateUsers" level="INFO" />
     <root level="DEBUG">
         <appender-ref ref="STDOUT"/>
     </root>

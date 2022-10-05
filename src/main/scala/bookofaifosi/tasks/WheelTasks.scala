@@ -45,15 +45,11 @@ object WheelTasks extends RepeatedStreams:
     )
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
-    RecentLockHistoryRepository.list(user.id.equalUserID).streamed.flatMap {
-      case Nil =>
-        for
-          lock <- Stream.evalSeq(user.locks)
-          lockHistory <- RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed
-        yield lockHistory
-
-      case recentLockHistory => Stream.emits(recentLockHistory)
-    }
+    for
+      lock <- Stream.evalSeq(user.locks)
+      maybeLockHistory <- RecentLockHistoryRepository.find(lock._id.equalLockID).streamed
+      lockHistory <- maybeLockHistory.fold(RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
+    yield lockHistory
 
   private def handleEvent(user: RegisteredUser, event: Event[Json])(using Logger[IO]): IO[Unit] =
     Option.when(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
