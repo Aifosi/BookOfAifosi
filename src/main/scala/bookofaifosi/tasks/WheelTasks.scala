@@ -77,10 +77,8 @@ object WheelTasks extends RepeatedStreams:
 
   override lazy val delay: FiniteDuration = Bot.config.checkFrequency
 
-  override lazy val repeatedStream: Stream[IO, Unit] =
+  def handleUser(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
     for
-      given Logger[IO] <- Slf4jLogger.create[IO].streamed
-      user <- Stream.evalSeq(RegisteredUserRepository.list().map(_.filter(user => user.isLocked && user.keyholderIDs.nonEmpty)))
       RecentLockHistory(_, lockID, mostRecentEventTimeDB) <- getLockHistory(user)
       mostRecentEventTime <- handleHistory(user, lockID, mostRecentEventTimeDB).compile.toList.map(_.maxOption).streamed
       _ <- mostRecentEventTime.fold(Stream.unit) {
@@ -88,4 +86,11 @@ object WheelTasks extends RepeatedStreams:
           RecentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed
         case _ => Stream.unit
       }
+    yield ()
+
+  override lazy val repeatedStream: Stream[IO, Unit] =
+    for
+      given Logger[IO] <- Slf4jLogger.create[IO].streamed
+      user <- Stream.evalSeq(RegisteredUserRepository.list().map(_.filter(user => user.isLocked && user.keyholderIDs.nonEmpty)))
+      _ <- handleUser(user).compile.drain.attempt.streamed
     yield ()

@@ -11,6 +11,7 @@ import bookofaifosi.model.{Channel, ChasterID, Discord, Guild, RegisteredUser, R
 import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.RepeatedStreams
+import bookofaifosi.tasks.WheelTasks.handleUser
 import cats.effect.IO
 import cats.effect.kernel.Ref
 import cats.syntax.foldable.*
@@ -109,15 +110,8 @@ object UpdateUsers extends RepeatedStreams:
 
   override lazy val delay: FiniteDuration = Bot.config.checkFrequency
 
-  override lazy val repeatedStream: Stream[IO, Unit] =
+  def handleUser(discord: Discord, visitorRole: Role, lockedRole: Role, switchRole: Role, keyholderRole: Role)(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
     for
-      given Logger[IO] <- Slf4jLogger.create[IO].streamed
-      discord <- Bot.discord.get.streamed
-      visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
-      lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
-      switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
-      keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
-      user <- Stream.evalSeq(RegisteredUserRepository.list())
       profile <- checkChasterUserDeleted(user)
       guild <- Stream.emits(discord.guilds)
       _ <- checkDiscordUserDeleted(user, guild)
@@ -133,4 +127,16 @@ object UpdateUsers extends RepeatedStreams:
         case (false, true) => addRoleRemoveOthers(keyholderRole)
         case (true, false) => addRoleRemoveOthers(lockedRole)
         case (false, false) => addRoleRemoveOthers(visitorRole)
+    yield ()
+
+  override lazy val repeatedStream: Stream[IO, Unit] =
+    for
+      given Logger[IO] <- Slf4jLogger.create[IO].streamed
+      discord <- Bot.discord.get.streamed
+      visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
+      lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
+      switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
+      keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
+      user <- Stream.evalSeq(RegisteredUserRepository.list())
+      _ <- handleUser(discord, visitorRole, lockedRole, switchRole, keyholderRole)(user).compile.drain.attempt.streamed
     yield ()
