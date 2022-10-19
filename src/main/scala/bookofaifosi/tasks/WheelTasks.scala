@@ -37,7 +37,7 @@ object WheelTasks extends RepeatedStreams:
   def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): OptionT[IO, String] =
     OptionT(
       fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
-        _.fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task").as(None)) { task =>
+        _.map(_.cleanedDescription).fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task").as(None)) { task =>
           sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
             .as(s"Rolled task ${task.id} - ${task.tittle}\n${task.description}".some)
         }

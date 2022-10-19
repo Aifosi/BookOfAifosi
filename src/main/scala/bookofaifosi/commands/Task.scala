@@ -16,7 +16,8 @@ case class Task(
   id: Int,
   tittle: String,
   description: String,
-)
+):
+  def cleanedDescription: Task = copy(description = description.replaceAll("<br/?>", "\n").replaceAll("<.+?>", ""))
 
 object Task extends SlashCommand with Options with SlowResponse:
   override val defaultEnabled: Boolean = false
