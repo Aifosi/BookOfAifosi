@@ -19,6 +19,7 @@ case class PilloryBitches(
 
 case class Roles(
   visitor: DiscordID,
+  guest: DiscordID,
   keyholder: DiscordID,
   locked: DiscordID,
   switch: DiscordID,

@@ -13,6 +13,7 @@ import bookofaifosi.syntax.all.*
 import bookofaifosi.model.{Channel, Discord, Role, User}
 import bookofaifosi.tasks.*
 import cats.effect.unsafe.IORuntime
+import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.blaze.client.*
@@ -107,7 +108,9 @@ object Bot extends IOApp:
     yield ()
 
   private def acquireDiscordClient(using Logger[IO]): IO[Discord] =
-    val jda = JDABuilder.createDefault(discordConfig.token).addEventListeners(new MessageListener)
+    val jda = JDABuilder.createDefault(discordConfig.token)
+      .enableIntents(GatewayIntent.GUILD_MEMBERS)
+      .addEventListeners(new MessageListener)
     for
       jda <- IO(jda.build().awaitReady())
       discord = new Discord(jda)
