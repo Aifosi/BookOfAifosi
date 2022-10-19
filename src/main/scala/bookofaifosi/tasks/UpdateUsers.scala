@@ -7,13 +7,14 @@ import bookofaifosi.chaster.{LockStatus, PublicUser}
 import bookofaifosi.db.Filters.*
 import bookofaifosi.db.{RegisteredUserRepository, given}
 import bookofaifosi.model.event.{AutoCompleteEvent, SlashCommandEvent}
-import bookofaifosi.model.{Channel, ChasterID, Discord, Guild, RegisteredUser, Role, toLong}
+import bookofaifosi.model.{Channel, ChasterID, Discord, Guild, Member, RegisteredUser, Role, toLong}
 import bookofaifosi.syntax.io.*
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.tasks.RepeatedStreams
 import bookofaifosi.tasks.WheelTasks.handleUser
 import cats.effect.IO
 import cats.effect.kernel.Ref
+import cats.instances.list.*
 import cats.syntax.foldable.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
@@ -44,11 +45,11 @@ object UpdateUsers extends RepeatedStreams:
     else
       user.pure
 
-  private def modifyRole(user: RegisteredUser, guild: Guild, role: Role)(modifier: IO[Unit])(using Logger[IO]): IO[Unit] =
+  private def modifyRole(member: Member, role: Role)(modifier: IO[Unit])(using Logger[IO]): IO[Unit] =
     modifier.attempt.flatMap(_.fold(
       error => for
         logChannel <- Bot.config.logChannel
-         message = s"Failed to add or remove ${role.mention} to ${user.mention}, error: ${error.getMessage}"
+         message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
         _ <- Logger[IO].error(message)
         _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
       yield (),
@@ -101,32 +102,35 @@ object UpdateUsers extends RepeatedStreams:
 
   private def checkDiscordUserDeleted(user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
     for
-      member <- user.member(guild).attempt.streamed
-      _ <- if member.isRight then
-        Stream.unit
-      else
-        log(s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?")
+      member <- user.member(guild).value.streamed
+      _ <- member.fold(log(s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?"))(_ => Stream.unit)
     yield ()
 
   override lazy val delay: FiniteDuration = Bot.config.checkFrequency
 
-  def handleUser(discord: Discord, visitorRole: Role, lockedRole: Role, switchRole: Role, keyholderRole: Role)(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
+  def handleRegisteredUser(
+    discord: Discord,
+    guestRole: Role,
+    lockedRole: Role,
+    switchRole: Role,
+    keyholderRole: Role,
+    addRoleRemoveOthers: Role => Stream[IO, Unit]
+  )(
+    guild: Guild,
+    user: RegisteredUser
+  )(
+    using Logger[IO]
+  ): Stream[IO, Unit] =
     for
       profile <- checkChasterUserDeleted(user)
-      guild <- Stream.emits(discord.guilds)
       _ <- checkDiscordUserDeleted(user, guild)
       addLocked <- shouldAddLocked(user, guild).streamed
       addKeyholder <- shouldAddKeyholder(user, guild, profile).streamed
-      userRoles <- List(visitorRole, lockedRole, switchRole, keyholderRole)
-        .flatTraverse(role => user.hasRole(guild, role).map(Option.when(_)(role).toList)).streamed
-      addRole = (role: Role) => if !userRoles.contains(role) then modifyRole(user, guild, role)(user.addRole(guild, role)) else IO.unit
-      removeRole = (role: Role) => if userRoles.contains(role) then modifyRole(user, guild, role)(user.removeRole(guild, role)) else IO.unit
-      addRoleRemoveOthers = (role: Role) => (addRole(role) *> userRoles.filter(_ != role).parTraverse(removeRole)).streamed
       _ <- (addLocked, addKeyholder) match
         case (true, true) => addRoleRemoveOthers(switchRole)
         case (false, true) => addRoleRemoveOthers(keyholderRole)
         case (true, false) => addRoleRemoveOthers(lockedRole)
-        case (false, false) => addRoleRemoveOthers(visitorRole)
+        case (false, false) => addRoleRemoveOthers(guestRole)
     yield ()
 
   override lazy val repeatedStream: Stream[IO, Unit] =
@@ -134,9 +138,20 @@ object UpdateUsers extends RepeatedStreams:
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
       discord <- Bot.discord.get.streamed
       visitorRole <- discord.roleByID(Bot.config.roles.visitor).streamed
+      guestRole <- discord.roleByID(Bot.config.roles.guest).streamed
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
       switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
-      user <- Stream.evalSeq(RegisteredUserRepository.list())
-      _ <- handleUser(discord, visitorRole, lockedRole, switchRole, keyholderRole)(user).compile.drain.attempt.streamed
+      registeredUsers <- RegisteredUserRepository.list().streamed
+      guild <- Stream.emits(discord.guilds)
+      member <- guild.members
+      memberRoles <- List(visitorRole, guestRole, lockedRole, switchRole, keyholderRole)
+        .flatTraverse(role => member.hasRole(guild, role).map(Option.when(_)(role).toList))
+        .streamed
+      addRole = (role: Role) => if !memberRoles.contains(role) then modifyRole(member, role)(member.addRole(guild, role)) else IO.unit
+      removeRole = (role: Role) => if memberRoles.contains(role) then modifyRole(member, role)(member.removeRole(guild, role)) else IO.unit
+      addRoleRemoveOthers = (role: Role) => (addRole(role) *> memberRoles.filter(_ != role).parTraverse(removeRole).void).streamed
+      _ <- registeredUsers.find(_.discordID == member.discordID).fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
+        handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, addRoleRemoveOthers)(guild, registeredUser)
+      }.compile.drain.attempt.streamed
     yield ()

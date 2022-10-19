@@ -21,7 +21,7 @@ abstract class Event(
   lazy val author: User = new User(jdaAuthor)
   lazy val authorMember: IO[Member] =
     OptionT.fromOption[IO](jdaMember.map(new Member(_)))
-      .orElse(OptionT.liftF(guild.flatMap(author.member)))
+      .orElse(OptionT.liftF(guild).flatMap(author.member))
       .value
       .flatMap(IO.fromOption(_)(new Exception(s"Failed to get member of event")))
   lazy val channel: Channel = new Channel(jdaChannel)

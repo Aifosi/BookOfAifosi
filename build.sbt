@@ -36,12 +36,12 @@ enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 
 val http4sVersion = "1.0.0-M32"
-val circeVersion = "0.14.2"
+val circeVersion = "0.14.3"
 val doobieVersion = "1.0.0-RC2"
 libraryDependencies ++= Seq(
   "com.github.pureconfig" %% "pureconfig-core"      % "0.17.1",
   "org.typelevel"         %% "cats-effect"          % "3.3.14",
-  "co.fs2"                %% "fs2-core"             % "3.2.12",
+  "co.fs2"                %% "fs2-core"             % "3.3.0",
   //Discord
   "net.dv8tion"            % "JDA"                  % "5.0.0-alpha.11",
   //HTTP
@@ -55,12 +55,12 @@ libraryDependencies ++= Seq(
   //DB
   "org.postgresql"         % "postgresql"           % "42.5.0",
   "mysql"                  % "mysql-connector-java" % "8.0.30",
-  "org.flywaydb"           % "flyway-core"          % "9.2.2",
+  "org.flywaydb"           % "flyway-core"          % "9.4.0",
   "org.tpolecat"          %% "doobie-core"          % doobieVersion,
   "org.tpolecat"          %% "doobie-postgres"      % doobieVersion,
   //Logging
-  "ch.qos.logback"         % "logback-classic"      % "1.4.0",
-  "org.typelevel"         %% "log4cats-slf4j"       % "2.4.0",
+  "ch.qos.logback"         % "logback-classic"      % "1.4.3",
+  "org.typelevel"         %% "log4cats-slf4j"       % "2.5.0",
 )
 
 Docker / dockerRepository := Some("aifosi")
