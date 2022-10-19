@@ -17,6 +17,7 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.hooks.ListenerAdapter
+import net.dv8tion.jda.api.interactions.commands.OptionType
 import org.typelevel.log4cats.Logger
 
 class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
@@ -48,7 +49,9 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
   private def log(event: Event, message: String): IO[Unit] =
     for
       logChannel <- Bot.config.logChannel
-      _ <- logChannel.fold(IO.unit)(_.sendMessage(event.author.mention + message))
+      guild <- event.guild
+      mention = if guild.isOwner(event.author) then event.author.name else event.author.mention
+      _ <- logChannel.fold(IO.unit)(_.sendMessage(mention + message))
       _ <- Logger[IO].info(event.author.toString + message)
     yield ()
 
@@ -68,7 +71,12 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
     runCommandList(event, Bot.slashCommands) { (event, command) =>
-      val options = event.allOptions.map((name, value) => s"$name: $value").mkString(", ")
+      val options = event.allOptions.map {
+        case option if option.getType == OptionType.MENTIONABLE || option.getType == OptionType.USER || option.getType == OptionType.ROLE || option.getType == OptionType.CHANNEL =>
+          s"${option.getName}: ${option.getAsMentionable.getAsMention}"
+        case option =>
+          s"${option.getName}: ${option.getAsString}"
+      }.mkString(", ")
       log(event, s" issued slash command $command${if options.nonEmpty then s", options: $options" else ""}".stripTrailing)
     }.unsafeRunSync()
 

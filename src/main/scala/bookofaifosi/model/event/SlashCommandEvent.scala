@@ -7,6 +7,7 @@ import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.entities.{MessageChannel, MessageEmbed, Guild as JDAGuild, Member as JDAMember, Message as JDAMessage, User as JDAUser}
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
 import net.dv8tion.jda.api.interactions.InteractionHook as JDAInteractionHook
+import net.dv8tion.jda.api.interactions.commands.OptionMapping
 
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -46,9 +47,7 @@ class SlashCommandEvent(
     ImageIO.write(image, "png", outputStream)
     underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.void
   inline def getOption[T](option: String): T = MacroHelper.getOption[T](underlying, option)
-  lazy val allOptions: List[(String, String)] = underlying.getOptions.asScala.toList.map { option =>
-    option.getName -> option.getAsString
-  }
+  lazy val allOptions: List[OptionMapping] = underlying.getOptions.asScala.toList
   lazy val commandName: String = underlying.getName
   lazy val subCommandGroupName: Option[String] = Option(underlying.getSubcommandGroup)
   lazy val subCommandName: Option[String] = Option(underlying.getSubcommandName)
