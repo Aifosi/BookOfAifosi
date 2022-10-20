@@ -7,7 +7,7 @@ import net.dv8tion.jda.api.entities.Member as JDAMember
 
 import scala.jdk.CollectionConverters.*
 
-class Member(member: JDAMember) extends User(member.getUser):
+open class Member(private[model] val member: JDAMember) extends User(member.getUser):
   lazy val guild: Guild = new Guild(member.getGuild)
 
   lazy val effectiveName: String = member.getEffectiveName

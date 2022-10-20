@@ -39,6 +39,16 @@ object UpdateUsers extends RepeatedStreams:
       n <- Stream.empty
     yield n
 
+  private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
+    for
+      _ <- IO.println("Logging").streamed
+      notifications <- notificationsRef.get.streamed
+      _ <- Stream.filter(!notifications.contains(message))
+      _ <- notificationsRef.update(_ + message).streamed
+      _ <- (IO.sleep(1.hour) *> notificationsRef.update(_ - message)).start.streamed
+      n <- log(message)
+    yield n
+
   private def updateUser(user: RegisteredUser, keyholderIDs: List[ChasterID], isLocked: Boolean): IO[RegisteredUser] =
     if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
       RegisteredUserRepository.update(user.id, keyholderIDs = keyholderIDs.some, isLocked = isLocked.some, lastLocked = Option.when(isLocked)(Instant.now.some))
@@ -91,7 +101,7 @@ object UpdateUsers extends RepeatedStreams:
       _ <- if shouldAddKeyholder then Logger[IO].debug(s"$user is keyholder of $registeredWearers") else IO.unit
     yield shouldAddKeyholder
 
-  private def checkChasterUserDeleted(user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
+  private def checkChasterUserDeleted(log: String => Stream[IO, Nothing], user: RegisteredUser)(using Logger[IO]): Stream[IO, PublicUser] =
     for
       profile <- user.publicProfileByID(user.chasterID).streamed
       profile <- if profile.isDisabled then
@@ -100,7 +110,7 @@ object UpdateUsers extends RepeatedStreams:
         Stream.emit(profile)
     yield profile
 
-  private def checkDiscordUserDeleted(user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
+  private def checkDiscordUserDeleted(log: String => Stream[IO, Nothing], user: RegisteredUser, guild: Guild)(using Logger[IO]): Stream[IO, Unit] =
     for
       member <- user.member(guild).value.streamed
       _ <- member.fold(log(s"Could not get discord user ${user.mention} did the user delete his discord account or leave the server?"))(_ => Stream.unit)
@@ -114,6 +124,7 @@ object UpdateUsers extends RepeatedStreams:
     lockedRole: Role,
     switchRole: Role,
     keyholderRole: Role,
+    log: String => Stream[IO, Nothing],
     addRoleRemoveOthers: Role => Stream[IO, Unit]
   )(
     guild: Guild,
@@ -122,8 +133,8 @@ object UpdateUsers extends RepeatedStreams:
     using Logger[IO]
   ): Stream[IO, Unit] =
     for
-      profile <- checkChasterUserDeleted(user)
-      _ <- checkDiscordUserDeleted(user, guild)
+      profile <- checkChasterUserDeleted(log, user)
+      _ <- checkDiscordUserDeleted(log, user, guild)
       addLocked <- shouldAddLocked(user, guild).streamed
       addKeyholder <- shouldAddKeyholder(user, guild, profile).streamed
       _ <- (addLocked, addKeyholder) match
@@ -142,6 +153,7 @@ object UpdateUsers extends RepeatedStreams:
       lockedRole <- discord.roleByID(Bot.config.roles.locked).streamed
       switchRole <- discord.roleByID(Bot.config.roles.switch).streamed
       keyholderRole <- discord.roleByID(Bot.config.roles.keyholder).streamed
+      notifications <- Ref.of[IO, Set[String]](Set.empty).streamed
       registeredUsers <- RegisteredUserRepository.list().streamed
       guild <- Stream.emits(discord.guilds)
       member <- guild.members
@@ -152,6 +164,6 @@ object UpdateUsers extends RepeatedStreams:
       removeRole = (role: Role) => if memberRoles.contains(role) then modifyRole(member, role)(member.removeRole(guild, role)) else IO.unit
       addRoleRemoveOthers = (role: Role) => (addRole(role) *> memberRoles.filter(_ != role).parTraverse(removeRole).void).streamed
       _ <- registeredUsers.find(_.discordID == member.discordID).fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
-        handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, addRoleRemoveOthers)(guild, registeredUser)
+        handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, logWithoutSpam(notifications), addRoleRemoveOthers)(guild, registeredUser)
       }.compile.drain.attempt.streamed
     yield ()

@@ -1,12 +1,13 @@
 package bookofaifosi.commands
 
-import bookofaifosi.db.RegisteredUserRepository
+import bookofaifosi.db.{RegisteredUserRepository, UserTokenRepository}
 import bookofaifosi.db.Filters.*
-import bookofaifosi.model.{Channel, User, DiscordID, ChasterID}
+import bookofaifosi.model.{Channel, ChasterID, DiscordID, User}
 import bookofaifosi.model.event.SlashCommandEvent
 import cats.effect.IO
-import cats.data.EitherT
+import cats.data.{EitherT, OptionT}
 import org.typelevel.log4cats.Logger
+import cats.syntax.traverse.*
 
 object Nuke extends SlashCommand with Options:
   override val defaultEnabled: Boolean = false
@@ -24,9 +25,17 @@ object Nuke extends SlashCommand with Options:
 
     (for
       _ <- EitherT.cond[IO](List(user, discordUserID, chasterUserID).count(_.isDefined) == 1, (), "Please specify exactly 1 way to identify a user.")
-      discordDeletes <- EitherT.liftF(user.map(_.discordID).orElse(discordUserID).fold(IO.pure(0))(discordID => RegisteredUserRepository.remove(discordID.equalDiscordID)))
-      chasterDeletes <- EitherT.liftF(chasterUserID.fold(IO.pure(0))(chasterID => RegisteredUserRepository.remove(chasterID.equalChasterID)))
-      _ <- EitherT.cond(discordDeletes + chasterDeletes == 1, (), "Could not find user to delete!")
+      user <- OptionT {
+        user
+          .map(_.discordID)
+          .orElse(discordUserID)
+          .map(discordID => RegisteredUserRepository.find(discordID.equalDiscordID))
+          .orElse(chasterUserID.map(chasterID => RegisteredUserRepository.find(chasterID.equalChasterID)))
+          .flatSequence
+      }
+        .toRight("Could not find user to delete!")
+      _ <- EitherT.liftF(UserTokenRepository.remove(user.token.id.equalID))
+      _ <- EitherT.liftF(RegisteredUserRepository.remove(user.id.equalID))
     yield ()).foldF(
       error => event.replyEphemeral(error),
       _ => event.replyEphemeral("User data deleted"),

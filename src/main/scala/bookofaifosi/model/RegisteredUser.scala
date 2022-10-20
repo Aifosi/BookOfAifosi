@@ -7,9 +7,9 @@ import java.util.UUID
 
 class RegisteredUser(
   dbUser: DBUser,
-  user: User,
+  member: Member,
   val token: UserToken,
-) extends User(user.user):
+) extends Member(member.member):
   val id: UUID = dbUser.id
   val chasterID: ChasterID = dbUser.chasterID
   val keyholderIDs: List[ChasterID] = dbUser.keyholderIDs
@@ -17,4 +17,4 @@ class RegisteredUser(
   val lastLocked: Option[Instant] = dbUser.lastLocked
   val lastKeyheld: Option[Instant] = dbUser.lastKeyheld
 
-  override lazy val toString: String = user.toString
+  override lazy val toString: String = member.toString

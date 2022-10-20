@@ -23,6 +23,7 @@ case class User(
   id: UUID,
   chasterID: ChasterID,
   discordID: DiscordID,
+  guildID: DiscordID,
   keyholderIDs: List[ChasterID],
   isLocked: Boolean,
   tokenID: UUID,
@@ -32,23 +33,25 @@ case class User(
 
 object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
   override protected val table: Fragment = fr"users"
-  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "keyholder_ids", "is_locked", "token_id", "last_locked", "last_keyheld")
+  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "guild_discord_id", "keyholder_ids", "is_locked", "token_id", "last_locked", "last_keyheld")
 
   override def toModel(user: User): IO[RegisteredUser] =
     for
       discord <- Bot.discord.get
-      discordUser <- discord.userByID(user.discordID)
+      guild <- discord.guildByID(user.guildID)
+      member <- guild.getMember(user.discordID)
       token <- UserTokenRepository.get(user.tokenID.equalID)
-    yield new RegisteredUser(user, discordUser, token)
+    yield new RegisteredUser(user, member, token)
 
   def add(
     chasterID: ChasterID,
     discordID: DiscordID,
+    guildID: DiscordID,
     keyholderIDs: List[ChasterID],
     isLocked: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    sql"insert into $table (chaster_id, user_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $keyholderIDs, $isLocked, $tokenID)"
+    sql"insert into $table (chaster_id, user_discord_id, guild_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $guildID, $keyholderIDs, $isLocked, $tokenID)"
       .update
       .withUniqueGeneratedKeys[User](columns*)
       .transact(Bot.postgresTransactor)
