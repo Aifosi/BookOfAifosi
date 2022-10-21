@@ -22,7 +22,6 @@ import doobie.syntax.connectionio.*
 import fs2.Stream
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.http4s.client.Client
-import bookofaifosi.syntax.logger.*
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration.*

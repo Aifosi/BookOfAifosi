@@ -29,7 +29,7 @@ import fs2.Stream
 import java.time.temporal.ChronoUnit
 import scala.concurrent.duration.*
 
-object PilloryChecker extends TextCommand with Hidden:
+object PilloryChecker extends TextCommand with Hidden with NoLog:
   override val pattern: Regex = ".*http(?:s)?://chaster.app/activity/(\\w{24}).*".r
 
   private def validatePost(post: Post, member: Member): EitherT[IO, String, RegisteredUser] =
@@ -63,7 +63,7 @@ object PilloryChecker extends TextCommand with Hidden:
       id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1))).map(ChasterID(_))
       guild <- OptionT.liftF(event.guild)
       PilloryBitches(_, channel) <- OptionT(PilloryBitchesRepository.find(guild.discordID.equalGuildID))
-      post <- OptionT(UserToken.empty.post(id).attempt.map(_.toOption))
+      post <- OptionT(UserToken.empty.post(id).logErrorOption)
       _ <- OptionT.liftF(addReaction(post, member, channel, event))
     yield true).getOrElse(true)
 

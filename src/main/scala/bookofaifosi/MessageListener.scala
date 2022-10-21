@@ -1,7 +1,7 @@
 package bookofaifosi
 
 import cats.effect.IO
-import bookofaifosi.commands.{AutoCompletable, Command, ReactionCommand, SlashCommand, TextCommand}
+import bookofaifosi.commands.{AutoCompletable, Command, NoLog, ReactionCommand, SlashCommand, TextCommand}
 import bookofaifosi.model.User
 import bookofaifosi.model.event.ReactionEvent.*
 import bookofaifosi.model.event.ReactionEvent.given
@@ -10,7 +10,6 @@ import bookofaifosi.model.event.MessageEvent.given
 import bookofaifosi.model.event.SlashCommandEvent.*
 import bookofaifosi.model.event.SlashCommandEvent.given
 import bookofaifosi.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
-import bookofaifosi.syntax.logger.*
 import bookofaifosi.syntax.io.*
 import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
@@ -38,7 +37,10 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
                 if stopped then
                   IO.pure(true)
                 else
-                  log(event, command) *> command.apply(command.pattern, event)
+                  for
+                    _ <- if command.isInstanceOf[NoLog] then IO.unit else log(event, command)
+                    r <- command.apply(command.pattern, event)
+                  yield r
             yield stop
           case (io, _) => io
         }

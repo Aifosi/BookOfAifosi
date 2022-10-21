@@ -1,8 +1,10 @@
 package bookofaifosi.model.event
 
+import bookofaifosi.Bot
+import bookofaifosi.model.{DiscordID, Message}
 import cats.effect.IO
 import bookofaifosi.syntax.all.*
-import bookofaifosi.model.event.{Event, ReactionEvent}
+import bookofaifosi.model.toLong
 import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 
@@ -11,15 +13,20 @@ class ReactionEvent(
   jdaChannel: MessageChannel,
   jdaAuthor: JDAUser,
   jdaMember: Option[JDAMember],
-  messageID: Long,
+  val messageID: DiscordID,
   jdaGuild: Option[JDAGuild],
 ) extends Event(jdaChannel, jdaAuthor, jdaMember, jdaGuild):
 
   def addReaction(emoji: String): IO[Unit] =
     for
-      message <- jdaChannel.retrieveMessageById(messageID).toIO
+      message <- jdaChannel.retrieveMessageById(messageID.toLong).toIO
       _ <- message.addReaction(emoji).toIO
     yield ()
+
+  lazy val message: IO[Message] =
+    channel.findMessageByID(messageID)
+      .getOrRaise(new Exception(s"Message $messageID not found in channel ${channel.discordID}"))
+
 
 object ReactionEvent:
   given Conversion[MessageReactionAddEvent, ReactionEvent] = event =>
@@ -28,6 +35,6 @@ object ReactionEvent:
       event.getChannel,
       event.getUser,
       Option(event.getMember),
-      event.getMessageIdLong,
+      DiscordID(event.getMessageIdLong),
       Option(event.getGuild),
     )

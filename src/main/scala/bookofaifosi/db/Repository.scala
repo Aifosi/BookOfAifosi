@@ -3,11 +3,11 @@ package bookofaifosi.db
 import bookofaifosi.Bot
 import bookofaifosi.db.Filters.*
 import bookofaifosi.model.{ChasterID, DiscordID, toLong}
-import doobie.{ConnectionIO, Fragment, Get, Put}
+import doobie.*
 import doobie.implicits.*
 import doobie.postgres.*
 import doobie.postgres.implicits.*
-import doobie.util.Read
+import doobie.util.{Read, Write}
 import doobie.util.log.LogHandler
 import cats.syntax.option.*
 import cats.syntax.traverse.*
@@ -16,7 +16,9 @@ import java.util.UUID
 import scala.concurrent.duration.*
 import scala.util.chaining.*
 import bookofaifosi.model.DiscordID
+import cats.arrow.FunctionK
 import cats.effect.IO
+import fs2.Stream
 
 given Get[FiniteDuration] = Get[Long].map(_.seconds)
 given Put[FiniteDuration] = Put[Long].contramap(_.toSeconds)
@@ -25,6 +27,9 @@ given Get[DiscordID] = Get[Long].map(DiscordID(_))
 given Put[DiscordID] = Put[Long].contramap(_.toLong)
 
 type Filter = Option[Fragment]
+
+lazy val translator: FunctionK[ConnectionIO, IO] = new FunctionK[ConnectionIO, IO]:
+  override def apply[A](fa: ConnectionIO[A]): IO[A] = fa.transact(Bot.postgresTransactor)
 
 extension (filters: List[Filter])
   def mkFragment(start: Fragment = Fragment.empty, sep: Fragment, end: Fragment = Fragment.empty): Fragment =
@@ -39,7 +44,6 @@ object Filters:
   extension (id: UUID)
     def equalID: Filter = fr"id = $id".some
     def equalUserID: Filter = fr"user_id = $id".some
-    def equalKeyholderID: Filter = fr"keyholder_id = $id".some
 
   extension (id: Option[UUID])
     def equalID: Filter = id.flatMap(_.equalID)
@@ -49,6 +53,7 @@ object Filters:
     def equalGuildID: Filter = fr"guild_discord_id = $id".some
     def equalRoleID: Filter = fr"role_discord_id = $id".some
     def equalChannelID: Filter = fr"channel_discord_id = $id".some
+    def equalMessageID: Filter = fr"message_discord_id = $id".some
 
   extension (id: ChasterID)
     def equalChasterID: Filter = fr"chaster_id = $id".some
@@ -65,53 +70,76 @@ object Filters:
     def similarName: Filter = name.flatMap(_.similarName)
     def similarPartialName: Filter = name.flatMap(_.similarPartialName)
     def equalName: Filter = name.flatMap(_.equalName)
+    
+  extension (keyholders: List[ChasterID])
+    def anyKeyholder: Filter = fr"chaster_id = ANY ($keyholders)".some
 
   def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${description.orNull}")
+
+trait Remove:
+  protected val table: Fragment
+  def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
+    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
+      .update
+      .run
+      .transact(Bot.postgresTransactor)
+
+trait Insert[DB: Read]:
+  outer: RepositoryFields =>
+  protected val table: Fragment
+
+  protected def unknowns(columns: Int): String = List.fill(columns)("?").mkString("(", ", ", ")")
+  protected def sql(columns: String*): String      = fr"insert into $table".internals.sql + columns.mkString("(", ", ", ") values") + unknowns(columns.length)
+
+  def insertOne[Info: Write](info: Info)(columns: String*): ConnectionIO[DB] =
+    Update[Info](sql(columns*)).withUniqueGeneratedKeys[DB](outer.columns*)(info)
+
+  def insertMany[Info: Write](info: List[Info])(columns: String*): Stream[ConnectionIO, DB] =
+    Update[Info](sql(columns*)).updateManyWithGeneratedKeys[DB](outer.columns*)(info)
 
 sealed trait RepositoryFields:
   protected val table: Fragment
   protected val columns: List[String]
 
-trait Repository[A: Read] extends RepositoryFields with Remove:
+trait Repository[DB: Read] extends RepositoryFields with Remove:
   private val updatedAt: Filter = fr"updated_at = NOW()".some
 
   inline private def updateQuery(updates: Filter*)(where: Fragment, more: Fragment*) =
     (updates.toList :+ updatedAt).mkFragment(fr"update $table set", fr",", (where +: more.toList).map(_.some).combineFilters)
       .update
 
-  inline protected def innerUpdateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[A]] =
+  inline protected def innerUpdateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[DB]] =
     updateQuery(updates*)(where, more*)
-      .withGeneratedKeys[A](columns*)
+      .withGeneratedKeys[DB](columns*)
       .compile
       .toList
       .transact(Bot.postgresTransactor)
 
-  inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] =
+  inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[DB] =
     updateQuery(updates*)(where, more*)
-      .withUniqueGeneratedKeys[A](columns*)
+      .withUniqueGeneratedKeys[DB](columns*)
       .transact(Bot.postgresTransactor)
-
 
   protected lazy val selectAll: Fragment = Fragment.const(columns.mkString("select ", ", ", " from")) ++ table
 
   private def query(filters: Iterable[Filter]) =
-    (selectAll ++ filters.toList.combineFilters).query[A]
+    (selectAll ++ filters.toList.combineFilters).query[DB]
 
-  def list(filters: Filter*): IO[List[A]] = query(filters).to[List].transact(Bot.postgresTransactor)
+  def list(filters: Filter*): IO[List[DB]] = query(filters).to[List].transact(Bot.postgresTransactor)
 
-  def find(filters: Filter*): IO[Option[A]] = query(filters).option.transact(Bot.postgresTransactor)
+  def find(filters: Filter*): IO[Option[DB]] = query(filters).option.transact(Bot.postgresTransactor)
 
-  def get(filters: Filter*): IO[A] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
+  def get(filters: Filter*): IO[DB] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 
-  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[A] = innerUpdate(updates*)(where, more*)
+  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[DB] = innerUpdate(updates*)(where, more*)
 
-  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[A]] = innerUpdateMany(updates*)(where, more*)
+  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[DB]] = innerUpdateMany(updates*)(where, more*)
 
-trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
+trait ModelRepository[DB: Read, Model] extends RepositoryFields with Remove:
   outer =>
-  def toModel(a: A): IO[Model]
+  def toModel(a: DB): IO[Model]
 
-  private object Repo extends Repository[A]:
+  private object Repo extends Repository[DB]:
     override protected val table: Fragment = outer.table
     override protected val columns: List[String] = outer.columns
 
@@ -124,11 +152,3 @@ trait ModelRepository[A: Read, Model] extends RepositoryFields with Remove:
   def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] = Repo.update(updates*)(where, more*).flatMap(toModel)
 
   def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[Model]] = Repo.updateMany(updates*)(where, more*).flatMap(_.traverse(toModel))
-
-trait Remove:
-  protected val table: Fragment
-  def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
-    (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
-      .update
-      .run
-      .transact(Bot.postgresTransactor)

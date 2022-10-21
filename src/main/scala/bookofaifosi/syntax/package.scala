@@ -6,6 +6,5 @@ package object syntax:
   object task extends TaskSyntax
   object io extends IOSyntax
   object stream extends StreamSyntax
-  object logger extends LoggerSyntax
 
-  object all extends ChainingSyntax with ActionSyntax with TaskSyntax with IOSyntax with StreamSyntax with LoggerSyntax
+  object all extends ChainingSyntax with ActionSyntax with TaskSyntax with IOSyntax with StreamSyntax

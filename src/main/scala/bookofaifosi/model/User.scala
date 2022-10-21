@@ -4,8 +4,11 @@ import java.net.URL
 import cats.effect.IO
 import cats.syntax.traverse.*
 import bookofaifosi.syntax.action.*
+import bookofaifosi.syntax.io.*
 import cats.data.OptionT
 import net.dv8tion.jda.api.entities.User as JDAUser
+import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import compiletime.asMatchable
 import scala.jdk.CollectionConverters.*
@@ -29,7 +32,11 @@ open class User(private[model] val user: JDAUser):
 
   def removeRole(guild: Guild, role: Role): IO[Unit] = unsafeMember(guild).flatMap(_.removeRole(role))
 
-  def member(guild: Guild): OptionT[IO, Member] = OptionT(unsafeMember(guild).attempt.map(_.toOption))
+  def member(guild: Guild): OptionT[IO, Member] =
+    for
+      given Logger[IO] <- OptionT.liftF(Slf4jLogger.create[IO])
+      member <- OptionT(unsafeMember(guild).logErrorOption)
+    yield member
 
   def getNameIn(guild: Guild): OptionT[IO, String] = member(guild).map(_.effectiveName)
   

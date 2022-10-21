@@ -27,7 +27,6 @@ import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
-import bookofaifosi.syntax.logger.*
 import bookofaifosi.syntax.io.*
 import bookofaifosi.db.Filter
 import org.typelevel.log4cats.Logger
