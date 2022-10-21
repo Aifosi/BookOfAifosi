@@ -70,6 +70,7 @@ object Bot extends IOApp:
     UnlockChannel,
     Nuke,
     Task,
+    TaskCompleter,
   )
 
   lazy val textCommands: List[TextCommand] = allCommands.collect {

@@ -7,16 +7,16 @@ import org.typelevel.log4cats.Logger
 import bookofaifosi.chaster.{Event, WheelTurnedPayload}
 import bookofaifosi.chaster.Client.*
 import bookofaifosi.chaster.Client.given
-import bookofaifosi.commands.{Register, SlashPattern, Task}
-import bookofaifosi.db.{RecentLockHistoryRepository, RegisteredUserRepository}
-import bookofaifosi.db.given
+import bookofaifosi.commands.{Task, TaskCompleter}
+import bookofaifosi.db.{PendingTaskRepository, RecentLockHistoryRepository, RegisteredUserRepository, given}
 import bookofaifosi.model.event.{SlashAPI, SlashCommandEvent}
 import bookofaifosi.syntax.stream.*
 import bookofaifosi.syntax.io.*
-import bookofaifosi.model.{ChasterID, RecentLockHistory, RegisteredUser}
+import bookofaifosi.model.{ChasterID, Message, RecentLockHistory, RegisteredUser}
 import cats.data.{EitherT, OptionT}
 import cats.syntax.option.*
 import cats.syntax.traverse.*
+import cats.syntax.functor.*
 import bookofaifosi.db.Filters.*
 import doobie.implicits.*
 import io.circe.Json
@@ -28,21 +28,15 @@ import scala.concurrent.duration.FiniteDuration
 object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
 
-  private def sendMessageToTortureChamber(message: String)(using Logger[IO]): IO[Unit] =
-    for
-      tortureChamber <- Bot.config.tortureChamberChannel
-      _ <- tortureChamber.fold(Logger[IO].debug("Torture chamber channel not configured."))(_.sendMessage(message))
-    yield ()
-
-  def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): OptionT[IO, String] =
-    OptionT(
-      fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
-        _.map(_.cleanedDescription).fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task").as(None)) { task =>
-          sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
-            .as(s"Rolled task ${task.id} - ${task.tittle}\n${task.description}".some)
-        }
+  def handleTask(task: String, user: RegisteredUser, andAlso: (Message, Task) => IO[Unit] = (_, _) => IO.unit)(using Logger[IO]): OptionT[IO, String] =
+    OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor))
+      .flatTapNone(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task"))
+      .map(_.cleanedDescription)
+      .flatMap { task =>
+        Bot.config.channels.tortureChamber.sendMessage(s"${user.mention} rolled task ${task.id} - ${task.title}")
+          .semiflatMap(andAlso(_, task))
+          .as(s"Rolled task ${task.id} - ${task.title}\n${task.description}")
       }
-    )
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
     for
@@ -52,22 +46,27 @@ object WheelTasks extends RepeatedStreams:
     yield lockHistory
 
   private def handleEvent(user: RegisteredUser, event: Event[Json])(using Logger[IO]): IO[Unit] =
-    Option.when(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
-      .flatten
+    OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
+      .subflatMap(identity)
       .collect {
         case event if event.payload.segment.`type` == "text" => event.payload.segment.text
       }
-      .fold(IO.unit){
+      .semiflatTap(text => Logger[IO].debug(s"$user rolled $text"))
+      .flatMap {
         case taskRegex(task) =>
-          for
-            _ <- Logger[IO].debug(s"$user rolled $task")
-            _ <- handleTask(task, user).foldF(IO.unit)(user.sendMessage)
-          yield ()
+          def addReaction(message: Message, task: Task): IO[Unit] =
+            for
+              registeredKeyholders <- user.registeredKeyholders
+              _ <- PendingTaskRepository.add(task.title, message.id, user, registeredKeyholders, None)
+              _ <- message.addReaction(TaskCompleter.pattern)
+            yield ()
 
+          handleTask(task, user, addReaction).semiflatMap(user.sendMessage)
         case text =>
-          Logger[IO].debug(s"$user rolled $text") *> sendMessageToTortureChamber(s"${user.mention} rolled $text")
+          Bot.config.channels.spinlog.sendMessage(s"${user.mention} rolled $text")
       }
-
+      .value
+      .void
 
   private def handleHistory(user: RegisteredUser, lockID: ChasterID, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
     for
@@ -92,5 +91,5 @@ object WheelTasks extends RepeatedStreams:
     for
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
       user <- Stream.evalSeq(RegisteredUserRepository.list().map(_.filter(user => user.isLocked && user.keyholderIDs.nonEmpty)))
-      _ <- handleUser(user).compile.drain.attempt.streamed
+      _ <- handleUser(user).compile.drain.logErrorOption.streamed
     yield ()

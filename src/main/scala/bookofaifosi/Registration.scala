@@ -27,7 +27,7 @@ import java.time.Instant
 import scala.concurrent.duration.*
 import java.util.UUID
 import scala.util.Try
-import bookofaifosi.syntax.logger.*
+import bookofaifosi.syntax.io.*
 import bookofaifosi.db.Filter
 import org.typelevel.log4cats.Logger
 
@@ -94,8 +94,7 @@ object Registration:
     scopes = accessToken.scope.split(" ")
     registeredUser <- addOrUpdateUser(profile._id, member.discordID, member.guild.discordID, keyholderIDs, isLocked, userToken.id)
     _ <- registrations.update(_ - uuid)
-    logChannel <- Bot.config.logChannel
-    _ <- logChannel.fold(IO.unit)(_.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}"))
+    _ <- Bot.config.channels.log.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}").value
     _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
   yield ()
 

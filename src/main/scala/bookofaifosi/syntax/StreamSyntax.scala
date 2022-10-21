@@ -6,7 +6,6 @@ import cats.syntax.functor.*
 import cats.syntax.show.*
 import cats.syntax.traverse.*
 import cats.syntax.either.*
-import bookofaifosi.syntax.logger.*
 import fs2.Stream
 import org.typelevel.log4cats.Logger
 

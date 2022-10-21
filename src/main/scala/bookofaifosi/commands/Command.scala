@@ -35,6 +35,10 @@ sealed abstract class Command[T, E <: Event] extends Named:
 abstract class TextCommand extends Command[Regex, MessageEvent]:
   override def matches(event: MessageEvent): Boolean = pattern.matches(event.content)
 
+object TextCommand:
+  val any: Regex = ".+".r
+  val userMention: Regex = "<@!(\\d+)>".r
+
 abstract class ReactionCommand extends Command[String, ReactionEvent]:
   override def matches(event: ReactionEvent): Boolean = pattern == event.content
 

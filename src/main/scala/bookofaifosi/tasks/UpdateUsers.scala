@@ -32,12 +32,7 @@ import scala.concurrent.duration.*
 
 object UpdateUsers extends RepeatedStreams:
   private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
-    for
-      logChannel <- Bot.config.logChannel.streamed
-      _ <- Logger[IO].info(message).streamed
-      _ <- logChannel.fold(IO.unit)(_.sendMessage(message)).streamed
-      n <- Stream.empty
-    yield n
+    Stream.eval(Logger[IO].info(message) *> Bot.config.channels.log.sendMessage(message).value).drain
 
   private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
     for
@@ -57,12 +52,12 @@ object UpdateUsers extends RepeatedStreams:
 
   private def modifyRole(member: Member, role: Role)(modifier: IO[Unit])(using Logger[IO]): IO[Unit] =
     modifier.attempt.flatMap(_.fold(
-      error => for
-        logChannel <- Bot.config.logChannel
-         message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
-        _ <- Logger[IO].error(message)
-        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
-      yield (),
+      error =>
+        val message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
+        for
+          _ <- Logger[IO].error(message)
+          _ <- Bot.config.channels.log.sendMessage(message).value
+        yield (),
       _.pure
     ))
 
@@ -87,7 +82,7 @@ object UpdateUsers extends RepeatedStreams:
       lockedLocks = locks.filter(_.status == LockStatus.Locked)
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
-      registeredKeyholders <- RegisteredUserRepository.list(fr"chaster_id = ANY ($keyholders)".some)
+      registeredKeyholders <- user.registeredKeyholders
       shouldAddLocked = user.lastLocked.exists(_.isAfter(Bot.config.roles.lastLockedCutoff)) || registeredKeyholders.nonEmpty
       _ <- if shouldAddLocked then Logger[IO].debug(s"$user is locked by $registeredKeyholders") else IO.unit
     yield shouldAddLocked
@@ -165,5 +160,5 @@ object UpdateUsers extends RepeatedStreams:
       addRoleRemoveOthers = (role: Role) => (addRole(role) *> memberRoles.filter(_ != role).parTraverse(removeRole).void).streamed
       _ <- registeredUsers.find(_.discordID == member.discordID).fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
         handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, logWithoutSpam(notifications), addRoleRemoveOthers)(guild, registeredUser)
-      }.compile.drain.attempt.streamed
+      }.compile.drain.logErrorOption.streamed
     yield ()

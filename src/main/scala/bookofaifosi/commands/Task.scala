@@ -14,7 +14,7 @@ import bookofaifosi.tasks.WheelTasks
 
 case class Task(
   id: Int,
-  tittle: String,
+  title: String,
   description: String,
 ):
   def cleanedDescription: Task = copy(description = description.replaceAll("<br/?>", "\n").replaceAll("<.+?>", ""))

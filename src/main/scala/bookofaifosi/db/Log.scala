@@ -2,7 +2,6 @@ package bookofaifosi.db
 
 import bookofaifosi.Bot
 import doobie.util.log.*
-import bookofaifosi.syntax.logger.*
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
