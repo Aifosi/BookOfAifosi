@@ -32,12 +32,7 @@ import scala.concurrent.duration.*
 
 object UpdateUsers extends RepeatedStreams:
   private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
-    for
-      logChannel <- Bot.config.logChannel.streamed
-      _ <- Logger[IO].info(message).streamed
-      _ <- logChannel.fold(IO.unit)(_.sendMessage(message)).streamed
-      n <- Stream.empty
-    yield n
+    Stream.eval(Logger[IO].info(message) *> Bot.config.channels.log.sendMessage(message).value).drain
 
   private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
     for
@@ -57,12 +52,12 @@ object UpdateUsers extends RepeatedStreams:
 
   private def modifyRole(member: Member, role: Role)(modifier: IO[Unit])(using Logger[IO]): IO[Unit] =
     modifier.attempt.flatMap(_.fold(
-      error => for
-        logChannel <- Bot.config.logChannel
-         message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
-        _ <- Logger[IO].error(message)
-        _ <- logChannel.fold(IO.unit)(_.sendMessage(message))
-      yield (),
+      error =>
+        val message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
+        for
+          _ <- Logger[IO].error(message)
+          _ <- Bot.config.channels.log.sendMessage(message).value
+        yield (),
       _.pure
     ))
 

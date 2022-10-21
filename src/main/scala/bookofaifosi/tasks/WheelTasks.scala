@@ -17,6 +17,7 @@ import bookofaifosi.model.{ChasterID, RecentLockHistory, RegisteredUser}
 import cats.data.{EitherT, OptionT}
 import cats.syntax.option.*
 import cats.syntax.traverse.*
+import cats.syntax.functor.*
 import bookofaifosi.db.Filters.*
 import doobie.implicits.*
 import io.circe.Json
@@ -28,21 +29,14 @@ import scala.concurrent.duration.FiniteDuration
 object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
 
-  private def sendMessageToTortureChamber(message: String)(using Logger[IO]): IO[Unit] =
-    for
-      tortureChamber <- Bot.config.tortureChamberChannel
-      _ <- tortureChamber.fold(Logger[IO].debug("Torture chamber channel not configured."))(_.sendMessage(message))
-    yield ()
-
   def handleTask(task: String, user: RegisteredUser)(using Logger[IO]): OptionT[IO, String] =
-    OptionT(
-      fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor).flatMap {
-        _.map(_.cleanedDescription).fold(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task").as(None)) { task =>
-          sendMessageToTortureChamber(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
-            .as(s"Rolled task ${task.id} - ${task.tittle}\n${task.description}".some)
-        }
+    OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Bot.mysqlTransactor))
+      .flatTapNone(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task"))
+      .map(_.cleanedDescription)
+      .flatMap {task =>
+        Bot.config.channels.tortureChamber.sendMessage(s"${user.mention} rolled task ${task.id} - ${task.tittle}")
+          .as(s"Rolled task ${task.id} - ${task.tittle}\n${task.description}")
       }
-    )
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
     for
@@ -52,22 +46,18 @@ object WheelTasks extends RepeatedStreams:
     yield lockHistory
 
   private def handleEvent(user: RegisteredUser, event: Event[Json])(using Logger[IO]): IO[Unit] =
-    Option.when(event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
-      .flatten
+    OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
+      .subflatMap(identity)
       .collect {
         case event if event.payload.segment.`type` == "text" => event.payload.segment.text
       }
-      .fold(IO.unit){
-        case taskRegex(task) =>
-          for
-            _ <- Logger[IO].debug(s"$user rolled $task")
-            _ <- handleTask(task, user).foldF(IO.unit)(user.sendMessage)
-          yield ()
-
-        case text =>
-          Logger[IO].debug(s"$user rolled $text") *> sendMessageToTortureChamber(s"${user.mention} rolled $text")
+      .semiflatTap(text => Logger[IO].debug(s"$user rolled $text"))
+      .flatMap {
+        case taskRegex(task) => handleTask(task, user).semiflatMap(user.sendMessage)
+        case text => Bot.config.channels.spinlog.sendMessage(s"${user.mention} rolled $text")
       }
-
+      .value
+      .void
 
   private def handleHistory(user: RegisteredUser, lockID: ChasterID, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
     for

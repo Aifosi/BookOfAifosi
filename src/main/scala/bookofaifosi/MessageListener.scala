@@ -48,10 +48,9 @@ class MessageListener(using Logger[IO], IORuntime) extends ListenerAdapter:
 
   private def log(event: Event, message: String): IO[Unit] =
     for
-      logChannel <- Bot.config.logChannel
       guild <- event.guild
       mention = if guild.isOwner(event.author) then event.author.name else event.author.mention
-      _ <- logChannel.fold(IO.unit)(_.sendMessage(mention + message))
+      _ <- Bot.config.channels.log.sendMessage(mention + message).value.void
       _ <- Logger[IO].info(event.author.toString + message)
     yield ()
 

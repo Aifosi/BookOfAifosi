@@ -3,6 +3,7 @@ package bookofaifosi.model
 import java.io.File
 import cats.effect.IO
 import bookofaifosi.syntax.action.*
+import cats.data.OptionT
 import net.dv8tion.jda.api.entities.{MessageChannel, MessageHistory}
 
 import scala.jdk.CollectionConverters.*
