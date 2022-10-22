@@ -158,6 +158,10 @@ case class DiceRolledPayload(
   playerDice: Int,
 ) derives Decoder
 
+case class TimeChangedPayload(
+  duration: Int,
+) derives Decoder
+
 case class Data (
   voteEndsAt: Instant,
   createdAt: Option[Instant]
