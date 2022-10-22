@@ -36,6 +36,7 @@ object WheelTasks extends RepeatedStreams:
         Bot.config.channels.tortureChamber.sendMessage(s"${user.mention} rolled task ${task.id} - ${task.title}")
           .semiflatMap(andAlso(_, task))
           .as(s"Rolled task ${task.id} - ${task.title}\n${task.description}")
+          .semiflatTap(user.sendMessage)
       }
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
@@ -61,9 +62,9 @@ object WheelTasks extends RepeatedStreams:
               _ <- message.addReaction(TaskCompleter.pattern)
             yield ()
 
-          handleTask(task, user, addReaction).semiflatMap(user.sendMessage)
+          handleTask(task, user, addReaction).void
         case text =>
-          Bot.config.channels.spinlog.sendMessage(s"${user.mention} rolled $text")
+          Bot.config.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
       }
       .value
       .void

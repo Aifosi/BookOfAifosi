@@ -23,6 +23,7 @@ import fs2.Stream
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.http4s.client.Client
 import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.duration.*
 import java.time.Instant
@@ -98,7 +99,8 @@ object Client:
         IO.pure(token)
       else
         for
-          _ <- Logger[IO].debug(s"Refreshing access token with ID: ${token.id}")
+          logger <- Slf4jLogger.create[IO]
+          _ <- logger.debug(s"Refreshing access token with ID: ${token.id}")
           accessToken <- Client.token(
             "grant_type" -> "refresh_token",
             "refresh_token" -> token.refreshToken,
