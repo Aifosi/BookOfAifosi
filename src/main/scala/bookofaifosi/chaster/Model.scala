@@ -153,6 +153,11 @@ case class WheelTurnedPayload(
   segment: Segment
 ) derives Decoder
 
+case class DiceRolledPayload(
+  adminDice: Int,
+  playerDice: Int,
+) derives Decoder
+
 case class Data (
   voteEndsAt: Instant,
   createdAt: Option[Instant]

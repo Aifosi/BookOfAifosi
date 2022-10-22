@@ -156,5 +156,5 @@ object Bot extends IOApp:
       _ <- acquireHttpClient
       discord <- acquireDiscordClient.streamed
       _ <- registerSlashCommands(discord).start.streamed
-      exitCode <- httpServer.concurrently(combinedTasks)
+      exitCode <- httpServer.concurrently(combinedTasks).concurrently(Competition.run)
     yield exitCode).compile.lastOrError
