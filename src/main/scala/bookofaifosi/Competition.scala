@@ -27,7 +27,26 @@ object Competition:
       math.round(number * d) / d
 
   given Show[FiniteDuration] = (duration: FiniteDuration) =>
-    if duration > 1.day || duration < -1.day then s"${(duration.toHours / 24D).round(2)}d" else s"${(duration.toMinutes / 60D).round(2)}h"
+    val zero = 0.seconds
+    var remaining = duration
+    var text = ""
+    while remaining != zero do
+      lazy val days = remaining.toHours / 24
+      lazy val hours = remaining.toMinutes / 60
+      lazy val minutes = remaining.toSeconds / 60
+      if days != 0 then
+        text += s"$days d"
+        remaining -= days.days
+      else if hours != 0 then
+        text += s"${if text.isEmpty then "" else " "}$hours h"
+        remaining -= hours.hours
+      else if minutes != 0 then
+        text += s"${if text.isEmpty then "" else " "}$minutes m"
+        remaining -= minutes.minutes
+      else
+        text += s"${if text.isEmpty then "" else " "}${remaining.toSeconds} s"
+        remaining = zero
+    text
 
   given Show[(String, (Int, Int))] = {
     case (user, (add, remove)) => s"$user (A: $add, R: $remove)"
@@ -37,8 +56,8 @@ object Competition:
     s"Event(extension: ${event.extension}, id: ${event._id}, type: ${event.`type`} createdAt: ${event.createdAt})"
 
   val discordIDS = List(
-    (DiscordID(871413910551531550), ChasterID("634dcc94f944271920b43518")), //My ID, Janice's lock
-    (DiscordID(875406477647548447), ChasterID("629aa50ffd8ea767923df229"))  //Janice ID, My Lock
+    ("Janice's Lock", DiscordID(871413910551531550), ChasterID("634dcc94f944271920b43518")), //My ID, Janice's lock
+    ("SissygasmQuest's Lock", DiscordID(875406477647548447), ChasterID("629aa50ffd8ea767923df229"))  //Janice ID, My Lock
   )
   val illegalSpins = List(
     "6350700f248794a57d56bf85", // Event(extension: None, id: 6350700f248794a57d56bf85, type: time_changed createdAt: 2022-10-19T21:45:51.853Z)
@@ -65,37 +84,70 @@ object Competition:
     votes: Map[String, (Int, Int)] = Map.empty,
   ):
     override def toString: String =
-      val mostVotes = votes.maxBy {
+      val maxVotes = votes.map {
         case (user, (add, remove)) => add + remove
-      }
-      val mostAdds = votes.maxBy {
+      }.max
+      val maxAdds = votes.map {
         case (user, (add, remove)) => add
-      }
-      val mostRemoves = votes.maxBy {
+      }.max
+      val maxRemoves = votes.map {
         case (user, (add, remove)) => remove
+      }.max
+      val mostVotes = votes.filter {
+        case (user, (add, remove)) => (add + remove) == maxVotes
+      }.map(a => show"$a").mkString(", ")
+      val mostAdds = votes.filter {
+        case (user, (add, remove)) => add == maxAdds
+      }.map(a => show"$a").mkString(", ")
+      val mostRemoves = votes.filter {
+        case (user, (add, remove)) => remove == maxRemoves
+      }.map(a => show"$a").mkString(", ")
+      val totalVotes = votes.map {
+        case (user, (add, remove)) => (user, add + remove)
       }
+        .groupBy(_._2)
+        .view
+        .mapValues(_.size)
+        .toList
+        .sortBy(_._1)(Ordering[Int].reverse)
+        .map {
+          case (1, totalUsers) => s"Voters that voted once: $totalUsers"
+          case (2, totalUsers) => s"Voters that voted twice: $totalUsers"
+          case (number, totalUsers) => s"Voters that voted $number times: $totalUsers"
+        }
 
-      show"""Total time added: $timeAdded (${timeAdded.toSeconds} s)
+
+      show"""Total time added: $timeAdded
         |Events: $events
         |Dice - Rolls: $diceRolls, Time added: $diceTimeAdded
         |Wheel - Rolls: $wheelRolls, Time added: $wheelTimeAdded
         |Votes - Adds: $voteAdds, Removes: $voteRemoves, Net adds: ${voteAdds - voteRemoves}
-        |Top - Votes: $mostVotes, Adds: $mostAdds, Removes: $mostRemoves
         |Unique Voters: ${votes.size}
+        |Top
+        |  Votes: $mostVotes
+        |  Adds: $mostAdds
+        |  Removes: $mostRemoves
+        |${totalVotes.mkString("\n")}
         |""".stripMargin
 
-    def addDiceRoll(time: FiniteDuration): Results =
+    lazy val addDiceRoll: Results =
       copy(
         events = events + 1,
-        timeAdded = timeAdded + time,
         diceRolls = diceRolls + 1,
+      )
+    def addDiceRollTime(time: FiniteDuration): Results =
+      copy(
+        timeAdded = timeAdded + time,
         diceTimeAdded = diceTimeAdded + time,
       )
-    def addWheelRoll(time: FiniteDuration): Results =
+    lazy val addWheelRoll: Results =
       copy(
         events = events + 1,
-        timeAdded = timeAdded + time,
         wheelRolls = wheelRolls + 1,
+      )
+    def addWheelRollTime(time: FiniteDuration): Results =
+      copy(
+        timeAdded = timeAdded + time,
         wheelTimeAdded = wheelTimeAdded + time,
       )
     def addVoteAdd(user: String): Results =
@@ -134,20 +186,12 @@ object Competition:
             extension <- event.extension
             event <- event.as[TimeChangedPayload]
             results = extension match {
-              case "wheel-of-fortune" => addWheelRoll(event.payload.duration.seconds)
-              case "dice" => addDiceRoll(event.payload.duration.seconds)
+              case "wheel-of-fortune" => addWheelRollTime(event.payload.duration.seconds)
+              case "dice" => addDiceRollTime(event.payload.duration.seconds)
             }
           yield results).getOrElse(throw new Exception("Can't parse time changed event"))
-        /*case "dice_rolled" =>
-          event.as[DiceRolledPayload].fold(throw new Exception("Can't parse dice roll event")) { event =>
-            addDiceRoll(event.payload.adminDice, event.payload.playerDice)
-          }
-        case "wheel_of_fortune_turned" =>
-          event.as[WheelTurnedPayload].fold(throw new Exception("Cant parse wheel turned event")) {
-            case event if event.payload.segment.`type`.equalsIgnoreCase("set-unfreeze") => this
-            case event if event.payload.segment.`type`.equalsIgnoreCase("add-time") => addWheelRoll(event.payload.segment.duration.seconds)
-            case event => addWheelRoll(-event.payload.segment.duration.seconds)
-          }*/
+        case "dice_rolled" => addDiceRoll
+        case "wheel_of_fortune_turned" => addWheelRoll
         case _ => this
 
 
@@ -158,9 +202,9 @@ object Competition:
       lockEnd = lockStart.plusSeconds((3.days + 22.hours + 45.minutes).toSeconds)
       _ <- IO.println(s"lockStart: $lockStart").streamed
       _ <- IO.println(s"lockEnd: $lockEnd").streamed
-      (discordID, lockID) <- Stream.emits(discordIDS)
+      (name, discordID, lockID) <- Stream.emits(discordIDS)
       user <- RegisteredUserRepository.get(discordID.equalDiscordID).streamed
-      _ <- IO.println(s"Parsing history for $lockID").streamed
+      _ <- IO.println(s"Parsing history for $name").streamed
       events <- user.lockHistory(lockID, lockStart.some)
         .filter(_.createdAt.isBefore(lockEnd))
         .filter(event => !illegalSpins.contains(event._id))
