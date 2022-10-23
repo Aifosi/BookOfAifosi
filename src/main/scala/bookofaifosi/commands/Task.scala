@@ -36,6 +36,6 @@ object Task extends SlashCommand with Options with SlowResponse:
       user <- OptionT(RegisteredUserRepository.find(discordUser.discordID.equalDiscordID)).toRight(s"Couldn't find registered user $discordUser")
       task <- WheelTasks.handleTask(tag, user).toRight("Failed to get task.")
     yield task
-    eitherTResponse(response, slashAPI)
+    eitherTResponse(response, slashAPI).void
 
   override val description: String = "Gets a random task for a user."

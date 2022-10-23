@@ -1,5 +1,6 @@
 package bookofaifosi.commands
 
+import bookofaifosi.model.Message
 import bookofaifosi.model.event.{SlashAPI, SlashCommandEvent}
 import cats.data.EitherT
 import cats.effect.{IO, Ref}
@@ -31,14 +32,14 @@ trait SlowResponse:
       _ <- repliedRef.set(true)
     yield true
   
-  protected def eitherTResponse(response: EitherT[IO, String, String], slashAPI: Ref[IO, SlashAPI]): IO[Unit] =
-    def respond(slashAPI: SlashAPI, response: String): IO[Unit] =
-      if ephemeralResponses then slashAPI.replyEphemeral(response) else slashAPI.reply(response)
+  protected def eitherTResponse(response: EitherT[IO, String, String], slashAPI: Ref[IO, SlashAPI]): IO[Option[Message]] =
+    def respond(slashAPI: SlashAPI, response: String): IO[Option[Message]] =
+      if ephemeralResponses then slashAPI.replyEphemeral(response) else slashAPI.reply(response).map(Some(_))
     for
       response <- response.value
       slashAPI <- slashAPI.get
-      _ <- response.fold(
+      maybeMessage <- response.fold(
         error => respond(slashAPI, error),
         response => respond(slashAPI, response)
       )
-    yield ()
+    yield maybeMessage

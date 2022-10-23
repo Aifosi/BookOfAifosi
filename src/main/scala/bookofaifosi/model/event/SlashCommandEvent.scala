@@ -1,7 +1,9 @@
 package bookofaifosi.model.event
 
 import bookofaifosi.commands.MacroHelper
+import bookofaifosi.model.Message
 import cats.effect.IO
+import cats.syntax.option.*
 import bookofaifosi.model.event.{Event, SlashCommandEvent}
 import bookofaifosi.syntax.action.*
 import net.dv8tion.jda.api.entities.{MessageChannel, MessageEmbed, Guild as JDAGuild, Member as JDAMember, Message as JDAMessage, User as JDAUser}
@@ -15,19 +17,19 @@ import javax.imageio.ImageIO
 import scala.jdk.CollectionConverters.*
 
 trait SlashAPI:
-  def reply(string: String): IO[Unit]
-  def replyEphemeral(string: String): IO[Unit]
-  def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Unit]
+  def reply(string: String): IO[Message]
+  def replyEphemeral(string: String): IO[Option[Message]]
+  def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Option[Message]]
 
 class InteractionHook(
   underlying: JDAInteractionHook
 ) extends SlashAPI:
-  def reply(string: String): IO[Unit] = underlying.sendMessage(string).toIO.void
-  def replyEphemeral(string: String): IO[Unit] = underlying.sendMessage(string).toIO.void
-  def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Unit] =
+  override def reply(string: String): IO[Message] = underlying.sendMessage(string).toIO.map(Message(_))
+  override def replyEphemeral(string: String): IO[Option[Message]] = underlying.sendMessage(string).toIO.map(Message(_).some)
+  override def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Option[Message]] =
     val outputStream = new ByteArrayOutputStream()
     ImageIO.write(image, "png", outputStream)
-    underlying.sendFile(outputStream.toByteArray, title + ".png").toIO.void
+    underlying.sendFile(outputStream.toByteArray, title + ".png").toIO.map(Message(_).some)
 
 object InteractionHook:
   given Conversion[JDAInteractionHook, InteractionHook] = hook => new InteractionHook(hook)
@@ -39,13 +41,16 @@ class SlashCommandEvent(
   jdaGuild: Option[JDAGuild],
   underlying: SlashCommandInteractionEvent,
 ) extends GenericTextEvent(jdaChannel, jdaAuthor, jdaMember, jdaGuild) with SlashAPI:
-  override def reply(string: String): IO[Unit] = underlying.reply(string).toIO.void
   def deferReply(ephemeral: Boolean = false): IO[Unit] = underlying.deferReply(ephemeral).toIO.void
-  def replyEphemeral(string: String): IO[Unit] = underlying.reply(string).setEphemeral(true).toIO.void
-  def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Unit] =
+  override def reply(string: String): IO[Message] = underlying.reply(string).toIO.flatMap(_.retrieveOriginal.toIO).map(Message(_))
+  override def replyEphemeral(string: String): IO[Option[Message]] = underlying.reply(string).setEphemeral(true).toIO.as(None)
+  override def replyImage(image: BufferedImage, title: String, ephemeral: Boolean = false): IO[Option[Message]] =
     val outputStream = new ByteArrayOutputStream()
     ImageIO.write(image, "png", outputStream)
-    underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.void
+    underlying.reply(title).addFile(outputStream.toByteArray, title + ".png").setEphemeral(ephemeral).toIO.flatMap {
+      case interactionHook if ephemeral => IO.pure(None)
+      case interactionHook => interactionHook.retrieveOriginal.toIO.map(Message(_).some)
+    }
   inline def getOption[T](option: String): T = MacroHelper.getOption[T](underlying, option)
   lazy val allOptions: List[OptionMapping] = underlying.getOptions.asScala.toList
   lazy val commandName: String = underlying.getName

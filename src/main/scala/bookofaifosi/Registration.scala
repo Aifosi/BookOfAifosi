@@ -86,7 +86,6 @@ object Registration:
       "redirect_uri" -> registerUri.renderString,
     )
     userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
-    _ <- IO.println(userToken)
     profile <- userToken.profile
     locks <- userToken.locks
     keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
@@ -105,7 +104,7 @@ object Registration:
         case registrations                                  =>
           val member = registrations(uuid)._1
           for
-            _ <- requestAccessToken(member, authorizationCode, uuid).start
+            _ <- requestAccessToken(member, authorizationCode, uuid)
             response <- Ok("Registration Successful")
           yield response
       }

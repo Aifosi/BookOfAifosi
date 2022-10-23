@@ -28,6 +28,6 @@ abstract class Event(
   lazy val fromBot: Boolean = author.isBot
   lazy val discord: Discord = new Discord(jdaAuthor.getJDA)
 
-  def reply(string: String): IO[Unit] = channel.sendMessage(string).void
+  def reply(string: String): IO[Message] = channel.sendMessage(string)
 
   def sendFile(file: File): IO[Message] = channel.sendFile(file)
