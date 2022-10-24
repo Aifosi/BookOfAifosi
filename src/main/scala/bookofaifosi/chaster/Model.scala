@@ -87,7 +87,8 @@ case class Lock(
   unlockedAt: Option[Instant], //Wrong on swagger
   frozenAt: Option[Instant],
   hideTimeLogs: Boolean,
-  trusted: Boolean
+  trusted: Boolean,
+  isTestLock: Boolean,
 ) extends WithID derives Decoder
 
 case class SharedLock (

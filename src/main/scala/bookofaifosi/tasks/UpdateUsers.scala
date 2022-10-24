@@ -79,7 +79,7 @@ object UpdateUsers extends RepeatedStreams:
     if !user.token.scope.split(" ").contains("locks") then return notify(user).as(false)
     for
       locks <- user.locks
-      lockedLocks = locks.filter(_.status == LockStatus.Locked)
+      lockedLocks = locks.filter(lock => lock.status == LockStatus.Locked && !lock.isTestLock)
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
       registeredKeyholders <- user.registeredKeyholders
