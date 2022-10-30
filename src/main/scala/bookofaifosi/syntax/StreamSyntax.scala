@@ -27,4 +27,4 @@ trait StreamSyntax:
 
   extension [F[_], O](stream: Stream[F, O])
     def logErrorAndContinue(message: Throwable => String = _.getMessage)(using Logger[F]): Stream[F, O] =
-      stream.handleErrorAndContinue(error => Stream.eval(Logger[F].error(message(error))) >> Stream.empty)
+      stream.handleErrorAndContinue(error => Stream.eval(Logger[F].error(error)(message(error))) >> Stream.empty)

@@ -55,11 +55,11 @@ libraryDependencies ++= Seq(
   //DB
   "org.postgresql"         % "postgresql"           % "42.5.0",
   "mysql"                  % "mysql-connector-java" % "8.0.30",
-  "org.flywaydb"           % "flyway-core"          % "9.4.0",
+  "org.flywaydb"           % "flyway-core"          % "9.5.1",
   "org.tpolecat"          %% "doobie-core"          % doobieVersion,
   "org.tpolecat"          %% "doobie-postgres"      % doobieVersion,
   //Logging
-  "ch.qos.logback"         % "logback-classic"      % "1.4.3",
+  "ch.qos.logback"         % "logback-classic"      % "1.4.4",
   "org.typelevel"         %% "log4cats-slf4j"       % "2.5.0",
 )
 
