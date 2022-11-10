@@ -39,8 +39,8 @@ object Registration:
   private object UUIDParamMatcher extends QueryParamDecoderMatcher[UUID]("state")
 
   val registerUri: Uri =
-    val port = if Bot.chasterConfig.publicPort != 80 then s":${Bot.chasterConfig.publicPort}" else ""
-    Uri.unsafeFromString(s"http://${Bot.chasterConfig.publicHost}$port/register")
+    val port = if Bot.chaster.publicPort != 80 then s":${Bot.chaster.publicPort}" else ""
+    Uri.unsafeFromString(s"http://${Bot.chaster.publicHost}$port/register")
 
   private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
   private def containsAllScopes(scope: String, other: String): Boolean =

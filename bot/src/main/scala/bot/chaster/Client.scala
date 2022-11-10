@@ -75,8 +75,8 @@ object Client:
       client <- Bot.client.get
       uri = auth / "token"
       data = Seq(
-        "client_id" -> Bot.chasterConfig.clientId,
-        "client_secret" -> Bot.chasterConfig.secretKey,
+        "client_id" -> Bot.chaster.clientId,
+        "client_secret" -> Bot.chaster.secretKey,
       )
       fullFormData = UrlForm(data ++ formData *)
       accessToken <- client.expect[AccessToken](POST.apply(uri).withEntity(fullFormData))
@@ -85,7 +85,7 @@ object Client:
   given QueryParamEncoder[UUID] = (uuid: UUID) => QueryParamEncoder[String].encode(uuid.toString)
   def authUri(uuid: UUID, scope: String): Uri =
     (auth / "auth")
-      .withQueryParam("client_id", Bot.chasterConfig.clientId)
+      .withQueryParam("client_id", Bot.chaster.clientId)
       .withQueryParam("redirect_uri", Registration.registerUri)
       .withQueryParam("response_type", "code")
       .withQueryParam("scope", scope)

@@ -52,7 +52,7 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
     for
       guild <- event.guild
       mention = if guild.isOwner(event.author) then event.author.name else event.author.mention
-      //_ <- bot.config.channels.log.sendMessage(mention + message).value.void //TODO Fix this
+      _ <- Bot.channels.log.sendMessage(mention + message).value.void //TODO Add to base bot config, maybe on same namespace?
       _ <- Logger[IO].info(event.author.toString + message)
     yield ()
 

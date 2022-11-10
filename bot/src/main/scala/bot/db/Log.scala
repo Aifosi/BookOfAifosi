@@ -15,17 +15,17 @@ object Log:
     case Success(s, a, e1, e2) =>
       Logger[IO].debug(s"""Successful Statement Execution: ${s.linesIterator.dropWhile(_.trim.isEmpty).mkString("\n  ")}
                         | arguments = [${a.mkString(", ")}]
-                        |   elapsed = ${e1.toMillis.toString} ms exec + ${e2.toMillis.toString} ms processing (${(e1 + e2).toMillis.toString} ms total)""".stripMargin).unsafeRunSync()(Bot.instance.ioRuntime)
+                        |   elapsed = ${e1.toMillis.toString} ms exec + ${e2.toMillis.toString} ms processing (${(e1 + e2).toMillis.toString} ms total)""".stripMargin).unsafeRunSync()(Bot.runtime)
 
     case ProcessingFailure(s, a, e1, e2, t) =>
       Logger[IO].error(s"""Failed Resultset Processing: ${s.linesIterator.dropWhile(_.trim.isEmpty).mkString("\n  ")}
                           | arguments = [${a.mkString(", ")}]
                           |   elapsed = ${e1.toMillis.toString} ms exec + ${e2.toMillis.toString} ms processing (failed) (${(e1 + e2).toMillis.toString} ms total)
-                          |   failure = ${t.getMessage}""".stripMargin).unsafeRunSync()(Bot.instance.ioRuntime)
+                          |   failure = ${t.getMessage}""".stripMargin).unsafeRunSync()(Bot.runtime)
 
     case ExecFailure(s, a, e1, t) =>
       Logger[IO].error(s"""Failed Statement Execution: ${s.linesIterator.dropWhile(_.trim.isEmpty).mkString("\n  ")}
                           | arguments = [${a.mkString(", ")}]
                           |   elapsed = ${e1.toMillis.toString} ms exec (failed)
-                          |   failure = ${t.getMessage}""".stripMargin).unsafeRunSync()(Bot.instance.ioRuntime)
+                          |   failure = ${t.getMessage}""".stripMargin).unsafeRunSync()(Bot.runtime)
   }

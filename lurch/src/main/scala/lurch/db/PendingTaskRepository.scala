@@ -57,5 +57,5 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     )
       .compile
       .toList
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
       .flatMap(_.traverse(toModel))

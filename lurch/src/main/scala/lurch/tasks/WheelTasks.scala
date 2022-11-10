@@ -32,11 +32,11 @@ object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
 
   def handleTask(task: String, user: RegisteredUser, andAlso: (Message, Task) => IO[Unit] = (_, _) => IO.unit)(using Logger[IO]): OptionT[IO, String] =
-    OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Lurch.mysqlConfig.transactor))
+    OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Lurch.mysql.transactor))
       .flatTapNone(Logger[IO].warn(s"Unable to get task for ${user.discordID}, $task"))
       .map(_.cleanedDescription)
       .flatMap { task =>
-        Lurch.config.channels.tortureChamber.sendMessage(s"${user.mention} rolled task ${task.id} - ${task.title}")
+        Lurch.channels.tortureChamber.sendMessage(s"${user.mention} rolled task ${task.id} - ${task.title}")
           .semiflatMap(andAlso(_, task))
           .as(s"Rolled task ${task.id} - ${task.title}\n${task.description}")
           .semiflatTap(user.sendMessage)
@@ -67,7 +67,7 @@ object WheelTasks extends RepeatedStreams:
 
           handleTask(task, user, addReaction).void
         case text =>
-          Lurch.config.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
+          Lurch.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
       }
       .value
       .void

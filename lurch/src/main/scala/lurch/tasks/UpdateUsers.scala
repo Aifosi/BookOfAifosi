@@ -32,7 +32,7 @@ import scala.concurrent.duration.*
 
 object UpdateUsers extends RepeatedStreams:
   private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
-    Stream.eval(Logger[IO].info(message) *> Lurch.config.channels.log.sendMessage(message).value).drain
+    Stream.eval(Logger[IO].info(message) *> Bot.channels.log.sendMessage(message).value).drain
 
   private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
     for
@@ -56,7 +56,7 @@ object UpdateUsers extends RepeatedStreams:
         val message = s"Failed to add or remove ${role.mention} to ${member.mention}, error: ${error.getMessage}"
         for
           _ <- Logger[IO].error(message)
-          _ <- Lurch.config.channels.log.sendMessage(message).value
+          _ <- Bot.channels.log.sendMessage(message).value
         yield (),
       _.pure
     ))

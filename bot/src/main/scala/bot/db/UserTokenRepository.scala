@@ -27,7 +27,7 @@ object UserTokenRepository extends Repository[UserToken]:
     sql"insert into $table (access_token, expires_at, refresh_token, scope) values ($accessToken, $expiresAt, $refreshToken, $scope)"
       .update
       .withUniqueGeneratedKeys[UserToken]("id", "access_token", "expires_at", "refresh_token", "scope")
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
 
   def update(
     id: UUID,

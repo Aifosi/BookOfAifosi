@@ -46,7 +46,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
     sql"insert into $table (user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
       .update
       .withUniqueGeneratedKeys[PilloryLink]("user_id", "guild_discord_id", "post_id", "counted")
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
       .flatMap(toModel)
 
   def setCounted(

@@ -29,7 +29,7 @@ given Put[DiscordID] = Put[Long].contramap(_.toLong)
 type Filter = Option[Fragment]
 
 lazy val translator: FunctionK[ConnectionIO, IO] = new FunctionK[ConnectionIO, IO]:
-  override def apply[A](fa: ConnectionIO[A]): IO[A] = fa.transact(Bot.postgresConfig.transactor)
+  override def apply[A](fa: ConnectionIO[A]): IO[A] = fa.transact(Bot.postgres.transactor)
 
 extension (filters: List[Filter])
   def mkFragment(start: Fragment = Fragment.empty, sep: Fragment, end: Fragment = Fragment.empty): Fragment =
@@ -82,7 +82,7 @@ trait Remove:
     (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
       .update
       .run
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
 
 trait Insert[DB: Read]:
   outer: RepositoryFields =>
@@ -113,21 +113,21 @@ trait Repository[DB: Read] extends RepositoryFields with Remove:
       .withGeneratedKeys[DB](columns*)
       .compile
       .toList
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
 
   inline protected def innerUpdate(updates: Filter*)(where: Fragment, more: Fragment*): IO[DB] =
     updateQuery(updates*)(where, more*)
       .withUniqueGeneratedKeys[DB](columns*)
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
 
   protected lazy val selectAll: Fragment = Fragment.const(columns.mkString("select ", ", ", " from")) ++ table
 
   private def query(filters: Iterable[Filter]) =
     (selectAll ++ filters.toList.combineFilters).query[DB]
 
-  def list(filters: Filter*): IO[List[DB]] = query(filters).to[List].transact(Bot.postgresConfig.transactor)
+  def list(filters: Filter*): IO[List[DB]] = query(filters).to[List].transact(Bot.postgres.transactor)
 
-  def find(filters: Filter*): IO[Option[DB]] = query(filters).option.transact(Bot.postgresConfig.transactor)
+  def find(filters: Filter*): IO[Option[DB]] = query(filters).option.transact(Bot.postgres.transactor)
 
   def get(filters: Filter*): IO[DB] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
 

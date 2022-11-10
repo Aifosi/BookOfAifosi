@@ -34,11 +34,15 @@ import scala.concurrent.duration.*
 import scala.compiletime.uninitialized
 
 trait Bot extends IOApp:
-  def ioRuntime: IORuntime = runtime
   given IORuntime = runtime
 
-  def allCommands: NonEmptyList[AnyCommand]
-  
+  def commands: List[AnyCommand]
+
+  lazy val  allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
+    Register,
+    Nuke,
+  ) ++ commands
+
   lazy val textCommands: List[TextCommand] = allCommands.collect {
     case command: TextCommand => command
   }
@@ -61,7 +65,7 @@ trait Bot extends IOApp:
       flyway <- IO {
         Flyway
           .configure
-          .dataSource(Bot.postgresConfig.url, Bot.postgresConfig.user, Bot.postgresConfig.password)
+          .dataSource(Bot.postgres.url, Bot.postgres.user, Bot.postgres.password)
           .validateMigrationNaming(true)
           .baselineOnMigrate(true)
           .load
@@ -87,7 +91,7 @@ trait Bot extends IOApp:
       *> Logger[IO].info("All Slash commands registered.")
 
   private def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
-    .bindHttp(Bot.chasterConfig.port, Bot.chasterConfig.host)
+    .bindHttp(Bot.chaster.port, Bot.chaster.host)
     .withHttpApp(Registration.routes.orNotFound)
     .serve
 
@@ -114,7 +118,7 @@ trait Bot extends IOApp:
       //_ <- Bot.instance.complete(this).streamed
       logger  <- Slf4jLogger.create[IO].streamed
       given Logger[IO] = logger
-      _ = Bot.instance = this
+      _ = Bot.runtime = runtime
       _ <- Bot.logger.complete(logger).streamed
       _ <- runMigrations.streamed
       _ <- acquireHttpClient
@@ -129,8 +133,9 @@ object Bot:
   val logger: Deferred[IO, Logger[IO]] = Deferred.unsafe
 
   //val instance: Deferred[IO, Bot] = Deferred.unsafe
-  var instance: Bot = uninitialized
+  var runtime: IORuntime = uninitialized
 
   lazy val discordConfig: DiscordConfiguration = DiscordConfiguration.fromConfig()
-  lazy val chasterConfig: ChasterConfiguration = ChasterConfiguration.fromConfig()
-  lazy val postgresConfig: PostgresConfiguration = PostgresConfiguration.fromConfig()
+  lazy val chaster: ChasterConfiguration = ChasterConfiguration.fromConfig()
+  lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
+  lazy val channels: ChannelConfig = ChannelConfig.fromConfig()

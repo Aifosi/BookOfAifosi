@@ -1,6 +1,6 @@
 package lurch
 
-import bot.*
+import bot.{ChannelConfig as _, *}
 import bot.commands.*
 import bot.model.Discord
 import bot.tasks.Streams
@@ -31,14 +31,14 @@ import scala.concurrent.duration.FiniteDuration
 //https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot%20applications.commands&permissions=534992186432 - Test
 //Add view channels permission
 //TODO use streams to list from database
+//TODO add unregister
 object Lurch extends Bot:
-  lazy val postgresConfig = PostgresConfiguration.fromConfig()
-  lazy val mysqlConfig = MysqlConfiguration.fromConfig()
-  lazy val config = Configuration.fromConfig()
+  lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
+  lazy val mysql: MysqlConfiguration = MysqlConfiguration.fromConfig()
+  lazy val config: Configuration = Configuration.fromConfig()
+  lazy val channels: ChannelConfig = ChannelConfig.fromConfig()
 
-  lazy val allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
-    Help,
-    Register,
+  lazy val commands: List[AnyCommand] = List(
     EnablePilloryBitches,
     DisablePilloryBitches,
     PilloryChecker,
@@ -46,7 +46,6 @@ object Lurch extends Bot:
     MessageDeleter,
     LockChannel,
     UnlockChannel,
-    Nuke,
     Task,
     TaskCompleter,
   )

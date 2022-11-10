@@ -40,7 +40,7 @@ object RecentLockHistoryRepository extends ModelRepository[RecentLockHistory, Re
     sql"insert into $table (user_id, lock_id, most_recent_event_time) values ($userID, $lockID, $mostRecentEventTime)"
       .update
       .withUniqueGeneratedKeys[RecentLockHistory]("user_id", "lock_id", "most_recent_event_time")
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
       .flatMap(toModel)
 
   def update(

@@ -49,7 +49,7 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
     sql"insert into $table (guild_discord_id, channel_discord_id) values ($guildID, $channelID)"
       .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
-      .transact(Bot.postgresConfig.transactor)
+      .transact(Bot.postgres.transactor)
       .flatMap(toModel)
 
   def update(

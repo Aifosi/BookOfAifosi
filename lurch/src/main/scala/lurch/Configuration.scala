@@ -1,6 +1,7 @@
 package lurch
 
 import bot.*
+import bot.Utils.getChannel
 import bot.model.{Channel, DiscordID}
 import cats.data.OptionT
 import cats.effect.IO
@@ -35,34 +36,9 @@ case class Roles(
   def lastLockedCutoff: Instant = Instant.now.minusSeconds(lastLockedThreshold.toSeconds)
   def lastKeyheldCutoff: Instant = Instant.now.minusSeconds(lastKeyheldThreshold.toSeconds)
 
-case class Channels(
-  logID: Option[DiscordID],
-  tortureChamberID: Option[DiscordID],
-  spinlogID: Option[DiscordID],
-) derives ConfigReader:
-  def getChannel(chanelName: String, id: Option[DiscordID]): OptionT[IO, Channel] =
-    OptionT {
-      id.flatTraverse { id =>
-        for
-          given Logger[IO] <- Slf4jLogger.create[IO]
-          discord <- Bot.discord.get
-          channelEither <- discord.channelByID(id).attempt
-          channel <- channelEither.fold(
-            _ => Logger[IO].debug(s"$chanelName channel not configured.").as(None),
-            _.some.pure[IO]
-          )
-        yield channel
-      }
-    }
-
-  def log: OptionT[IO, Channel] = getChannel("log", logID)
-  def tortureChamber: OptionT[IO, Channel] = getChannel("Torture Chamber", tortureChamberID)
-  def spinlog: OptionT[IO, Channel] = getChannel("spinlog", spinlogID)
-
 case class Configuration(
   checkFrequency: FiniteDuration,
   pilloryBitches: PilloryBitches,
-  channels: Channels,
   roles: Roles,
 ) derives ConfigReader
 
