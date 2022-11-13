@@ -2,7 +2,7 @@ package lurch.tasks
 
 import bot.Bot
 import bot.chaster.Client.{*, given}
-import bot.chaster.{Event, WheelTurnedPayload, SegmentType}
+import bot.chaster.{Event, LinkConfig, SegmentType, WheelTurnedPayload}
 import bot.db.Filters.*
 import bot.db.{RegisteredUserRepository, given}
 import bot.model.event.{SlashAPI, SlashCommandEvent}
@@ -18,7 +18,7 @@ import cats.syntax.traverse.*
 import doobie.implicits.*
 import fs2.Stream
 import io.circe.Json
-import lurch.Lurch
+import lurch.{DurationUtils, Lurch}
 import lurch.commands.{Task, TaskCompleter}
 import lurch.db.{PendingTaskRepository, RecentLockHistoryRepository}
 import lurch.model.RecentLockHistory
@@ -30,6 +30,7 @@ import scala.concurrent.duration.FiniteDuration
 
 object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
+  private val changeVotesRegex = "ChangeVotes: (-?\\d+)".r
 
   def handleTask(task: String, user: RegisteredUser, andAlso: (Message, Task) => IO[Unit] = (_, _) => IO.unit)(using Logger[IO]): OptionT[IO, String] =
     OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Lurch.mysql.transactor))
@@ -42,6 +43,18 @@ object WheelTasks extends RepeatedStreams:
           .semiflatTap(user.sendMessage)
       }
 
+  def handleVoteChange(voteChange: String, user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, Unit] =
+    for
+      voteChange <- OptionT.fromOption[IO](voteChange.toIntOption)
+      lock <- OptionT.liftF(user.lock(lockID))
+      keyholder <- OptionT(lock.keyholder.flatTraverse(keyholder => RegisteredUserRepository.find(keyholder._id.equalChasterID)))
+      _ <- OptionT.liftF(keyholder.updateExtension[LinkConfig](lockID) { configUpdate =>
+        configUpdate.copy(config = configUpdate.config.copy(nbVisits = configUpdate.config.nbVisits + voteChange))
+      })
+      _ <- OptionT.liftF(Logger[IO].debug(s"Changing $user required votes by $voteChange"))
+      _ <- Lurch.channels.spinlog.sendMessage(s"Changing ${user.mention} required votes by $voteChange")
+    yield ()
+
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
     for
       lock <- Stream.evalSeq(user.locks)
@@ -49,7 +62,7 @@ object WheelTasks extends RepeatedStreams:
       lockHistory <- maybeLockHistory.fold(RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
     yield lockHistory
 
-  private def handleEvent(user: RegisteredUser, event: Event[Json])(using Logger[IO]): IO[Unit] =
+  private def handleEvent(user: RegisteredUser, event: Event[Json], lockID: ChasterID)(using Logger[IO]): IO[Unit] =
     OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       .subflatMap(identity)
       .collect {
@@ -66,6 +79,9 @@ object WheelTasks extends RepeatedStreams:
             yield ()
 
           handleTask(task, user, addReaction).void
+
+        case changeVotesRegex(voteChange) => handleVoteChange(voteChange, user, lockID)
+
         case text =>
           Lurch.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
       }
@@ -75,7 +91,7 @@ object WheelTasks extends RepeatedStreams:
   private def handleHistory(user: RegisteredUser, lockID: ChasterID, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
     for
       event <- user.lockHistory(lockID, mostRecentEventTime)
-      _ <- handleEvent(user, event).streamed
+      _ <- handleEvent(user, event, lockID).streamed
     yield event.createdAt
 
   override lazy val delay: FiniteDuration = Lurch.config.checkFrequency
