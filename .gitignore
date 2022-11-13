@@ -3,3 +3,4 @@ target/
 .bsp/
 conf/
 data/
+**/application.conf*

@@ -2,10 +2,15 @@ version: '3.8'
 
 services:
   db:
-    image:  library/postgres:14
+    image: library/postgres:14
     ports:
       - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: bookofaifosi
       POSTGRES_PASSWORD: bookofaifosi
       POSTGRES_DB: bookofaifosi
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready'" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3

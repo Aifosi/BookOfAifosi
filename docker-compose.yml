@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  db:
+    image: library/postgres:14
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: bookofaifosi
+      POSTGRES_PASSWORD: bookofaifosi
+      POSTGRES_DB: bookofaifosi
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready'" ]
+      interval: 1s
+      timeout: 3s
+      retries: 15
+  bookofaifosi:
+    image: aifosi/lurch
+    user: root
+    restart: "unless-stopped"
+    ports:
+      - "80:80"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOSTNAME: "db"
+    volumes:
+      - "./lurch/src/main/resources/application.conf:/opt/docker/conf/application.conf"
