@@ -12,9 +12,9 @@ val logback = "1.4.4"
 val log4cats = "2.5.0"
 
 lazy val dockerSettings = Seq(
-  Docker / dockerRepository := Some("aifosi"),
-  dockerUpdateLatest := true,
-  dockerBaseImage := "openjdk:17-jdk",
+  ThisBuild / Docker / dockerRepository := Some("aifosi"),
+  ThisBuild / dockerUpdateLatest := true,
+  ThisBuild / dockerBaseImage := "openjdk:17-jdk",
 )
 
 lazy val sharedSettings = Seq(
