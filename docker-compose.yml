@@ -25,3 +25,5 @@ services:
         condition: service_healthy
     environment:
       DB_HOSTNAME: "db"
+    volumes:
+      - "./lurch/src/main/resources/application.conf:/opt/docker/conf/application.conf"

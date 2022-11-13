@@ -93,7 +93,7 @@ object Registration:
     scopes = accessToken.scope.split(" ")
     registeredUser <- addOrUpdateUser(profile._id, member.discordID, member.guild.discordID, keyholderIDs, isLocked, userToken.id)
     _ <- registrations.update(_ - uuid)
-    //_ <- Bot.config.channels.log.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}").value //TODO fix this
+    _ <- Bot.channels.log.sendMessage(s"Registration successful for ${member.mention} -> ${profile.username}").value
     _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
   yield ()
 

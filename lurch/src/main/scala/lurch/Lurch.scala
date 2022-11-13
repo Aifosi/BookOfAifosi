@@ -55,3 +55,17 @@ object Lurch extends Bot:
     UpdateUsers,
     WheelTasks,
   )
+
+  override protected def runMigrations(using Logger[IO]): IO[Unit] =
+    for
+      flyway <- IO {
+        Flyway
+          .configure
+          .dataSource(postgres.url, postgres.user, postgres.password)
+          .validateMigrationNaming(true)
+          .baselineOnMigrate(true)
+          .load
+      }
+      migrations <- IO(flyway.migrate())
+      _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
+    yield ()

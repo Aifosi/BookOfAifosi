@@ -93,6 +93,9 @@ lazy val lurch = project
   .dependsOn(bot)
   .settings(
     name := "Lurch",
+    Universal / javaOptions ++= Seq(
+      "-Dconfig.file=/opt/docker/conf/application.conf",
+    ),
     dockerSettings,
     sharedSettings,
   )

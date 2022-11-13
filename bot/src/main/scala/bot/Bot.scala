@@ -60,19 +60,7 @@ trait Bot extends IOApp:
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
 
-  private def runMigrations(using Logger[IO]): IO[Unit] =
-    for
-      flyway <- IO {
-        Flyway
-          .configure
-          .dataSource(Bot.postgres.url, Bot.postgres.user, Bot.postgres.password)
-          .validateMigrationNaming(true)
-          .baselineOnMigrate(true)
-          .load
-      }
-      migrations <- IO(flyway.migrate())
-      _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
-    yield ()
+  protected def runMigrations(using Logger[IO]): IO[Unit]
 
   private def acquireDiscordClient(using Logger[IO]): IO[Discord] =
     val jda = JDABuilder.createDefault(Bot.discordConfig.token)
@@ -112,6 +100,8 @@ trait Bot extends IOApp:
       _ <- Bot.client.complete(clientWithRetry).streamed
       _ <- Logger[IO].info("HTTP client acquired.").streamed
     yield clientWithRetry
+    
+  def extra(using Logger[IO]): IO[Unit] = IO.unit
 
   override def run(args: List[String]): IO[ExitCode] =
     (for
@@ -124,6 +114,7 @@ trait Bot extends IOApp:
       _ <- acquireHttpClient
       discord <- acquireDiscordClient.streamed
       _ <- registerSlashCommands(discord).start.streamed
+      _ <- extra.streamed
       exitCode <- httpServer.concurrently(combinedTasks)
     yield exitCode).compile.lastOrError
 
