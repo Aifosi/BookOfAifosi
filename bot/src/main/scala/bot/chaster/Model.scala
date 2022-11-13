@@ -326,9 +326,9 @@ case class Punishment(
 ) derives Decoder, Encoder.AsObject
 
 case class PunishmentConfig(
-  prefix: String,
+  prefix: Option[String],
   name: String,
-  params: Param,
+  //params: Param | Int,
   punishments: List[Punishment],
 ) derives Decoder, Encoder.AsObject
 
