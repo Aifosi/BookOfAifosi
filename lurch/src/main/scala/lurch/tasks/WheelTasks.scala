@@ -55,8 +55,8 @@ object WheelTasks extends RepeatedStreams:
           case Some("-") => configUpdate.config.nbVisits - target
         configUpdate.copy(config = configUpdate.config.copy(nbVisits = updatedVisits))
       })
-      _ <- OptionT.liftF(Logger[IO].debug(s"Changing $user required votes ${plusMinus.fold(s"to $target")(t => s"by $t$target")}"))
-      _ <- Lurch.channels.spinlog.sendMessage(s"Changing ${user.mention} required votes ${plusMinus.fold(s"to $target")(t => s"by $t$target")}")
+      _ <- OptionT.liftF(Logger[IO].debug(s"$user required votes changed ${plusMinus.fold(s"to $target")(t => s"by $t$target")}"))
+      _ <- Lurch.channels.spinlog.sendMessage(s"${user.mention} required votes changed ${plusMinus.fold(s"to $target")(t => s"by $t$target")}")
     yield ()
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =

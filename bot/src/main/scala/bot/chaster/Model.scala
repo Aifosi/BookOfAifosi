@@ -162,7 +162,7 @@ object Event:
     yield Event(extension, id, `type`, role, description, createdAt, user, payload)
 
 enum SegmentType:
-  case AddTime, RemoveTime, AddRemoveTime, Text, SetFreeze, SetUnfreeze
+  case AddTime, RemoveTime, AddRemoveTime, Text, SetFreeze, SetUnfreeze, Pillory
 
 object SegmentType:
   given Decoder[SegmentType] = Decoder[String].emapTry { string =>
