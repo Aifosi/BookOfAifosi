@@ -29,6 +29,7 @@ import scala.concurrent.duration.*
 import java.time.Instant
 import java.util.UUID
 import scala.deriving.Mirror
+import scala.reflect.Typeable
 
 case class WithLastID(
   lastId: Option[ChasterID] = None,
@@ -92,7 +93,9 @@ object Client:
       .withQueryParam("state", uuid)
 
   given Conversion[RegisteredUser, UserToken] = _.token
-  
+
+  given EntityDecoder[IO, Unit] = EntityDecoder.void
+
   extension (token: UserToken)(using Logger[IO])
     private def updatedToken: IO[UserToken] =
       if token.expiresAt.isAfter(Instant.now()) then
@@ -115,7 +118,6 @@ object Client:
         request = req.putHeaders(token.authorizationHeader)
         response <- expect[A](request)
       yield response
-  
     private def getAll[A <: WithID: Decoder](uri: Uri): Stream[IO, A] =
       for
         token <- Stream.eval(token.updatedToken)
@@ -185,11 +187,39 @@ object Client:
         }.spaced(60.seconds / 200)
         response <- Stream.emits(responses)
       yield response
-    def modifyTime(lock: String, modification: FiniteDuration): IO[Unit] = ???
+    def modifyTime(lock: ChasterID, modification: FiniteDuration): IO[Unit] =
+      expectAuthenticated[Unit](POST(Json.obj("duration" -> Json.fromLong(modification.toSeconds)), API / "locks" / lock / "update-time"))
       /*val seconds = modification.toSeconds
       if seconds < 0 && !user.isKeyholder then
         IO.raiseError(new Exception("Only keyholders can remove time."))
       else
         expectAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))*/
-    def posts: Stream[IO, Post] = getAll[Post](API / "posts")
-    def post(id: ChasterID): IO[Post] = expectAuthenticated[Post](GET(API / "posts" / id))
+    def posts: Stream[IO, Post] = getAll(API / "posts")
+    def post(id: ChasterID): IO[Post] = expectAuthenticated(GET(API / "posts" / id))
+    def setFreeze(lock: ChasterID, freeze: Boolean): IO[Unit] = expectAuthenticated(POST(Json.obj("isFrozen" -> Json.fromBoolean(freeze)), API / "locks" / lock / "freeze"))
+    def freeze(lock: ChasterID): IO[Unit] = setFreeze(lock, true)
+    def unfreeze(lock: ChasterID): IO[Unit] = setFreeze(lock, false)
+    def action[Payload: Encoder, Response: Decoder](lock: ChasterID, extension: ChasterID)(payload: Payload): IO[Response] =
+      expectAuthenticated(POST(payload, API / "locks" / lock / "extensions" / extension / "action"))
+    def extensions(lock: ChasterID, extensionUpdates: ConfigUpdate[ExtensionConfig]*): IO[Unit] =
+      expectAuthenticated(POST(ConfigUpdatePayload(extensionUpdates.toList), API / "locks" / lock / "extensions"))
+    def updateExtensions(lockID: ChasterID)(update: List[ConfigUpdate[ExtensionConfig]] => List[ConfigUpdate[ExtensionConfig]]): IO[Unit] =
+      for
+        lock <- lock(lockID)
+        configs = lock.extensions.map { extension =>
+          ConfigUpdate(extension.config, extension.mode, extension.regularity)
+        }
+        updatedConfigs = update(configs)
+        _ <- extensions(lockID, updatedConfigs*)
+      yield ()
+    def updateExtension[Config <: ExtensionConfig: Typeable](lockID: ChasterID)(update: ConfigUpdate[Config] => ConfigUpdate[Config]): IO[Unit] =
+      for
+        lock <- lock(lockID)
+        updatedConfigs = lock.extensions.map { extension =>
+          extension.config match
+            case config: Config => update(ConfigUpdate(config, extension.mode, extension.regularity))
+            case config => ConfigUpdate(config, extension.mode, extension.regularity)
+        }
+        _ <- extensions(lockID, updatedConfigs*)
+      yield ()
+

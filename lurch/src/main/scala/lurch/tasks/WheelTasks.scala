@@ -2,7 +2,7 @@ package lurch.tasks
 
 import bot.Bot
 import bot.chaster.Client.{*, given}
-import bot.chaster.{Event, WheelTurnedPayload}
+import bot.chaster.{Event, WheelTurnedPayload, SegmentType}
 import bot.db.Filters.*
 import bot.db.{RegisteredUserRepository, given}
 import bot.model.event.{SlashAPI, SlashCommandEvent}
@@ -53,7 +53,7 @@ object WheelTasks extends RepeatedStreams:
     OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       .subflatMap(identity)
       .collect {
-        case event if event.payload.segment.`type` == "text" => event.payload.segment.text
+        case event if event.payload.segment.`type` == SegmentType.Text => event.payload.segment.text
       }
       .semiflatTap(text => Logger[IO].debug(s"$user rolled $text"))
       .flatMap {
