@@ -30,7 +30,7 @@ import scala.concurrent.duration.FiniteDuration
 
 object WheelTasks extends RepeatedStreams:
   private val taskRegex = "Task: (.+)".r
-  private val changeVotesRegex = "ChangeVotes: (-?\\d+)".r
+  private val changeVotesRegex = "VoteTarget: (-|\\+)?(\\d+)".r
 
   def handleTask(task: String, user: RegisteredUser, andAlso: (Message, Task) => IO[Unit] = (_, _) => IO.unit)(using Logger[IO]): OptionT[IO, String] =
     OptionT(fr"call GetTask(${user.discordID}, $task)".query[Task].option.transact(Lurch.mysql.transactor))
@@ -43,16 +43,20 @@ object WheelTasks extends RepeatedStreams:
           .semiflatTap(user.sendMessage)
       }
 
-  def handleVoteChange(voteChange: String, user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, Unit] =
+  def handleVoteChange(plusMinus: Option[String], target: String, user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, Unit] =
     for
-      voteChange <- OptionT.fromOption[IO](voteChange.toIntOption)
+      target <- OptionT.fromOption[IO](target.toIntOption)
       lock <- OptionT.liftF(user.lock(lockID))
       keyholder <- OptionT(lock.keyholder.flatTraverse(keyholder => RegisteredUserRepository.find(keyholder._id.equalChasterID)))
       _ <- OptionT.liftF(keyholder.updateExtension[LinkConfig](lockID) { configUpdate =>
-        configUpdate.copy(config = configUpdate.config.copy(nbVisits = configUpdate.config.nbVisits + voteChange))
+        val updatedVisits = plusMinus match
+          case None => target
+          case Some("+") => configUpdate.config.nbVisits + target
+          case Some("-") => configUpdate.config.nbVisits - target
+        configUpdate.copy(config = configUpdate.config.copy(nbVisits = updatedVisits))
       })
-      _ <- OptionT.liftF(Logger[IO].debug(s"Changing $user required votes by $voteChange"))
-      _ <- Lurch.channels.spinlog.sendMessage(s"Changing ${user.mention} required votes by $voteChange")
+      _ <- OptionT.liftF(Logger[IO].debug(s"Changing $user required votes ${plusMinus.fold(s"to $target")(t => s"by $t$target")}"))
+      _ <- Lurch.channels.spinlog.sendMessage(s"Changing ${user.mention} required votes ${plusMinus.fold(s"to $target")(t => s"by $t$target")}")
     yield ()
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
@@ -80,7 +84,7 @@ object WheelTasks extends RepeatedStreams:
 
           handleTask(task, user, addReaction).void
 
-        case changeVotesRegex(voteChange) => handleVoteChange(voteChange, user, lockID)
+        case changeVotesRegex(plusMinus, voteChange) => handleVoteChange(Option(plusMinus), voteChange, user, lockID)
 
         case text =>
           Lurch.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
