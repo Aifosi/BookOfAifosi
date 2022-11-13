@@ -328,7 +328,7 @@ case class Punishment(
 case class PunishmentConfig(
   prefix: Option[String],
   name: String,
-  //params: Param | Int,
+  params: Param,
   punishments: List[Punishment],
 ) derives Decoder, Encoder.AsObject
 
@@ -344,7 +344,7 @@ case class TemporaryOpeningConfig(
 
 case class PeerVerification (
   enabled: Boolean,
-  punishments: List[PunishmentConfig]
+  //punishments: List[PunishmentConfig]
 ) derives Decoder, Encoder.AsObject
 
 case class VerificationPictureConfig(
