@@ -18,7 +18,7 @@ import cats.syntax.traverse.*
 import doobie.implicits.*
 import fs2.Stream
 import io.circe.Json
-import lurch.{DurationUtils, Lurch}
+import lurch.Lurch
 import lurch.commands.{Task, TaskCompleter}
 import lurch.db.{PendingTaskRepository, RecentLockHistoryRepository}
 import lurch.model.RecentLockHistory
