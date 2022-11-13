@@ -189,11 +189,6 @@ object Client:
       yield response
     def modifyTime(lock: ChasterID, modification: FiniteDuration): IO[Unit] =
       expectAuthenticated[Unit](POST(Json.obj("duration" -> Json.fromLong(modification.toSeconds)), API / "locks" / lock / "update-time"))
-      /*val seconds = modification.toSeconds
-      if seconds < 0 && !user.isKeyholder then
-        IO.raiseError(new Exception("Only keyholders can remove time."))
-      else
-        expectAuthenticated[Unit](POST(Map("duration" -> seconds).asJson, API / "locks" / lock / "update-time"))*/
     def posts: Stream[IO, Post] = getAll(API / "posts")
     def post(id: ChasterID): IO[Post] = expectAuthenticated(GET(API / "posts" / id))
     def setFreeze(lock: ChasterID, freeze: Boolean): IO[Unit] = expectAuthenticated(POST(Json.obj("isFrozen" -> Json.fromBoolean(freeze)), API / "locks" / lock / "freeze"))
