@@ -22,7 +22,6 @@ import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
 import lurch.Lurch
-import lurch.tasks.WheelTasks.handleUser
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 

@@ -9,7 +9,7 @@ import bot.model.{DiscordID, User}
 import cats.data.{EitherT, OptionT}
 import cats.effect.{IO, Ref}
 import doobie.implicits.*
-import lurch.tasks.WheelTasks
+import lurch.wheel.Task as WheelTask
 import org.typelevel.log4cats.Logger
 
 case class Task(
@@ -34,7 +34,7 @@ object Task extends SlashCommand with Options with SlowResponse:
     val discordUser = event.getOption[User]("user")
     val response = for
       user <- OptionT(RegisteredUserRepository.find(discordUser.discordID.equalDiscordID)).toRight(s"Couldn't find registered user $discordUser")
-      task <- WheelTasks.handleTask(tag, user).toRight("Failed to get task.")
+      task <- WheelTask.handleTask(tag, user).toRight("Failed to get task.")
     yield task
     eitherTResponse(response, slashAPI).void
 
