@@ -56,7 +56,7 @@ case class SharedLockExtensions/*[Config <: ExtensionConfig]*/(
   slug: String,
   config: ExtensionConfig,
   mode: AvailableModes,
-  regularity: Int,
+  regularity: FiniteDuration,
   name: String,
 ) derives Decoder
 
@@ -69,7 +69,7 @@ case class Extension/*[Config <: ExtensionConfig]*/(
   config: ExtensionConfig,
   _id: ChasterID,
   mode: AvailableModes,
-  regularity: Int,
+  regularity: FiniteDuration,
   //userData: Any,
   nbActionsRemaining: Int,
   nextActionDate: Option[String], //Wrong on swagger
@@ -77,7 +77,7 @@ case class Extension/*[Config <: ExtensionConfig]*/(
 ) extends WithID derives Decoder
 
 object Extension:
-  def unapply(extension: Extension): Option[(ExtensionConfig, AvailableModes, Int)] =
+  def unapply(extension: Extension): Option[(ExtensionConfig, AvailableModes, FiniteDuration)] =
     Some((extension.config, extension.mode, extension.regularity))
 
 enum LockStatus:
@@ -151,14 +151,14 @@ case class Event[T: Decoder](
 object Event:
   inline given decoder[T: Decoder]: Decoder[Event[T]] = (c: HCursor) =>
     for
-      extension <- c.downField("extension").as[Option[String]]
-      id <- c.downField("_id").as[ChasterID]
-      `type` <- c.downField("type").as[String]
-      role <- c.downField("role").as[String]
-      description <- c.downField("description").as[String]
-      createdAt <- c.downField("createdAt").as[Instant]
-      user <- c.downField("user").as[Option[User]]
-      payload <- c.downField("payload").as[T]
+      extension <- c.get[Option[String]]("extension")
+      id <- c.get[ChasterID]("_id")
+      `type` <- c.get[String]("type")
+      role <- c.get[String]("role")
+      description <- c.get[String]("description")
+      createdAt <- c.get[Instant]("createdAt")
+      user <- c.get[Option[User]]("user")
+      payload <- c.get[T]("payload")
     yield Event(extension, id, `type`, role, description, createdAt, user, payload)
 
 enum SegmentType:
@@ -172,8 +172,8 @@ object SegmentType:
 
 case class Segment(
   `type`: SegmentType,
+  text: String,
   duration: FiniteDuration,
-  text: String
 ) derives Decoder, Encoder.AsObject
 
 case class WheelTurnedPayload(
@@ -215,7 +215,7 @@ case class ExtensionListing(
   slug: String,
   availableModes: List[AvailableModes],
   defaultConfig: ExtensionConfig,
-  defaultRegularity: Int,
+  defaultRegularity: FiniteDuration,
   isEnabled: Boolean,
   isPremium: Boolean,
   isCountedInExtensionsLimit: Boolean,
@@ -237,26 +237,26 @@ object ExtensionConfig:
     Decoder[DiceConfig].widen,
     Decoder[WheelOfFortuneConfig].widen,
     Decoder[TasksConfig].widen,
+    Decoder[PenaltyConfig].widen,
     Decoder[TemporaryOpeningConfig].widen,
     Decoder[VerificationPictureConfig].widen,
     Decoder[RandomEventsConfig].widen,
     Decoder[GuessTimerConfig].widen,
     Decoder[PlayCardsConfig].widen,
-    Decoder[PenaltiesConfig].widen,
   ).reduceLeft(_.or(_))
 
   given Encoder[ExtensionConfig] = Encoder.instance {
-    case linkConfig: LinkConfig => linkConfig.asJson
-    case pilloryConfig: PilloryConfig => pilloryConfig.asJson
-    case diceConfig: DiceConfig => diceConfig.asJson
-    case wheelOfFortuneConfig: WheelOfFortuneConfig => wheelOfFortuneConfig.asJson
-    case taskConfig: TasksConfig                    => taskConfig.asJson
-    case penaltiesConfig: PenaltiesConfig => penaltiesConfig.asJson
-    case temporaryOpeningConfig: TemporaryOpeningConfig => temporaryOpeningConfig.asJson
-    case verificationPictureConfig: VerificationPictureConfig => verificationPictureConfig.asJson
-    case randomEventsConfig: RandomEventsConfig => randomEventsConfig.asJson
-    case guessTimerConfig: GuessTimerConfig => guessTimerConfig.asJson
-    case playCardsConfig: PlayCardsConfig => playCardsConfig.asJson
+    case config: LinkConfig                => config.asJson
+    case config: PilloryConfig             => config.asJson
+    case config: DiceConfig                => config.asJson
+    case config: WheelOfFortuneConfig      => config.asJson
+    case config: TasksConfig               => config.asJson
+    case config: PenaltyConfig             => config.asJson
+    case config: TemporaryOpeningConfig    => config.asJson
+    case config: VerificationPictureConfig => config.asJson
+    case config: RandomEventsConfig        => config.asJson
+    case config: GuessTimerConfig          => config.asJson
+    case config: PlayCardsConfig           => config.asJson
   }
 
 case class LinkConfig(
@@ -296,43 +296,75 @@ case class TasksConfig(
   allowWearerToConfigureTasks: Boolean,
   preventWearerFromAssigningTasks: Boolean,
   allowWearerToChooseTasks: Boolean,
-  //actionsOnAbandonedTask: List[]
+  actionsOnAbandonedTask: List[Punishment],
 ) extends ExtensionConfig derives Decoder, Encoder.AsObject
-
-sealed trait Param
-
-object Param:
-  given Decoder[Param] = List[Decoder[Param]](
-    Decoder[FrequencyParam].widen,
-    Decoder[TimeLimitParam].widen,
-  ).reduceLeft(_.or(_))
-
-  given Encoder[Param] = Encoder.instance {
-    case frequencyParam: FrequencyParam => frequencyParam.asJson
-    case timeLimitParam: TimeLimitParam => timeLimitParam.asJson
-  }
 
 case class FrequencyParam(
   nbActions: Int,
   frequency: Int,
-) extends Param derives Decoder, Encoder.AsObject
+) derives Decoder, Encoder.AsObject
 
 case class TimeLimitParam(
   timeLimit: FiniteDuration,
-) extends Param derives Decoder, Encoder.AsObject
-
-case class Punishment(
-  name: String,
 ) derives Decoder, Encoder.AsObject
+
+case class DurationParam(
+  duration: FiniteDuration,
+) derives Decoder, Encoder.AsObject
+
+sealed trait Punishment
+
+case class AddTimePunishment(params: FiniteDuration) extends Punishment derives Decoder, Encoder.AsObject
+
+case object FreezePunishment extends Punishment derives Decoder, Encoder.AsObject
+
+case class PilloryPunishment(params: DurationParam) extends Punishment derives Decoder, Encoder.AsObject
+
+object Punishment:
+  given Encoder[Punishment] = punishment =>
+    val partialEncoder: Encoder[Punishment] = Encoder.instance {
+      case punishment: AddTimePunishment => punishment.asJson
+      case punishment: FreezePunishment.type => punishment.asJson
+      case punishment: PilloryPunishment => punishment.asJson
+    }
+    partialEncoder.apply(punishment).mapObject(_.add("name", punishment.getClass.getSimpleName.split("\\$").last.replace("Punishment", "").pascalToSnakeCase.asJson))
+
+  given Decoder[Punishment] = cursor =>
+    cursor.get[String]("name").flatMap {
+      case "add_time" => cursor.get[FiniteDuration]("params").map(AddTimePunishment.apply)
+      case "freeze" => Right(FreezePunishment)
+      case "pillory" => cursor.get[DurationParam]("params").map(PilloryPunishment.apply)
+    }
+
+  given Decoder[DurationParam | FiniteDuration] = List[Decoder[DurationParam | FiniteDuration]](
+    Decoder[DurationParam].widen,
+    Decoder[FiniteDuration].widen,
+  ).reduceLeft(_.or(_))
+
+  given Encoder[DurationParam | FiniteDuration] = Encoder.instance {
+    case param: DurationParam  => param.asJson
+    case param: FiniteDuration => param.asJson
+  }
 
 case class PunishmentConfig(
   prefix: Option[String],
   name: String,
-  params: Param,
+  params: FrequencyParam | TimeLimitParam,
   punishments: List[Punishment],
 ) derives Decoder, Encoder.AsObject
 
-case class PenaltiesConfig(
+object PunishmentConfig:
+  given Decoder[FrequencyParam | TimeLimitParam] = List[Decoder[FrequencyParam | TimeLimitParam]](
+    Decoder[FrequencyParam].widen,
+    Decoder[TimeLimitParam].widen,
+  ).reduceLeft(_.or(_))
+
+  given Encoder[FrequencyParam | TimeLimitParam] = Encoder.instance {
+    case param: FrequencyParam      => param.asJson
+    case param: TimeLimitParam      => param.asJson
+  }
+
+case class PenaltyConfig(
   penalties: List[PunishmentConfig]
 ) extends ExtensionConfig derives Decoder, Encoder.AsObject
 
@@ -344,7 +376,7 @@ case class TemporaryOpeningConfig(
 
 case class PeerVerification (
   enabled: Boolean,
-  //punishments: List[PunishmentConfig]
+  punishments: List[Punishment]
 ) derives Decoder, Encoder.AsObject
 
 case class VerificationPictureConfig(
@@ -386,14 +418,14 @@ case class Card(
 ) derives Decoder, Encoder.AsObject
 
 case class PlayCardsConfig(
-  regularity: Int,
+  regularity: FiniteDuration,
   mode: AvailableModes,
   nbKeysRequired: Int,
   cards: List[Card],
 ) extends ExtensionConfig derives Decoder, Encoder.AsObject
 
 object PlayCardsConfig:
-  def apply(regularity: Int, nbKeysRequired: Int, cards: Card*): PlayCardsConfig =
+  def apply(regularity: FiniteDuration, nbKeysRequired: Int, cards: Card*): PlayCardsConfig =
     new PlayCardsConfig(regularity, AvailableModes.Unlimited, nbKeysRequired, cards.toList)
 
 //StayLockedTheWholeMonthConfig has no config aparently
@@ -403,15 +435,15 @@ object PlayCardsConfig:
 case class ConfigUpdate[+Config <: ExtensionConfig](
   config: Config,
   mode: AvailableModes,
-  regularity: Int,
+  regularity: FiniteDuration,
 )
 
 object ConfigUpdate:
   given Encoder[ConfigUpdate[ExtensionConfig]] = configUpdate => Json.obj(
     "slug" -> configUpdate.config.getClass.getSimpleName.replace("Config", "").pascalToKebabCase.asJson,
+    "config" -> configUpdate.config.asJson,
     "mode" -> configUpdate.mode.asJson,
     "regularity" -> configUpdate.regularity.asJson,
-    "config" -> configUpdate.config.asJson,
   )
 
 case class ConfigUpdatePayload(

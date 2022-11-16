@@ -2,7 +2,7 @@ package lurch.tasks
 
 import bot.Bot
 import bot.chaster.Client.{*, given}
-import bot.chaster.{Event, LinkConfig, SegmentType, WheelTurnedPayload}
+import bot.chaster.{Event, LinkConfig, Lock, Segment, SegmentType, WheelOfFortuneConfig, WheelTurnedPayload}
 import bot.db.Filters.*
 import bot.db.{RegisteredUserRepository, given}
 import bot.model.event.{SlashAPI, SlashCommandEvent}
@@ -26,9 +26,11 @@ import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.time.Instant
+import scala.annotation.tailrec
 import scala.concurrent.duration.FiniteDuration
 
 object WheelTasks extends RepeatedStreams:
+  private val onceRegex = "Once: (.+)".r
   private val taskRegex = "Task: (.+)".r
   private val changeVotesRegex = "VoteTarget: (-|\\+)?(\\d+)".r
 
@@ -43,16 +45,21 @@ object WheelTasks extends RepeatedStreams:
           .semiflatTap(user.sendMessage)
       }
 
-  def handleVoteChange(plusMinus: Option[String], target: String, user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, Unit] =
+  private def lockAndKeyholder(user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, (Lock, RegisteredUser)] =
     for
-      target <- OptionT.fromOption[IO](target.toIntOption)
       lock <- OptionT.liftF(user.lock(lockID))
       keyholder <- OptionT(lock.keyholder.flatTraverse(keyholder => RegisteredUserRepository.find(keyholder._id.equalChasterID)))
+    yield (lock, keyholder)
+
+  private def handleVoteChange(plusMinus: Option[String], target: String, user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, Unit] =
+    for
+      target <- OptionT.fromOption[IO](target.toIntOption)
+      (lock, keyholder) <- lockAndKeyholder(user, lockID)
       _ <- OptionT.liftF(keyholder.updateExtension[LinkConfig](lockID) { configUpdate =>
         val updatedVisits = plusMinus match
-          case None => target
           case Some("+") => configUpdate.config.nbVisits + target
           case Some("-") => configUpdate.config.nbVisits - target
+          case _ => target
         configUpdate.copy(config = configUpdate.config.copy(nbVisits = updatedVisits))
       })
       _ <- OptionT.liftF(Logger[IO].debug(s"$user required votes changed ${plusMinus.fold(s"to $target")(t => s"by $t$target")}"))
@@ -66,6 +73,54 @@ object WheelTasks extends RepeatedStreams:
       lockHistory <- maybeLockHistory.fold(RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
     yield lockHistory
 
+  @tailrec private def segmentModifier(
+    segments: List[Segment],
+    originalText: String,
+    doneSegments: List[Segment] = List.empty,
+  ): List[Segment] =
+    segments match
+      case Nil => doneSegments
+      case head :: tail if head.text == originalText => doneSegments ++ tail
+      case head :: tail => segmentModifier(tail, originalText, doneSegments :+ head)
+
+  private def handleOnce(user: RegisteredUser, lockID: ChasterID, originalText: String, text: String)(using Logger[IO]): OptionT[IO, Unit] =
+    for
+      (lock, keyholder) <- lockAndKeyholder(user, lockID)
+      _ <- OptionT.liftF {
+        keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
+          configUpdate.copy(
+            config = configUpdate.config.copy(
+              segments = segmentModifier(configUpdate.config.segments, originalText)
+            ),
+          )
+        }
+      }
+      _ <- OptionT.liftF(Logger[IO].debug(s"Removed option $originalText from the wheel of $user"))
+      _ <- Lurch.channels.spinlog.sendMessage(s"Removed option $originalText from the wheel of ${user.mention}")
+      _ <- OptionT.liftF(IO.println(text))
+      _ <- handleText(user, lockID, text)
+    yield ()
+
+  private def handleText(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): OptionT[IO, Unit] =
+    text match
+      case onceRegex(taskText) => handleOnce(user, lockID, text, taskText)
+
+      case taskRegex(task) =>
+        def addReaction(message: Message, task: Task): IO[Unit] =
+          for
+            registeredKeyholders <- user.registeredKeyholders
+            _ <- PendingTaskRepository.add(task.title, message.id, user, registeredKeyholders, None)
+            _ <- message.addReaction(TaskCompleter.pattern)
+          yield ()
+
+        handleTask(task, user, addReaction).void
+
+      case changeVotesRegex(plusMinus, voteChange) => handleVoteChange(Option(plusMinus), voteChange, user, lockID)
+
+      case text =>
+        Lurch.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
+
+
   private def handleEvent(user: RegisteredUser, event: Event[Json], lockID: ChasterID)(using Logger[IO]): IO[Unit] =
     OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       .subflatMap(identity)
@@ -73,22 +128,7 @@ object WheelTasks extends RepeatedStreams:
         case event if event.payload.segment.`type` == SegmentType.Text => event.payload.segment.text
       }
       .semiflatTap(text => Logger[IO].debug(s"$user rolled $text"))
-      .flatMap {
-        case taskRegex(task) =>
-          def addReaction(message: Message, task: Task): IO[Unit] =
-            for
-              registeredKeyholders <- user.registeredKeyholders
-              _ <- PendingTaskRepository.add(task.title, message.id, user, registeredKeyholders, None)
-              _ <- message.addReaction(TaskCompleter.pattern)
-            yield ()
-
-          handleTask(task, user, addReaction).void
-
-        case changeVotesRegex(plusMinus, voteChange) => handleVoteChange(Option(plusMinus), voteChange, user, lockID)
-
-        case text =>
-          Lurch.channels.spinlog.sendMessage(s"${user.mention} rolled $text").void
-      }
+      .flatMap(handleText(user, lockID, _))
       .value
       .void
 

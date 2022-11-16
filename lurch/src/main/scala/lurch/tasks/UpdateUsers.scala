@@ -36,7 +36,6 @@ object UpdateUsers extends RepeatedStreams:
 
   private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
     for
-      _ <- IO.println("Logging").streamed
       notifications <- notificationsRef.get.streamed
       _ <- Stream.filter(!notifications.contains(message))
       _ <- notificationsRef.update(_ + message).streamed
