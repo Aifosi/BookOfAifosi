@@ -22,7 +22,6 @@ import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
 import lurch.Lurch
-import lurch.tasks.WheelTasks.handleUser
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -36,7 +35,6 @@ object UpdateUsers extends RepeatedStreams:
 
   private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
     for
-      _ <- IO.println("Logging").streamed
       notifications <- notificationsRef.get.streamed
       _ <- Stream.filter(!notifications.contains(message))
       _ <- notificationsRef.update(_ + message).streamed

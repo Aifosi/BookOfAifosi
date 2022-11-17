@@ -48,7 +48,7 @@ lazy val sharedSettings = Seq(
   // format: on
 )
 
-lazy val root = project
+lazy val ChasterDiscordBot = project
   .in(file("."))
   .aggregate(
     bot,

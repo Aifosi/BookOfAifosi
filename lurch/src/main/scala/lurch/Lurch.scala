@@ -10,7 +10,7 @@ import cats.effect.{Deferred, ExitCode, IO, IOApp}
 import doobie.util.transactor.Transactor
 import fs2.Stream
 import lurch.commands.*
-import lurch.tasks.{PilloryWinner, UpdateUsers, WheelTasks}
+import lurch.tasks.*
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.GatewayIntent
 import org.flywaydb.core.Flyway
@@ -53,7 +53,7 @@ object Lurch extends Bot:
   lazy val tasks: NonEmptyList[Streams] = NonEmptyList.of(
     PilloryWinner,
     UpdateUsers,
-    WheelTasks,
+    WheelCommands,
   )
 
   override protected def runMigrations(using Logger[IO]): IO[Unit] =
