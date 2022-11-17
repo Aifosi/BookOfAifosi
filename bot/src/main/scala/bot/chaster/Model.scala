@@ -171,9 +171,9 @@ object SegmentType:
   given Encoder[SegmentType] = Encoder[String].contramap(_.toString.pascalToKebabCase)
 
 case class Segment(
-  `type`: SegmentType,
   text: String,
-  duration: FiniteDuration,
+  `type`: SegmentType = SegmentType.Text,
+  duration: FiniteDuration = 1.hour,
 ) derives Decoder, Encoder.AsObject
 
 case class WheelTurnedPayload(
@@ -227,6 +227,110 @@ case class ExtensionListing(
   configIframeUrl: Option[String], //Only on cards
   partnerExtensionId: Option[String], //Only on cards
 ) derives Decoder
+
+case class FrequencyParam(
+  nbActions: Int,
+  frequency: Int,
+) derives Decoder, Encoder.AsObject
+
+case class TimeLimitParam(
+  timeLimit: FiniteDuration,
+) derives Decoder, Encoder.AsObject
+
+case class DurationParam(
+  duration: FiniteDuration,
+) derives Decoder, Encoder.AsObject
+
+sealed trait Punishment
+
+case class AddTimePunishment(params: FiniteDuration) extends Punishment derives Decoder, Encoder.AsObject
+
+case object FreezePunishment extends Punishment derives Decoder, Encoder.AsObject
+
+case class PilloryPunishment(params: DurationParam) extends Punishment derives Decoder, Encoder.AsObject
+
+object Punishment:
+  given Encoder[Punishment] = punishment =>
+    val partialEncoder: Encoder[Punishment] = Encoder.instance {
+      case punishment: AddTimePunishment => punishment.asJson
+      case punishment: FreezePunishment.type => punishment.asJson
+      case punishment: PilloryPunishment => punishment.asJson
+    }
+    val name = punishment.getClass.getSimpleName.split("\\$").last.replace("Punishment", "").pascalToSnakeCase
+    partialEncoder.apply(punishment).mapObject(_.add("name", name.asJson))
+
+  given Decoder[Punishment] = cursor =>
+    cursor.get[String]("name").flatMap {
+      case "add_time" => cursor.get[FiniteDuration]("params").map(AddTimePunishment.apply)
+      case "freeze" => Right(FreezePunishment)
+      case "pillory" => cursor.get[DurationParam]("params").map(PilloryPunishment.apply)
+    }
+
+sealed trait PunishmentConfig
+
+object PunishmentConfig:
+  given Encoder[PunishmentConfig] = punishmentConfig =>
+    val punishmentConfigEncoder: Encoder[PunishmentConfig] = Encoder.instance {
+      case punishment: WheelOfFortuneTurnsPunishmentConfig => punishment.asJson
+      case punishment: DiceRollPunishmentConfig            => punishment.asJson
+      case punishment: TasksPunishmentConfig               => punishment.asJson
+      case punishment: TasksDoTaskPunishmentConfig         => punishment.asJson
+      case punishment: TemporaryOpeningOpenPunishmentConfig      => punishment.asJson
+      case punishment: TemporaryOpeningTimeLimitPunishmentConfig => punishment.asJson
+      case punishment: VerificationPictureVerifyPunishmentConfig => punishment.asJson
+    }
+    val name = punishmentConfig.getClass.getSimpleName.split("\\$").last.replace("PunishmentConfig", "").pascalToSnakeCase
+    punishmentConfigEncoder.apply(punishmentConfig).mapObject(_.add("name", name.asJson).add("prefix", "default".asJson))
+
+  given Decoder[PunishmentConfig] = cursor =>
+    lazy val frequencyParam = cursor.get[FrequencyParam]("params")
+    lazy val timeLimitParam = cursor.get[TimeLimitParam]("params")
+    cursor.get[List[Punishment]]("punishments").flatMap { punishments =>
+      cursor.get[String]("name").flatMap {
+        case "wheel_of_fortune_turns" => frequencyParam.map(WheelOfFortuneTurnsPunishmentConfig.apply(_, punishments))
+        case "dice_roll" => frequencyParam.map(DiceRollPunishmentConfig.apply(_, punishments))
+        case "tasks" => frequencyParam.map(TasksPunishmentConfig.apply(_, punishments))
+        case "tasks_do_task" => timeLimitParam.map(TasksDoTaskPunishmentConfig.apply(_, punishments))
+        case "temporary_opening_open" => frequencyParam.map(TemporaryOpeningOpenPunishmentConfig.apply(_, punishments))
+        case "temporary_opening_time_limit" => timeLimitParam.map(TemporaryOpeningTimeLimitPunishmentConfig.apply(_, punishments))
+        case "verification_picture_verify" => frequencyParam.map(VerificationPictureVerifyPunishmentConfig.apply(_, punishments))
+      }
+    }
+
+case class WheelOfFortuneTurnsPunishmentConfig(
+  params: FrequencyParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class DiceRollPunishmentConfig(
+  params: FrequencyParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class TasksPunishmentConfig(
+  params: FrequencyParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class TasksDoTaskPunishmentConfig(
+  params: TimeLimitParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class TemporaryOpeningOpenPunishmentConfig(
+  params: FrequencyParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class TemporaryOpeningTimeLimitPunishmentConfig(
+  params: TimeLimitParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
+
+case class VerificationPictureVerifyPunishmentConfig(
+  params: FrequencyParam,
+  punishments: List[Punishment],
+) extends PunishmentConfig derives Decoder, Encoder.AsObject
 
 sealed trait ExtensionConfig
 
@@ -298,71 +402,6 @@ case class TasksConfig(
   allowWearerToChooseTasks: Boolean,
   actionsOnAbandonedTask: List[Punishment],
 ) extends ExtensionConfig derives Decoder, Encoder.AsObject
-
-case class FrequencyParam(
-  nbActions: Int,
-  frequency: Int,
-) derives Decoder, Encoder.AsObject
-
-case class TimeLimitParam(
-  timeLimit: FiniteDuration,
-) derives Decoder, Encoder.AsObject
-
-case class DurationParam(
-  duration: FiniteDuration,
-) derives Decoder, Encoder.AsObject
-
-sealed trait Punishment
-
-case class AddTimePunishment(params: FiniteDuration) extends Punishment derives Decoder, Encoder.AsObject
-
-case object FreezePunishment extends Punishment derives Decoder, Encoder.AsObject
-
-case class PilloryPunishment(params: DurationParam) extends Punishment derives Decoder, Encoder.AsObject
-
-object Punishment:
-  given Encoder[Punishment] = punishment =>
-    val partialEncoder: Encoder[Punishment] = Encoder.instance {
-      case punishment: AddTimePunishment => punishment.asJson
-      case punishment: FreezePunishment.type => punishment.asJson
-      case punishment: PilloryPunishment => punishment.asJson
-    }
-    partialEncoder.apply(punishment).mapObject(_.add("name", punishment.getClass.getSimpleName.split("\\$").last.replace("Punishment", "").pascalToSnakeCase.asJson))
-
-  given Decoder[Punishment] = cursor =>
-    cursor.get[String]("name").flatMap {
-      case "add_time" => cursor.get[FiniteDuration]("params").map(AddTimePunishment.apply)
-      case "freeze" => Right(FreezePunishment)
-      case "pillory" => cursor.get[DurationParam]("params").map(PilloryPunishment.apply)
-    }
-
-  given Decoder[DurationParam | FiniteDuration] = List[Decoder[DurationParam | FiniteDuration]](
-    Decoder[DurationParam].widen,
-    Decoder[FiniteDuration].widen,
-  ).reduceLeft(_.or(_))
-
-  given Encoder[DurationParam | FiniteDuration] = Encoder.instance {
-    case param: DurationParam  => param.asJson
-    case param: FiniteDuration => param.asJson
-  }
-
-case class PunishmentConfig(
-  prefix: Option[String],
-  name: String,
-  params: FrequencyParam | TimeLimitParam,
-  punishments: List[Punishment],
-) derives Decoder, Encoder.AsObject
-
-object PunishmentConfig:
-  given Decoder[FrequencyParam | TimeLimitParam] = List[Decoder[FrequencyParam | TimeLimitParam]](
-    Decoder[FrequencyParam].widen,
-    Decoder[TimeLimitParam].widen,
-  ).reduceLeft(_.or(_))
-
-  given Encoder[FrequencyParam | TimeLimitParam] = Encoder.instance {
-    case param: FrequencyParam      => param.asJson
-    case param: TimeLimitParam      => param.asJson
-  }
 
 case class PenaltyConfig(
   penalties: List[PunishmentConfig]

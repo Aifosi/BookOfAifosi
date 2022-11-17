@@ -1,13 +1,19 @@
 package bot.tasks
 
-import bot.chaster.{Segment, SegmentType}
+import bot.chaster.{ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
+import bot.chaster.Client.{*, given}
+import bot.db.Filters.*
+import bot.db.RegisteredUserRepository
 import bot.model.{ChasterID, RegisteredUser}
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
+import cats.data.OptionT
 import cats.effect.IO
+import cats.syntax.traverse.*
 import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
+import scala.reflect.Typeable
 
 abstract class WheelCommand:
   def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
@@ -29,10 +35,18 @@ abstract class TextWheelCommand extends WheelCommand:
 
   def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean]
 
-abstract class ModifierTextWheelCommand extends TextWheelCommand:
-  def textPattern: String
+def lockAndKeyholder(user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, (Lock, RegisteredUser)] =
+  for
+    lock <- OptionT.liftF(user.lock(lockID))
+    keyholder <- OptionT(lock.keyholder.flatTraverse(keyholder => RegisteredUserRepository.find(keyholder._id.equalChasterID)))
+  yield (lock, keyholder)
 
-  def run(user: RegisteredUser, lockID: ChasterID, modifier: Modifier)(using Logger[IO]): IO[Boolean]
+abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] extends TextWheelCommand:
+  def textPattern: String
+  def logName: String
+
+  def configUpdate(configUpdate: ConfigUpdate[Config], modifier: Modifier)(using Typeable[Config]): ConfigUpdate[Config]
+  def channelLog(message: String): OptionT[IO, Unit]
 
   override lazy val pattern: Regex = s"$textPattern ${ModifierTextWheelCommand.modifierRegex}".r
 
@@ -44,7 +58,25 @@ abstract class ModifierTextWheelCommand extends TextWheelCommand:
             case Some("+") => Add(value)
             case Some("-") => Remove(value)
             case _         => Exact(value)
-          run(user, lockID, modifier)
+
+          (for
+            (_, keyholder) <- lockAndKeyholder(user, lockID)
+            _ <- OptionT.liftF(keyholder.updateExtension[Config](lockID) { config =>
+            println(config)
+            configUpdate(config, modifier)
+          }
+          )
+            message = modifier match {
+              case Add(value) => s"by +$value"
+              case Remove(value) => s"by -$value"
+              case Exact(value) => s"to $value"
+            }
+            _ <- OptionT.liftF(Logger[IO].debug(s"$user $logName changed $message"))
+            _ <- channelLog(s"${user.mention} $logName changed $message")
+          yield ())
+            .fold(false)(_ => true)
+
+
         }
       case _ => IO.pure(false)
 
@@ -55,4 +87,3 @@ object ModifierTextWheelCommand:
     case Add(value: Int) extends Modifier(_ + value)
     case Remove(value: Int) extends Modifier(_ - value)
     case Exact(value: Int) extends Modifier(_ => value)
-    

@@ -26,16 +26,16 @@ object Once extends WheelCommand:
       case head :: tail => dropFirstSegment(tail, text, doneSegments :+ head)
 
   override def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
-    val text = segment.text
-    text match
+    val originalText = segment.text
+    originalText match
       case onceRegex(text) =>
         (for
-          (lock, keyholder) <- lockAndKeyholder(user, lockID)
+          (_, keyholder) <- lockAndKeyholder(user, lockID)
           _ <- OptionT.liftF {
             keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
               configUpdate.copy(
                 config = configUpdate.config.copy(
-                  segments = dropFirstSegment(configUpdate.config.segments, text)
+                  segments = dropFirstSegment(configUpdate.config.segments, originalText)
                 ),
               )
             }

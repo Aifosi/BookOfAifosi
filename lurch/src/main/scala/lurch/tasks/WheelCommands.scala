@@ -27,8 +27,14 @@ import scala.concurrent.duration.FiniteDuration
 
 object WheelCommands extends RepeatedStreams:
   lazy val commands: NonEmptyList[WheelCommand] = NonEmptyList.of(
-    Once,
+    Once, // Needs to be first
+    DiceMultiplier,
+    VerificationPictures,
+    PilloryTime,
+    DiceRolls,
+    WheelRolls,
     VoteTarget,
+    AddSegments,
     Task,
   )
 
@@ -41,7 +47,8 @@ object WheelCommands extends RepeatedStreams:
       case (optionT, command) =>
         for
           segment <- OptionT(optionT.value.logErrorOption.map(_.flatten))
-          updatedSegment <- OptionT(command.apply(user, lockID, segment).map((stop, segment) => Option.when(stop)(segment)))
+          _ = println(s"doing ${command.getClass.getSimpleName}")
+          updatedSegment <- OptionT(command.apply(user, lockID, segment).map((stop, segment) => Option.unless(stop)(segment)))
         yield updatedSegment
     }.value.void
 
