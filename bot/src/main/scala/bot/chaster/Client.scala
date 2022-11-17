@@ -208,7 +208,6 @@ object Client:
         _ <- extensions(lockID, updatedConfigs*)
       yield ()
     def updateExtension[Config <: ExtensionConfig: Typeable](lockID: ChasterID)(update: ConfigUpdate[Config] => ConfigUpdate[Config]): IO[Unit] =
-      import io.circe.syntax.*
       for
         lock <- lock(lockID)
         updatedConfigs = lock.extensions.map { extension =>
@@ -216,7 +215,6 @@ object Client:
             case config: Config => update(ConfigUpdate(config, extension.mode, extension.regularity))
             case config => ConfigUpdate(config, extension.mode, extension.regularity)
         }
-        _ <- IO.println(updatedConfigs.asJson.spaces2)
         _ <- extensions(lockID, updatedConfigs*)
       yield ()
 

@@ -61,10 +61,7 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
 
           (for
             (_, keyholder) <- lockAndKeyholder(user, lockID)
-            _ <- OptionT.liftF(keyholder.updateExtension[Config](lockID) { config =>
-            println(config)
-            configUpdate(config, modifier)
-          }
+            _ <- OptionT.liftF(keyholder.updateExtension[Config](lockID)(configUpdate(_, modifier))
           )
             message = modifier match {
               case Add(value) => s"by +$value"

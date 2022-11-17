@@ -72,8 +72,6 @@ object AddSegments extends TextWheelCommand {
       val decoded = string.decodeB64
       val starts = decoded.indexesOf("[")
       val ends = decoded.indexesOf("]").reverse
-      println(starts)
-      println(ends)
       starts.zip(ends) match
         case Nil => Nil
         case (start, end) :: Nil => decoded.substring(start + 1, end).split(", ").map(Segment(_)).toList

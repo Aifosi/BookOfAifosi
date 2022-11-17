@@ -47,7 +47,6 @@ object WheelCommands extends RepeatedStreams:
       case (optionT, command) =>
         for
           segment <- OptionT(optionT.value.logErrorOption.map(_.flatten))
-          _ = println(s"doing ${command.getClass.getSimpleName}")
           updatedSegment <- OptionT(command.apply(user, lockID, segment).map((stop, segment) => Option.unless(stop)(segment)))
         yield updatedSegment
     }.value.void
