@@ -53,34 +53,33 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
   override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
     text match
       case pattern(modifierString, value) =>
+        val maybeModifierString = Option(modifierString)
         IO.fromOption(value.toIntOption)(new Exception(s"Could not convert $value to Int")).flatMap { value =>
-          val modifier = Option(modifierString) match
+          val modifier = maybeModifierString match
             case Some("+") => Add(value)
             case Some("-") => Remove(value)
+            case Some("*") => Multiply(value)
+            case Some("/") => Divide(value)
             case _         => Exact(value)
 
           (for
             (_, keyholder) <- lockAndKeyholder(user, lockID)
             _ <- OptionT.liftF(keyholder.updateExtension[Config](lockID)(configUpdate(_, modifier))
           )
-            message = modifier match {
-              case Add(value) => s"by +$value"
-              case Remove(value) => s"by -$value"
-              case Exact(value) => s"to $value"
-            }
+            message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
             _ <- OptionT.liftF(Logger[IO].debug(s"$user $logName changed $message"))
             _ <- channelLog(s"${user.mention} $logName changed $message")
           yield ())
             .fold(false)(_ => true)
-
-
         }
       case _ => IO.pure(false)
 
 object ModifierTextWheelCommand:
-  val modifierRegex = "(-|\\+)?(\\d+)".r
+  val modifierRegex = "([-+*/])?(\\d+)".r
 
   enum Modifier(val apply: Int => Int):
     case Add(value: Int) extends Modifier(_ + value)
     case Remove(value: Int) extends Modifier(_ - value)
     case Exact(value: Int) extends Modifier(_ => value)
+    case Multiply(value: Int) extends Modifier(_ * value)
+    case Divide(value: Int) extends Modifier(_ / value)

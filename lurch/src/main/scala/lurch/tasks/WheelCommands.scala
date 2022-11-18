@@ -34,6 +34,8 @@ object WheelCommands extends RepeatedStreams:
     DiceRolls,
     WheelRolls,
     VoteTarget,
+    VoteAdd,
+    VoteRemove,
     AddSegments,
     Task,
   )
