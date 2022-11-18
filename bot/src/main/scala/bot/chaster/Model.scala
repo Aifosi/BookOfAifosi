@@ -230,7 +230,7 @@ case class ExtensionListing(
 
 case class FrequencyParam(
   nbActions: Int,
-  frequency: Int,
+  frequency: FiniteDuration,
 ) derives Decoder, Encoder.AsObject
 
 case class TimeLimitParam(
