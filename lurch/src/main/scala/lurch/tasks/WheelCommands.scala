@@ -27,7 +27,9 @@ import scala.concurrent.duration.FiniteDuration
 
 object WheelCommands extends RepeatedStreams:
   lazy val commands: NonEmptyList[WheelCommand] = NonEmptyList.of(
-    Once, // Needs to be first
+    Once,
+    Unique,
+    //These two need to be before other commands
     DiceMultiplier,
     VerificationPictures,
     PilloryTime,
