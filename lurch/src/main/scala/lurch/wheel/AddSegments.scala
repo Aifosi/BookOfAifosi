@@ -54,7 +54,7 @@ object AddSegments extends TextWheelCommand {
       inner(string)
 
     def decodeSegments: List[Segment] =
-      string.deflate.toOption.toList.flatMap { decoded =>
+      string.inflate.toOption.toList.flatMap { decoded =>
         val starts = decoded.indexesOf("[")
         val ends = decoded.indexesOf("]").reverse
         starts.zip(ends) match
@@ -63,7 +63,11 @@ object AddSegments extends TextWheelCommand {
           case (start, end) :: (innerArrayStart, innerArrayEnd) :: _ =>
             val innerArray = decoded.substring(innerArrayStart, innerArrayEnd + 1)
             val replacedString = decoded.substring(start + 1, innerArrayStart) + "[]" + decoded.substring(innerArrayEnd + 1, end)
-            replacedString.split(", ").map(segmentText => Segment(segmentText.replace("[]", innerArray.deflate.toOption.toList.flatten))).toList
+            replacedString.split(", ").toList.flatMap { segmentText =>
+              innerArray.deflate.toOption.map{ innerArray =>
+                Segment(segmentText.replace("[]", innerArray))
+              }
+            }
       }
 
   override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
