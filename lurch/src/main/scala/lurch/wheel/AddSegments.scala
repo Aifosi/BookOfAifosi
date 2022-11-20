@@ -26,40 +26,25 @@ import java.util
 import java.util.Arrays
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 import java.util.zip.{Inflater, Deflater}
+import scala.util.Try
 
 object AddSegments extends TextWheelCommand {
   override lazy val pattern: Regex = "AddSegments: (.+?)".r
 
-  /*private val addTimePattern: Regex = "AddTime: (\\d+)".r
-  private val removeTimePattern: Regex = "RemoveTime: (\\d+)".r
-  private val addRemoveTimePattern: Regex = "AddRemoveTime: (\\d+)".r*/
-
   extension (string: String)
-    def compress: String =
-      val deflater = new Deflater()
-      deflater.setInput(string.getBytes(StandardCharsets.UTF_8))
-      deflater.finish()
-      val compressedData = new Array[Byte](5000)
-      val count = deflater.deflate(compressedData)
-      deflater.end()
-      new String(compressedData.take(count), StandardCharsets.UTF_8)
+    def inflate: Try[String] = Try {
+      val bytes = Base64.getDecoder.decode(string)
+      val zipInputStream = GZIPInputStream(new ByteArrayInputStream(bytes))
+      new String(zipInputStream.readAllBytes(), StandardCharsets.UTF_8)
+    }
 
-    def decompress: String =
-      val array = new Array[Byte](5000)
-      val inflater = new Inflater()
-      inflater.setInput(string.getBytes(StandardCharsets.UTF_8))
-      var count = inflater.inflate(array)
-      var result = array.take(count)
-      while count > 0 do
-        count = inflater.inflate(array)
-        result = result ++ array.take(count)
-      inflater.end()
-      new String(result, StandardCharsets.UTF_8)
-
-    def decodeB64: String =
-      StandardCharsets.UTF_8.decode(ByteBuffer.wrap(Base64.getDecoder.decode(string))).toString
-
-    def encodeB64: String = Base64.getEncoder.encodeToString(string.getBytes(StandardCharsets.UTF_8))
+    def deflate: Try[String] = Try {
+      val arrOutputStream = new ByteArrayOutputStream()
+      val zipOutputStream = new GZIPOutputStream(arrOutputStream)
+      zipOutputStream.write(string.getBytes)
+      zipOutputStream.close()
+      Base64.getEncoder.encodeToString(arrOutputStream.toByteArray)
+    }
 
     def indexesOf(char: String): List[Int] =
       @tailrec def inner(string: String, startingIndex: Int = 0, indexes: List[Int] = List.empty): List[Int] =
@@ -69,16 +54,17 @@ object AddSegments extends TextWheelCommand {
       inner(string)
 
     def decodeSegments: List[Segment] =
-      val decoded = string.decodeB64
-      val starts = decoded.indexesOf("[")
-      val ends = decoded.indexesOf("]").reverse
-      starts.zip(ends) match
-        case Nil => Nil
-        case (start, end) :: Nil => decoded.substring(start + 1, end).split(", ").map(Segment(_)).toList
-        case (start, end) :: (innerArrayStart, innerArrayEnd) :: _ =>
-          val innerArray = decoded.substring(innerArrayStart, innerArrayEnd + 1)
-          val replacedString = decoded.substring(start + 1, innerArrayStart) + "[]" + decoded.substring(innerArrayEnd + 1, end)
-          replacedString.split(", ").map(segmentText => Segment(segmentText.replace("[]", innerArray.encodeB64))).toList
+      string.deflate.toOption.toList.flatMap { decoded =>
+        val starts = decoded.indexesOf("[")
+        val ends = decoded.indexesOf("]").reverse
+        starts.zip(ends) match
+          case Nil => Nil
+          case (start, end) :: Nil => decoded.substring(start + 1, end).split(", ").map(Segment(_)).toList
+          case (start, end) :: (innerArrayStart, innerArrayEnd) :: _ =>
+            val innerArray = decoded.substring(innerArrayStart, innerArrayEnd + 1)
+            val replacedString = decoded.substring(start + 1, innerArrayStart) + "[]" + decoded.substring(innerArrayEnd + 1, end)
+            replacedString.split(", ").map(segmentText => Segment(segmentText.replace("[]", innerArray.deflate.toOption.toList.flatten))).toList
+      }
 
   override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
     text match {
@@ -96,7 +82,7 @@ object AddSegments extends TextWheelCommand {
             }
           }
           _ <- OptionT.liftF(Logger[IO].debug(s"Added $text segments to $user Wheel of fortune"))
-          _ <- Lurch.channels.spinlog.sendMessage(s"${user.mention} $text segments to $user Wheel of fortune")
+          _ <- Lurch.channels.spinlog.sendMessage(s"$text segments to ${user.mention} Wheel of fortune")
         yield ())
           .fold(false)(_ => true)
       case _ => IO.pure(false)
