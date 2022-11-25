@@ -13,7 +13,7 @@ import org.typelevel.log4cats.Logger
 import scala.annotation.tailrec
 
 object OnceGroup extends WheelCommand:
-  private val onceGroupRegex = "OnceGroup: (.+?) (.+)".r
+  private val onceGroupRegex = "OnceGroup (.+?): (.+)".r
 
   override def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     val originalText = segment.text
@@ -25,7 +25,7 @@ object OnceGroup extends WheelCommand:
         keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
           configUpdate.copy(
             config = configUpdate.config.copy(
-              segments = configUpdate.config.segments.filter(segment => !s"OnceGroup: $group".r.matches(segment.text))
+              segments = configUpdate.config.segments.filter(segment => !s"OnceGroup $group:".r.matches(segment.text))
             )
           )
         }
