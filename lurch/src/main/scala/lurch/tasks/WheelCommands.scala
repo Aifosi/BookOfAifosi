@@ -1,6 +1,6 @@
 package lurch.tasks
 
-import bot.chaster.{Event, Segment, WheelTurnedPayload}
+import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload}
 import bot.chaster.Client.{*, given}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
@@ -28,11 +28,11 @@ import scala.concurrent.duration.FiniteDuration
 object WheelCommands extends RepeatedStreams:
   lazy val commands: NonEmptyList[WheelCommand] = NonEmptyList.of(
     Once,
-    Unique,
+    OnceGroup,
     //These two need to be before other commands
     DiceMultiplier,
     VerificationPictures,
-    PilloryTime,
+    PilloryVoteTime,
     DiceRolls,
     WheelRolls,
     VoteTarget,
@@ -53,6 +53,12 @@ object WheelCommands extends RepeatedStreams:
           segment <- OptionT(optionT.value.logErrorOption.map(_.flatten))
           updatedSegment <- OptionT(command.apply(user, lockID, segment).map((stop, segment) => Option.unless(stop)(segment)))
         yield updatedSegment
+    }.collect {
+      case segment @ Segment(text, SegmentType.Text, _) =>
+        for
+          _ <- Lurch.channels.spinlogID.sendMessage(s"${user.mention} rolled $text")
+          _ <- OptionT.liftF(Logger[IO].debug(s"$user rolled $text"))
+        yield segment
     }.value.void
 
   private def handleHistory(user: RegisteredUser, lockID: ChasterID, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
