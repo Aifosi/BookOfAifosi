@@ -1,10 +1,12 @@
 package bot.tasks
 
+import bot.Bot
 import bot.chaster.{ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
 import bot.chaster.Client.{*, given}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
 import bot.model.{ChasterID, RegisteredUser}
+import bot.syntax.io.*
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
 import cats.data.OptionT
@@ -46,7 +48,6 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
   def logName: String
 
   def configUpdate(configUpdate: ConfigUpdate[Config], modifier: Modifier)(using Typeable[Config]): ConfigUpdate[Config]
-  def channelLog(message: String): OptionT[IO, Unit]
 
   override lazy val pattern: Regex = s"$textPattern ${ModifierTextWheelCommand.modifierRegex}".r
 
@@ -68,7 +69,7 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
           )
             message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
             _ <- OptionT.liftF(Logger[IO].debug(s"$user $logName changed $message"))
-            _ <- channelLog(s"${user.mention} $logName changed $message")
+            _ <- Bot.channels.spinlog.sendMessage(s"${user.mention} $logName changed $message")
           yield ())
             .fold(false)(_ => true)
         }

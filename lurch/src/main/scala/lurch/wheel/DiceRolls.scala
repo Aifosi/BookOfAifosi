@@ -5,7 +5,7 @@ import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import scala.reflect.Typeable
 
-object DiceRolls extends ModifierWheelCommand[PenaltyConfig]:
+object DiceRolls extends ModifierTextWheelCommand[PenaltyConfig]:
   override def textPattern: String = "DiceRolls:"
 
   override def logName: String = "dice rolls"

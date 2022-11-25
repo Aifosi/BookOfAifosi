@@ -1,5 +1,6 @@
 package lurch.wheel
 
+import bot.Bot
 import bot.chaster.{Segment, SegmentType, WheelOfFortuneConfig}
 import bot.chaster.Client.{*, given}
 import bot.chaster.SegmentType.Text
@@ -86,7 +87,7 @@ object AddSegments extends TextWheelCommand {
             }
           }
           _ <- OptionT.liftF(Logger[IO].debug(s"Added $text segments to $user Wheel of fortune"))
-          _ <- Lurch.channels.spinlog.sendMessage(s"$text segments to ${user.mention} Wheel of fortune")
+          _ <- Bot.channels.spinlog.sendMessage(s"$text segments to ${user.mention} Wheel of fortune")
         yield ())
           .fold(false)(_ => true)
       case _ => IO.pure(false)

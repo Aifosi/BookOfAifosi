@@ -1,5 +1,6 @@
 package lurch.wheel
 
+import bot.Bot
 import bot.chaster.{Segment, WheelOfFortuneConfig}
 import bot.chaster.Client.{*, given}
 import bot.model.{ChasterID, RegisteredUser}
@@ -31,6 +32,6 @@ object OnceGroup extends WheelCommand:
         }
       }
         _ <- OptionT.liftF(Logger[IO].debug(s"Removed all OnceGroup options from the wheel of $user"))
-        _ <- Lurch.channels.spinlog.sendMessage(s"Removed all OnceGroup options from the wheel of ${user.mention}")
+        _ <- Bot.channels.spinlog.sendMessage(s"Removed all OnceGroup options from the wheel of ${user.mention}")
         yield ()).value.as((false, segment.copy(text = text)))
       case _ => IO.pure((false, segment))

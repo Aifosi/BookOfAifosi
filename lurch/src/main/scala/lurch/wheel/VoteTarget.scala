@@ -13,7 +13,7 @@ import lurch.Lurch
 import org.typelevel.log4cats.Logger
 import scala.reflect.Typeable
 
-object VoteTarget extends ModifierWheelCommand[LinkConfig]:
+object VoteTarget extends ModifierTextWheelCommand[LinkConfig]:
   override def textPattern: String = "VoteTarget:"
   override def logName: String = "required votes"
 

@@ -5,7 +5,7 @@ import bot.tasks.ModifierTextWheelCommand
 import scala.concurrent.duration.*
 import scala.reflect.Typeable
 
-object PilloryVoteTime extends ModifierWheelCommand[PilloryConfig]:
+object PilloryVoteTime extends ModifierTextWheelCommand[PilloryConfig]:
   override def textPattern: String = "PilloryVoteTime:"
 
   override def logName: String = "pillory vote time"

@@ -14,7 +14,7 @@ import org.typelevel.log4cats.Logger
 import scala.reflect.Typeable
 import scala.concurrent.duration.*
 
-object VoteRemove extends ModifierWheelCommand[LinkConfig]:
+object VoteRemove extends ModifierTextWheelCommand[LinkConfig]:
   override def textPattern: String = "VoteRemove:"
   override def logName: String = "time removed per vote"
 

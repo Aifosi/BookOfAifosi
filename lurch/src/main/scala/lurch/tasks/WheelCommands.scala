@@ -1,5 +1,6 @@
 package lurch.tasks
 
+import bot.Bot
 import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload}
 import bot.chaster.Client.{*, given}
 import bot.db.Filters.*
@@ -56,7 +57,7 @@ object WheelCommands extends RepeatedStreams:
     }.collect {
       case segment @ Segment(text, SegmentType.Text, _) =>
         for
-          _ <- Lurch.channels.spinlogID.sendMessage(s"${user.mention} rolled $text")
+          _ <- Bot.channels.spinlog.sendMessage(s"${user.mention} rolled $text")
           _ <- OptionT.liftF(Logger[IO].debug(s"$user rolled $text"))
         yield segment
     }.value.void

@@ -5,7 +5,7 @@ import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import scala.reflect.Typeable
 
-object VerificationPictures extends ModifierWheelCommand[PenaltyConfig]:
+object VerificationPictures extends ModifierTextWheelCommand[PenaltyConfig]:
   override def textPattern: String = "VerificationPictures:"
 
   override def logName: String = "verification pictures"

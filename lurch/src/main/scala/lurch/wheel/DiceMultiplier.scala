@@ -15,7 +15,7 @@ import scala.reflect.Typeable
 
 import scala.concurrent.duration.*
 
-object DiceMultiplier extends ModifierWheelCommand[DiceConfig]:
+object DiceMultiplier extends ModifierTextWheelCommand[DiceConfig]:
   override def textPattern: String = "DiceMultiplier:"
   override def logName: String = "dice multiplier"
 
