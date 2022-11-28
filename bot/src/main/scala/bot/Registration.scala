@@ -136,3 +136,6 @@ object Registration:
           authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
         yield authenticateUri.some
     yield authenticateUri
+
+  def unregister(member: Member)(using Logger[IO]): IO[Unit] =
+    
