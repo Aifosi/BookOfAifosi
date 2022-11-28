@@ -21,17 +21,18 @@ object OnceGroup extends WheelCommand:
     originalText match
       case onceGroupRegex(group, text) =>
         (for
-        (_, keyholder) <- lockAndKeyholder(user, lockID)
-        _ <- OptionT.liftF {
-        keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
-          configUpdate.copy(
-            config = configUpdate.config.copy(
-              segments = configUpdate.config.segments.filter(segment => !s"OnceGroup $group:".r.matches(segment.text))
-            )
-          )
-        }
-      }
-        _ <- OptionT.liftF(Logger[IO].debug(s"Removed all OnceGroup options from the wheel of $user"))
-        _ <- Bot.channels.spinlog.sendMessage(s"Removed all OnceGroup options from the wheel of ${user.mention}")
+          (_, keyholder) <- lockAndKeyholder(user, lockID)
+          regex = s"OnceGroup $group:".r
+          _ <- OptionT.liftF {
+            keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
+              configUpdate.copy(
+                config = configUpdate.config.copy(
+                  segments = configUpdate.config.segments.filter(segment => regex.findFirstIn(segment.text).isEmpty)
+                )
+              )
+            }
+          }
+          _ <- OptionT.liftF(Logger[IO].debug(s"Removed all OnceGroup options from the wheel of $user"))
+          _ <- Bot.channels.spinlog.sendMessage(s"Removed all OnceGroup options from the wheel of ${user.mention}")
         yield ()).value.as((false, segment.copy(text = text)))
       case _ => IO.pure((false, segment))
