@@ -18,30 +18,30 @@ import scala.util.matching.Regex
 import scala.reflect.Typeable
 
 abstract class WheelCommand:
-  def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
+  def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
 trait SimpleWheelCommand[T]:
   this: WheelCommand =>
   def modifier(segment: Segment): T
-  def run(user: RegisteredUser, lockID: ChasterID, t: T)(using Logger[IO]): IO[Boolean]
+  def run(user: RegisteredUser, lock: Lock, t: T)(using Logger[IO]): IO[Boolean]
 
-  final override def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
-    run(user, lockID, modifier(segment)).map((_, segment))
+  final override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
+    run(user, lock, modifier(segment)).map((_, segment))
 
 
 abstract class TextWheelCommand extends WheelCommand:
   def pattern: Regex
 
-  override def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
-    if pattern.matches(segment.text) then run(user, lockID, segment.text).map((_, segment)) else IO.pure((false, segment))
+  override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
+    if pattern.matches(segment.text) then run(user, lock, segment.text).map((_, segment)) else IO.pure((false, segment))
 
-  def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean]
+  def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean]
 
-def lockAndKeyholder(user: RegisteredUser, lockID: ChasterID)(using Logger[IO]): OptionT[IO, (Lock, RegisteredUser)] =
+def keyholder(lock: Lock)(using Logger[IO]): OptionT[IO, RegisteredUser] =
   for
-    lock <- OptionT.liftF(user.lock(lockID))
-    keyholder <- OptionT(lock.keyholder.flatTraverse(keyholder => RegisteredUserRepository.find(keyholder._id.equalChasterID)))
-  yield (lock, keyholder)
+    chasterKeyholder <- OptionT.fromOption(lock.keyholder)
+    keyholder <- OptionT(RegisteredUserRepository.find(chasterKeyholder._id.equalChasterID))
+  yield keyholder
 
 abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] extends TextWheelCommand:
   def textPattern: String
@@ -51,7 +51,7 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
 
   override lazy val pattern: Regex = s"$textPattern ${ModifierTextWheelCommand.modifierRegex}".r
 
-  override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
+  override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     text match
       case pattern(modifierString, value) =>
         val maybeModifierString = Option(modifierString)
@@ -64,9 +64,8 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
             case _         => Exact(value)
 
           (for
-            (_, keyholder) <- lockAndKeyholder(user, lockID)
-            _ <- OptionT.liftF(keyholder.updateExtension[Config](lockID)(configUpdate(_, modifier))
-          )
+            keyholder <- keyholder(lock)
+            _ <- OptionT.liftF(keyholder.updateExtension[Config](lock._id)(configUpdate(_, modifier)))
             message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
             _ <- OptionT.liftF(Logger[IO].debug(s"$user $logName changed $message"))
             _ <- Bot.channels.spinlog.sendMessage(s"${user.mention} $logName changed $message")

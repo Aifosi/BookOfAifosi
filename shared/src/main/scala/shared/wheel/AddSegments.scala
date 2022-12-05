@@ -3,10 +3,12 @@ package shared.wheel
 import bot.Bot
 import bot.chaster.Client.{*, given}
 import bot.chaster.SegmentType.Text
-import bot.chaster.{Segment, SegmentType, WheelOfFortuneConfig}
+import bot.chaster.{Lock, Segment, SegmentType, WheelOfFortuneConfig}
+import bot.db.RegisteredUserRepository
+import bot.db.Filters.*
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
-import bot.tasks.TextWheelCommand
+import bot.tasks.{TextWheelCommand, keyholder}
 import cats.data.OptionT
 import cats.effect.IO
 import io.circe.parser.decode
@@ -25,7 +27,7 @@ import scala.concurrent.duration.*
 import scala.util.Try
 import scala.util.matching.Regex
 
-object AddSegments extends TextWheelCommand {
+object AddSegments extends TextWheelCommand:
   override lazy val pattern: Regex = "AddSegments: (.+?)".r
 
   extension (string: String)
@@ -67,14 +69,14 @@ object AddSegments extends TextWheelCommand {
             }
       }
 
-  override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
+  override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     text match {
       case pattern(text) =>
         lazy val segments = text.decodeSegments
         (for
-          (_, keyholder) <- lockAndKeyholder(user, lockID)
+          keyholder <- keyholder(lock)
           _ <- OptionT.liftF {
-            keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
+            keyholder.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
               configUpdate.copy(
                 config = configUpdate.config.copy(
                   segments = configUpdate.config.segments ++ segments
@@ -88,6 +90,3 @@ object AddSegments extends TextWheelCommand {
           .fold(false)(_ => true)
       case _ => IO.pure(false)
     }
-
-
-}

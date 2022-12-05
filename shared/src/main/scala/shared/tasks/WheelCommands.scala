@@ -1,7 +1,7 @@
 package shared.tasks
 
 import bot.Bot
-import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload}
+import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload, Lock}
 import bot.chaster.Client.{*, given}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
@@ -28,7 +28,7 @@ case class WheelCommands(
   commands: NonEmptyList[WheelCommand],
   delay: FiniteDuration,
 ) extends RepeatedStreams:
-  private def handleEvent(user: RegisteredUser, event: Event[Json], lockID: ChasterID)(using Logger[IO]): IO[Unit] =
+  private def handleEvent(user: RegisteredUser, event: Event[Json], lock: Lock)(using Logger[IO]): IO[Unit] =
     val segment: OptionT[IO, Segment] = OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       .subflatMap(identity)
       .map(_.payload.segment)
@@ -37,7 +37,7 @@ case class WheelCommands(
       case (optionT, command) =>
         for
           segment <- OptionT(optionT.value.logErrorOption.map(_.flatten))
-          updatedSegment <- OptionT(command.apply(user, lockID, segment).map((stop, segment) => Option.unless(stop)(segment)))
+          updatedSegment <- OptionT(command.apply(user, lock, segment).map((stop, segment) => Option.unless(stop)(segment)))
         yield updatedSegment
     }.collect {
       case segment @ Segment(text, SegmentType.Text, _) =>
@@ -47,23 +47,23 @@ case class WheelCommands(
         yield segment
     }.value.void
 
-  private def handleHistory(user: RegisteredUser, lockID: ChasterID, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
+  private def handleHistory(user: RegisteredUser, lock: Lock, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
     for
-      event <- user.lockHistory(lockID, mostRecentEventTime)
-      _ <- handleEvent(user, event, lockID).streamed
+      event <- user.lockHistory(lock._id, mostRecentEventTime)
+      _ <- handleEvent(user, event, lock).streamed
     yield event.createdAt
 
-  private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
+  private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, (Lock, RecentLockHistory)] =
     for
       lock <- Stream.evalSeq(user.locks)
       maybeLockHistory <- RecentLockHistoryRepository.find(lock._id.equalLockID).streamed
       lockHistory <- maybeLockHistory.fold(RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
-    yield lockHistory
+    yield (lock, lockHistory)
 
   def handleUser(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
     for
-      RecentLockHistory(_, lockID, mostRecentEventTimeDB) <- getLockHistory(user)
-      mostRecentEventTime <- handleHistory(user, lockID, mostRecentEventTimeDB).compile.toList.map(_.maxOption).streamed
+      (lock, RecentLockHistory(_, lockID, mostRecentEventTimeDB)) <- getLockHistory(user)
+      mostRecentEventTime <- handleHistory(user, lock, mostRecentEventTimeDB).compile.toList.map(_.maxOption).streamed
       _ <- mostRecentEventTime.fold(Stream.unit) {
         case mostRecentEventTime if mostRecentEventTimeDB.forall(_.isBefore(mostRecentEventTime)) =>
           RecentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed

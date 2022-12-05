@@ -46,16 +46,13 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     title: String,
     messageID: DiscordID,
     user: RegisteredUser,
-    keyholders: List[RegisteredUser],
+    keyholder: RegisteredUser,
     deadline: Option[Instant],
-  ): IO[List[PendingTaskModel]] =
-    //keyholders.map(keyholder => (title, messageID, user.id, keyholder.id, deadline)).traverse(insertOne(_)("title", "message_discord_id", "user_id", "keyholder_id", "deadline")).flatMap(_.traverse(toModel))
-    insertMany(
-      keyholders.map(keyholder => (title, messageID, user.id, keyholder.id, deadline))
+  ): IO[PendingTaskModel] =
+    insertOne(
+      (title, messageID, user.id, keyholder.id, deadline)
     )(
       "title", "message_discord_id", "user_id", "keyholder_id", "deadline"
     )
-      .compile
-      .toList
       .transact(Bot.postgres.transactor)
-      .flatMap(_.traverse(toModel))
+      .flatMap(toModel)

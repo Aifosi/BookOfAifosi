@@ -2,10 +2,10 @@ package shared.wheel
 
 import bot.Bot
 import bot.chaster.Client.{*, given}
-import bot.chaster.{Segment, WheelOfFortuneConfig}
+import bot.chaster.{Lock, Segment, WheelOfFortuneConfig}
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
-import bot.tasks.WheelCommand
+import bot.tasks.{WheelCommand, keyholder}
 import cats.data.OptionT
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
@@ -25,14 +25,14 @@ object Once extends WheelCommand:
       case head :: tail if head.text == text => doneSegments ++ tail
       case head :: tail => dropFirstSegment(tail, text, doneSegments :+ head)
 
-  override def apply(user: RegisteredUser, lockID: ChasterID, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
+  override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     val originalText = segment.text
     originalText match
       case onceRegex(text) =>
         (for
-          (_, keyholder) <- lockAndKeyholder(user, lockID)
+          keyholder <- keyholder(lock)
           _ <- OptionT.liftF {
-            keyholder.updateExtension[WheelOfFortuneConfig](lockID) { configUpdate =>
+            keyholder.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
               configUpdate.copy(
                 config = configUpdate.config.copy(
                   segments = dropFirstSegment(configUpdate.config.segments, originalText)

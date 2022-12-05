@@ -1,12 +1,12 @@
 package lurch.wheel
 
-import bot.chaster.Segment
+import bot.chaster.{Lock, Segment}
 import bot.model.{ChasterID, Message, RegisteredUser}
 import bot.syntax.io.*
 import bot.chaster.Client.{*, given}
-import bot.db.given
-import bot.tasks.TextWheelCommand
-import cats.data.OptionT
+import bot.db.{RegisteredUserRepository, given}
+import bot.tasks.{TextWheelCommand, keyholder}
+import cats.data.{OptionT, EitherT}
 import cats.effect.IO
 import cats.syntax.functor.*
 import lurch.Lurch
@@ -31,13 +31,17 @@ object Task extends TextWheelCommand:
           .semiflatTap(user.sendMessage)
       }
 
-  override def run(user: RegisteredUser, lockID: ChasterID, text: String)(using Logger[IO]): IO[Boolean] =
+  override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     def addReaction(message: Message, task: Task): IO[Unit] =
-      for
-        registeredKeyholders <- user.registeredKeyholders
-        _ <- PendingTaskRepository.add(task.title, message.id, user, registeredKeyholders, None)
-        _ <- message.addReaction(TaskCompleter.pattern)
+      val either = for
+        keyholder <- keyholder(lock).toRight(s"Unable to find keyholder for lock ${lock._id}.")
+        _ <- EitherT.liftF(PendingTaskRepository.add(task.title, message.id, user, keyholder, None))
+        _ <- EitherT.liftF(message.addReaction(TaskCompleter.pattern))
       yield ()
+      either.foldF(
+        error => Logger[IO].warn(error),
+        IO.pure
+      )
 
     handleTask(text, user, addReaction).value.as(true)
 
