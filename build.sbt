@@ -12,9 +12,9 @@ val logback = "1.4.5"
 val log4cats = "2.5.0"
 
 lazy val dockerSettings = Seq(
-  ThisBuild / Docker / dockerRepository := Some("aifosi"),
-  ThisBuild / dockerUpdateLatest := true,
-  ThisBuild / dockerBaseImage := "openjdk:17-jdk",
+  Docker / dockerRepository := Some("aifosi"),
+  dockerUpdateLatest := true,
+  dockerBaseImage := "openjdk:17-jdk",
 )
 
 lazy val sharedSettings = Seq(
@@ -52,7 +52,9 @@ lazy val ChasterDiscordBot = project
   .in(file("."))
   .aggregate(
     bot,
+    shared,
     lurch,
+    bookOfAifosi,
   )
 
 lazy val bot = project
