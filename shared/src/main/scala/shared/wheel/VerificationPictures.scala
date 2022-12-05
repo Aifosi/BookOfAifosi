@@ -1,8 +1,9 @@
-package lurch.wheel
+package shared.wheel
 
 import bot.chaster.{ConfigUpdate, PenaltyConfig, VerificationPictureVerifyPunishmentConfig}
 import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier
+
 import scala.reflect.Typeable
 
 object VerificationPictures extends ModifierTextWheelCommand[PenaltyConfig]:

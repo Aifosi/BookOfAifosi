@@ -1,4 +1,4 @@
-package lurch
+package bookofaifosi
 
 import bot.{ChannelConfig as _, *}
 import bot.commands.*
@@ -10,10 +10,6 @@ import cats.effect.unsafe.IORuntime
 import cats.effect.{Deferred, ExitCode, IO, IOApp}
 import doobie.util.transactor.Transactor
 import fs2.Stream
-import lurch.commands.*
-import lurch.db.PendingTaskRepository
-import lurch.tasks.*
-import lurch.wheel.{Task as WheelTask, *}
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.GatewayIntent
 import org.flywaydb.core.Flyway
@@ -36,23 +32,11 @@ import scala.concurrent.duration.FiniteDuration
 //https://discord.com/oauth2/authorize?client_id=990221153203281950&scope=bot%20applications.commands&permissions=534992186432 - Test
 //Add view channels permission
 //TODO use streams to list from database
-object Lurch extends Bot:
-  lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
-  lazy val mysql: MysqlConfiguration = MysqlConfiguration.fromConfig()
+object BookOfAifosi extends Bot:
   lazy val config: Configuration = Configuration.fromConfig()
-  lazy val channels: ChannelConfig = ChannelConfig.fromConfig()
+  lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
 
-  lazy val commands: List[AnyCommand] = List(
-    EnablePilloryBitches,
-    DisablePilloryBitches,
-    PilloryChecker,
-    TriggerMessage,
-    MessageDeleter,
-    LockChannel,
-    UnlockChannel,
-    Task,
-    TaskCompleter,
-  )
+  lazy val commands: List[AnyCommand] = List.empty
 
   lazy val wheelCommands: NonEmptyList[WheelCommand] = NonEmptyList.of(
     Once,
@@ -67,14 +51,11 @@ object Lurch extends Bot:
     VoteAdd,
     VoteRemove,
     AddSegments,
-    WheelTask,
   )
 
   lazy val tasks: NonEmptyList[Streams] = NonEmptyList.of(
-    PilloryWinner,
-    UpdateUsers,
     WheelCommands(wheelCommands, config.checkFrequency),
   )
 
-  override def extra(using Logger[IO]): IO[Unit] =
-    IO(Registration.addUnregisterHook(registeredUser => EitherT.liftF(PendingTaskRepository.remove(registeredUser.id.equalID).void)))
+  override def extra(using Logger[IO]): IO[Unit] = IO.unit
+

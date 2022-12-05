@@ -98,6 +98,7 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
   override def onGuildMemberRemove(event: GuildMemberRemoveEvent): Unit =
     val io = for
       logger  <- Slf4jLogger.create[IO]
-      _ <- Registration.unregister(new Member(event.getMember))
+      message <- Registration.unregister(new Member(event.getMember))
+      _ <- message.fold(IO.unit)(new User(event.getUser).sendMessage)
     yield ()
     io.unsafeRunSync()

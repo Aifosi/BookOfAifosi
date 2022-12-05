@@ -1,4 +1,4 @@
-package lurch.model
+package shared.model
 
 import bot.model.{ChasterID, RegisteredUser}
 

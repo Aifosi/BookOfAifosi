@@ -1,9 +1,9 @@
-package lurch.wheel
+package shared.wheel
 
 import bot.Bot
-import bot.chaster.{Segment, SegmentType, WheelOfFortuneConfig}
 import bot.chaster.Client.{*, given}
 import bot.chaster.SegmentType.Text
+import bot.chaster.{Segment, SegmentType, WheelOfFortuneConfig}
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
 import bot.tasks.TextWheelCommand
@@ -12,22 +12,18 @@ import cats.effect.IO
 import io.circe.parser.decode
 import io.circe.syntax.*
 import io.circe.{Decoder, Encoder}
-import lurch.Lurch
 import org.typelevel.log4cats.Logger
 
-import java.nio.ByteBuffer
-import scala.util.matching.Regex
-import java.util.Base64
+import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream}
+import java.nio.{ByteBuffer, HeapByteBuffer}
 import java.nio.charset.StandardCharsets
-import java.nio.HeapByteBuffer
+import java.util
+import java.util.{Arrays, Base64}
+import java.util.zip.{Deflater, GZIPInputStream, GZIPOutputStream, Inflater}
 import scala.annotation.tailrec
 import scala.concurrent.duration.*
-import java.io.{BufferedInputStream, ByteArrayInputStream, ByteArrayOutputStream}
-import java.util
-import java.util.Arrays
-import java.util.zip.{GZIPInputStream, GZIPOutputStream}
-import java.util.zip.{Inflater, Deflater}
 import scala.util.Try
+import scala.util.matching.Regex
 
 object AddSegments extends TextWheelCommand {
   override lazy val pattern: Regex = "AddSegments: (.+?)".r

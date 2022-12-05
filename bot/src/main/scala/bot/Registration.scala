@@ -143,22 +143,22 @@ object Registration:
   def addUnregisterHook(hook: RegisteredUser => EitherT[IO, String, Unit]): Unit =
     unregisterHooks += hook
 
-  def unregister(member: Member)(using Logger[IO]): IO[Unit] =
+  def unregister(member: Member)(using Logger[IO]): IO[Option[String]] =
     import cats.syntax.list.*
     val either = for
       registeredUser <- OptionT(RegisteredUserRepository.find(member.discordID.equalDiscordID)).toRight(s"Unable to find user $member")
       _ <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) => acc.flatMap(_ => hook(registeredUser)))
       _ <- EitherT.liftF(UserTokenRepository.remove(registeredUser.token.id.equalID))
       _ <- EitherT.liftF(RegisteredUserRepository.remove(registeredUser.id.equalID))
-      _ <- EitherT.liftF((registeredUser.sendMessage("If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password")))
-    yield ()
+      //_ <- EitherT.liftF((registeredUser.sendMessage("If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password")))
+    yield "If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password"
     either.foldF(
       error => {
         for
           _ <- Bot.channels.log.sendMessage(s"Unable to unregister ${member.mention} $error").value
           _ <- Logger[IO].info(s"Unable to unregister $member $error")
-        yield ()
+        yield None
       },
-      IO.pure
+      _.some.pure
     )
     

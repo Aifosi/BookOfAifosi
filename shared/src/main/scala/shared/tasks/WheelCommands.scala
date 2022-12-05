@@ -1,4 +1,4 @@
-package lurch.tasks
+package shared.tasks
 
 import bot.Bot
 import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload}
@@ -16,33 +16,18 @@ import cats.syntax.option.*
 import cats.syntax.traverse.*
 import fs2.Stream
 import io.circe.Json
-import lurch.Lurch
-import lurch.db.RecentLockHistoryRepository
-import lurch.model.RecentLockHistory
-import lurch.wheel.*
+import shared.db.RecentLockHistoryRepository
+import shared.model.RecentLockHistory
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
 
-object WheelCommands extends RepeatedStreams:
-  lazy val commands: NonEmptyList[WheelCommand] = NonEmptyList.of(
-    Once,
-    OnceGroup,
-    //These two need to be before other commands
-    DiceMultiplier,
-    VerificationPictures,
-    PilloryVoteTime,
-    DiceRolls,
-    WheelRolls,
-    VoteTarget,
-    VoteAdd,
-    VoteRemove,
-    AddSegments,
-    Task,
-  )
-
+case class WheelCommands(
+  commands: NonEmptyList[WheelCommand],
+  delay: FiniteDuration,
+) extends RepeatedStreams:
   private def handleEvent(user: RegisteredUser, event: Event[Json], lockID: ChasterID)(using Logger[IO]): IO[Unit] =
     val segment: OptionT[IO, Segment] = OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
       .subflatMap(identity)
@@ -67,8 +52,6 @@ object WheelCommands extends RepeatedStreams:
       event <- user.lockHistory(lockID, mostRecentEventTime)
       _ <- handleEvent(user, event, lockID).streamed
     yield event.createdAt
-
-  override lazy val delay: FiniteDuration = Lurch.config.checkFrequency
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, RecentLockHistory] =
     for
