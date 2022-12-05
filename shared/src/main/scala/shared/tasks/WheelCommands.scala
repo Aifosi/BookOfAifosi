@@ -29,7 +29,7 @@ case class WheelCommands(
   delay: FiniteDuration,
 ) extends RepeatedStreams:
   private def handleEvent(user: RegisteredUser, event: Event[Json], lock: Lock)(using Logger[IO]): IO[Unit] =
-    val segment: OptionT[IO, Segment] = OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload])
+    val segment: OptionT[IO, Segment] = OptionT.when[IO, Option[Event[WheelTurnedPayload]]](event.`type` == "wheel_of_fortune_turned")(event.as[WheelTurnedPayload].toOption)
       .subflatMap(identity)
       .map(_.payload.segment)
 

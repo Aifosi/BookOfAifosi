@@ -17,6 +17,7 @@ import io.circe.Json
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
+import java.time.temporal.{ChronoField, TemporalField}
 import java.time.{Instant, LocalDateTime, ZoneOffset}
 import scala.concurrent.duration.*
 
@@ -56,7 +57,8 @@ object Statistics:
     s"Event(extension: ${event.extension}, id: ${event._id}, type: ${event.`type`} createdAt: ${event.createdAt})"
 
   val discordIDS = List(
-    ("Taco's Lock", DiscordID(871413910551531550), ChasterID("6377dace0dc91be5a3f82540")), //My ID, Janice's lock
+    //("Taco's Lock", DiscordID(871413910551531550), ChasterID("6377dace0dc91be5a3f82540")), //My ID, Taco's lock
+    ("Sofia's Lock", DiscordID(871413910551531550), ChasterID("629aa50ffd8ea767923df229")),
   )
 
   case class Results(
@@ -177,11 +179,35 @@ object Statistics:
     val lockEnd = lockStart.plusSeconds(600)
     if event.createdAt.isAfter(lockStart) && event.createdAt.isBefore(lockEnd) then println(show"$event")*/
 
+
+    /*
+     * time_changed
+      verification_picture_submitted
+      temporary_opening_locked_late
+      link_time_changed
+      locked
+      extension_updated
+      extension_disabled
+      temporary_opening_opened
+      temporary_opening_locked
+      pillory_in
+      pillory_out
+      extension_enabled
+      wheel_of_fortune_turned
+      keyholder_trusted
+      dice_rolled
+      lock_frozen
+      lock_unfrozen
+      max_limit_date_removed
+      timer_hidden
+      locked
+      timer_revealed
+     */
       event.`type` match
         case "link_time_changed" =>
           (for
             user <- event.user
-            event <- event.as[TimeChangedPayload]
+            event <- event.as[TimeChangedPayload].toOption
             results = if event.payload.duration > 0.seconds then addVoteAdd(user.username) else addVoteRemove(user.username)
           yield results).getOrElse(throw new Exception("Vote without user"))
 
@@ -189,7 +215,7 @@ object Statistics:
         case "time_changed" =>
           (for
             extension <- event.extension
-            event <- event.as[TimeChangedPayload]
+            event <- event.as[TimeChangedPayload].toOption
             results = extension match {
               case "wheel-of-fortune" => addWheelRollTime(event.payload.duration)
               case "dice" => addDiceRollTime(event.payload.duration)
@@ -211,13 +237,21 @@ object Statistics:
   val run: Stream[IO, Unit] =
     for
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
+      start = LocalDateTime.of(2022, 11, 13, 23, 11).toInstant(ZoneOffset.UTC)
       (name, discordID, lockID) <- Stream.emits(discordIDS)
       user <- RegisteredUserRepository.get(discordID.equalDiscordID).streamed
       _ <- IO.println(s"Parsing history for $name").streamed
-      events <- user.lockHistory(lockID)
+      events: List[Event[Json]] <- user.lockHistory(lockID, start.some)
         .compile
         .toList
         .streamed
-      results: Results = events.foldLeft(Results())(_.addEvent(_))
-      _ <- IO.println(results.toString).streamed
+      grouped = events
+        .collect {
+          case event if event.`type` == "verification_picture_submitted" =>
+            event.copy(createdAt = event.createdAt.plusSeconds(49.minutes.toSeconds))
+        }
+        .groupBy(event => LocalDateTime.ofInstant(event.createdAt, ZoneOffset.UTC).get(ChronoField.DAY_OF_YEAR))
+      _ = println(grouped.values.map(_.size).groupBy(identity).view.mapValues(_.size).toMap)
+      //results: Results = events.foldLeft(Results())(_.addEvent(_))
+      //_ <- IO.println(results.toString).streamed
     yield ()
