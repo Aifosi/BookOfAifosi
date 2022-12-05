@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  db:
+    image: library/postgres:14
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: lurch
+      POSTGRES_PASSWORD: lurch
+      POSTGRES_DB: lurch
+    healthcheck:
+      test: [ "CMD-SHELL", "sh -c 'pg_isready'" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3

@@ -11,6 +11,10 @@ object Unregister extends SlashCommand:
   override val fullCommand: String = "unregister"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
-    event.authorMember.flatMap(Registration.unregister).as(true)
+    for
+      member <- event.authorMember
+      message <- Registration.unregister(member)
+      _ <- message.fold(IO.unit)(event.reply)
+    yield true
 
   override val description: String = "Unlink your discord and chaster"

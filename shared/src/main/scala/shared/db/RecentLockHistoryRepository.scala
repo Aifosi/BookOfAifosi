@@ -1,4 +1,4 @@
-package lurch.db
+package shared.db
 
 import bot.Bot
 import bot.db.Filters.*
@@ -12,7 +12,7 @@ import doobie.Fragment
 import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
-import lurch.model.RecentLockHistory as RecentLockHistoryModel
+import shared.model.RecentLockHistory as RecentLockHistoryModel
 
 import java.time.Instant
 import java.util.UUID

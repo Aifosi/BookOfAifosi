@@ -61,7 +61,19 @@ trait Bot extends IOApp:
 
   private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
 
-  protected def runMigrations(using Logger[IO]): IO[Unit]
+  protected def runMigrations(using Logger[IO]): IO[Unit] =
+    for
+      flyway <- IO {
+        Flyway
+          .configure
+          .dataSource(Bot.postgres.url, Bot.postgres.user, Bot.postgres.password)
+          .validateMigrationNaming(true)
+          .baselineOnMigrate(true)
+          .load
+      }
+      migrations <- IO(flyway.migrate())
+      _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
+    yield ()
 
   private def acquireDiscordClient(using Logger[IO]): IO[Discord] =
     val jda = JDABuilder.createDefault(Bot.discordConfig.token)

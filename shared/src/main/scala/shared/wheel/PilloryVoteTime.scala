@@ -1,7 +1,8 @@
-package lurch.wheel
+package shared.wheel
 
 import bot.chaster.{ConfigUpdate, PilloryConfig}
 import bot.tasks.ModifierTextWheelCommand
+
 import scala.concurrent.duration.*
 import scala.reflect.Typeable
 

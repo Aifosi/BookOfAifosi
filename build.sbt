@@ -2,13 +2,13 @@ val http4s = "1.0.0-M32"
 val circe = "0.14.3"
 val doobie = "1.0.0-RC2"
 val pureconfig = "0.17.2"
-val catsEffect = "3.4.0"
-val fs2 = "3.3.0"
+val catsEffect = "3.4.1"
+val fs2 = "3.4.0"
 val jda = "5.0.0-alpha.11"
-val postgres = "42.5.0"
+val postgres = "42.5.1"
 val mysql = "8.0.30"
-val flyway = "9.8.1"
-val logback = "1.4.4"
+val flyway = "9.8.3"
+val logback = "1.4.5"
 val log4cats = "2.5.0"
 
 lazy val dockerSettings = Seq(
@@ -87,12 +87,33 @@ lazy val bot = project
     ),
   )
 
+lazy val shared = project
+  .in(file("shared"))
+  .dependsOn(bot)
+  .settings(
+    name := "Shared",
+    sharedSettings,
+  )
+
 lazy val lurch = project
   .in(file("lurch"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(bot)
+  .dependsOn(shared)
   .settings(
     name := "Lurch",
+    Universal / javaOptions ++= Seq(
+      "-Dconfig.file=/opt/docker/conf/application.conf",
+    ),
+    dockerSettings,
+    sharedSettings,
+  )
+
+lazy val bookOfAifosi = project
+  .in(file("bookofaifosi"))
+  .enablePlugins(JavaAppPackaging, DockerPlugin)
+  .dependsOn(shared)
+  .settings(
+    name := "BookOfAifosi",
     Universal / javaOptions ++= Seq(
       "-Dconfig.file=/opt/docker/conf/application.conf",
     ),

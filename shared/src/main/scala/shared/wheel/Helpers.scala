@@ -1,4 +1,4 @@
-package lurch.wheel
+package shared.wheel
 
 import bot.chaster.Lock
 import bot.db.RegisteredUserRepository
