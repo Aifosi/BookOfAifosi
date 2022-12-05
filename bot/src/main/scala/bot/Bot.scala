@@ -40,6 +40,7 @@ trait Bot extends IOApp:
 
   lazy val  allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
     Register,
+    Unregister,
     Nuke,
   ) ++ commands
 

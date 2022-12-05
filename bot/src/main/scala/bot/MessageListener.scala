@@ -2,7 +2,7 @@ package bot
 
 import cats.effect.IO
 import bot.commands.{AutoCompletable, Command, NoLog, ReactionCommand, SlashCommand, TextCommand}
-import bot.model.User
+import bot.model.{User, Member}
 import bot.model.event.ReactionEvent.*
 import bot.model.event.ReactionEvent.given
 import bot.model.event.MessageEvent.*
@@ -12,12 +12,14 @@ import bot.model.event.SlashCommandEvent.given
 import bot.model.event.{AutoCompleteEvent, Event, MessageEvent, ReactionEvent, SlashCommandEvent}
 import bot.syntax.io.*
 import cats.effect.unsafe.IORuntime
+import net.dv8tion.jda.api.events.guild.member.GuildMemberRemoveEvent
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 import net.dv8tion.jda.api.events.interaction.command.{CommandAutoCompleteInteractionEvent, SlashCommandInteractionEvent}
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.interactions.commands.OptionType
 import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAdapter:
   private def runCommandList[T, E <: Event](
@@ -92,3 +94,10 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
     }
       .void
       .unsafeRunSync()
+
+  override def onGuildMemberRemove(event: GuildMemberRemoveEvent): Unit =
+    val io = for
+      logger  <- Slf4jLogger.create[IO]
+      _ <- Registration.unregister(new Member(event.getMember))
+    yield ()
+    io.unsafeRunSync()
