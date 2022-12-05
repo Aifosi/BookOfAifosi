@@ -29,6 +29,7 @@ import java.util.UUID
 import scala.util.Try
 import bot.syntax.io.*
 import bot.db.Filter
+import cats.data.{EitherT, OptionT}
 import org.typelevel.log4cats.Logger
 
 object Registration:
@@ -137,5 +138,27 @@ object Registration:
         yield authenticateUri.some
     yield authenticateUri
 
+  private var unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]] = Set.empty
+
+  def addUnregisterHook(hook: RegisteredUser => EitherT[IO, String, Unit]): Unit =
+    unregisterHooks += hook
+
   def unregister(member: Member)(using Logger[IO]): IO[Unit] =
+    import cats.syntax.list.*
+    val either = for
+      registeredUser <- OptionT(RegisteredUserRepository.find(member.discordID.equalDiscordID)).toRight(s"Unable to find user $member")
+      _ <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) => acc.flatMap(_ => hook(registeredUser)))
+      _ <- EitherT.liftF(UserTokenRepository.remove(registeredUser.token.id.equalID))
+      _ <- EitherT.liftF(RegisteredUserRepository.remove(registeredUser.id.equalID))
+      _ <- EitherT.liftF((registeredUser.sendMessage("If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password")))
+    yield ()
+    either.foldF(
+      error => {
+        for
+          _ <- Bot.channels.log.sendMessage(s"Unable to unregister ${member.mention} $error").value
+          _ <- Logger[IO].info(s"Unable to unregister $member $error")
+        yield ()
+      },
+      IO.pure
+    )
     

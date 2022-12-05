@@ -4,12 +4,14 @@ import bot.{ChannelConfig as _, *}
 import bot.commands.*
 import bot.model.Discord
 import bot.tasks.Streams
-import cats.data.NonEmptyList
+import bot.db.Filters.*
+import cats.data.{NonEmptyList, EitherT}
 import cats.effect.unsafe.IORuntime
 import cats.effect.{Deferred, ExitCode, IO, IOApp}
 import doobie.util.transactor.Transactor
 import fs2.Stream
 import lurch.commands.*
+import lurch.db.PendingTaskRepository
 import lurch.tasks.*
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.GatewayIntent
@@ -55,6 +57,9 @@ object Lurch extends Bot:
     UpdateUsers,
     WheelCommands,
   )
+
+  override def extra(using Logger[IO]): IO[Unit] =
+    IO(Registration.addUnregisterHook(registeredUser => EitherT.liftF(PendingTaskRepository.remove(registeredUser.id.equalID).void)))
 
   override protected def runMigrations(using Logger[IO]): IO[Unit] =
     for
