@@ -77,4 +77,7 @@ object Lurch extends Bot:
   )
 
   override def extra(using Logger[IO]): IO[Unit] =
-    IO(Registration.addUnregisterHook(registeredUser => EitherT.liftF(PendingTaskRepository.remove(registeredUser.id.equalID).void)))
+    for
+      _ <-IO(Registration.addUnregisterHook(registeredUser => EitherT.liftF(PendingTaskRepository.remove(registeredUser.id.equalID).void)))
+      _ <- Statistics.run.compile.drain
+    yield ()

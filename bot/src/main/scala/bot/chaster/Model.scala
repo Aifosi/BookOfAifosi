@@ -2,7 +2,7 @@ package bot.chaster
 
 import cats.syntax.functor.*
 import bot.model.ChasterID
-import io.circe.{Decoder, Encoder, HCursor, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder, HCursor, Json}
 import io.circe.syntax.*
 import bot.syntax.string.*
 
@@ -145,8 +145,8 @@ case class Event[T: Decoder](
   user: Option[User],
   payload: T
 ) extends WithID:
-  def as[TT: Decoder](using ev: T =:= Json): Option[Event[TT]] =
-    ev(payload).as[TT].toOption.map(Event(extension, _id, `type`, role, description, createdAt, user, _))
+  def as[TT: Decoder](using ev: T =:= Json): Either[DecodingFailure, Event[TT]] =
+    ev(payload).as[TT].map(Event(extension, _id, `type`, role, description, createdAt, user, _))
 
 object Event:
   inline given decoder[T: Decoder]: Decoder[Event[T]] = (c: HCursor) =>
@@ -178,6 +178,15 @@ case class Segment(
 
 case class WheelTurnedPayload(
   segment: Segment
+) derives Decoder
+
+case class DiceRolledPayload(
+  adminDice: Int,
+  playerDice: Int,
+) derives Decoder
+
+case class TimeChangedPayload(
+  duration: FiniteDuration,
 ) derives Decoder
 
 case class Data (
