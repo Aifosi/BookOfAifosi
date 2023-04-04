@@ -16,12 +16,13 @@ import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
-import org.http4s.blaze.client.*
+import org.http4s.ember.client.*
 import org.http4s.{Request, *}
-import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.dsl.io.*
 import org.http4s.client.*
 import org.http4s.client.middleware.{Retry, RetryPolicy}
+import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.server.Server
 import org.typelevel.ci.*
 import org.typelevel.log4cats.{Logger, SelfAwareStructuredLogger}
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -91,10 +92,14 @@ trait Bot extends IOApp:
     discord.guilds.traverse_(_.addCommands(patterns))
       *> Logger[IO].info("All Slash commands registered.")
 
-  private def httpServer(using Logger[IO]): Stream[IO, ExitCode] = BlazeServerBuilder[IO]
-    .bindHttp(Bot.chaster.port, Bot.chaster.host)
-    .withHttpApp(Registration.routes.orNotFound)
-    .serve
+  private def httpServer(using Logger[IO]): Stream[IO, Server] =
+    EmberServerBuilder
+      .default[IO]
+      .withHost(Bot.chaster.host)
+      .withPort(Bot.chaster.port)
+      .withHttpApp(Registration.routes.orNotFound)
+      .build
+      .streamed
 
   private def acquireHttpClient(using Logger[IO]): Stream[IO, Client[IO]] =
     def retryPolicy(request: Request[IO], response: Either[Throwable, Response[IO]], retries: Int): Option[FiniteDuration] =
@@ -108,17 +113,15 @@ trait Bot extends IOApp:
       }
 
     for
-      client <- Stream.resource(BlazeClientBuilder[IO].resource)
-      clientWithRetry = Retry(retryPolicy)(client)
-      _ <- Bot.client.complete(clientWithRetry).streamed
+      client <- EmberClientBuilder.default[IO].withRetryPolicy(retryPolicy).build.streamed
+      _ <- Bot.client.complete(client).streamed
       _ <- Logger[IO].info("HTTP client acquired.").streamed
-    yield clientWithRetry
+    yield client
     
   def extra(using Logger[IO]): IO[Unit] = IO.unit
 
   override def run(args: List[String]): IO[ExitCode] =
     (for
-      //_ <- Bot.instance.complete(this).streamed
       logger  <- Slf4jLogger.create[IO].streamed
       given Logger[IO] = logger
       _ = Bot.runtime = runtime
@@ -128,15 +131,14 @@ trait Bot extends IOApp:
       discord <- acquireDiscordClient.streamed
       _ <- registerSlashCommands(discord).start.streamed
       _ <- extra.streamed
-      exitCode <- httpServer.concurrently(combinedTasks)
-    yield exitCode).compile.lastOrError
+      _ <- httpServer.concurrently(combinedTasks)
+    yield ExitCode.Success).compile.lastOrError
 
 object Bot:
   val client: Deferred[IO, Client[IO]] = Deferred.unsafe
   val discord: Deferred[IO, Discord] = Deferred.unsafe
   val logger: Deferred[IO, Logger[IO]] = Deferred.unsafe
 
-  //val instance: Deferred[IO, Bot] = Deferred.unsafe
   var runtime: IORuntime = uninitialized
 
   lazy val discordConfig: DiscordConfiguration = DiscordConfiguration.fromConfig()

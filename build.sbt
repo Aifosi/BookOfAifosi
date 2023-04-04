@@ -1,14 +1,14 @@
-val http4s = "1.0.0-M32"
-val circe = "0.14.3"
+val http4s = "1.0.0-M39"
+val circe = "0.14.5"
 val doobie = "1.0.0-RC2"
 val pureconfig = "0.17.2"
-val catsEffect = "3.4.1"
-val fs2 = "3.4.0"
+val catsEffect = "3.4.8"
+val fs2 = "3.6.1"
 val jda = "5.0.0-alpha.11"
-val postgres = "42.5.1"
-val mysql = "8.0.30"
-val flyway = "9.8.3"
-val logback = "1.4.5"
+val postgres = "42.5.4"
+val mysql = "8.0.32"
+val flyway = "9.16.0"
+val logback = "1.4.6"
 val log4cats = "2.5.0"
 
 lazy val dockerSettings = Seq(
@@ -18,7 +18,7 @@ lazy val dockerSettings = Seq(
 )
 
 lazy val sharedSettings = Seq(
-  scalaVersion := "3.2.0",
+  scalaVersion := "3.2.2",
   // format: off
   javacOptions ++= Seq("-Xlint", "-encoding", "UTF-8"),
   scalacOptions ++= Seq(
@@ -73,8 +73,8 @@ lazy val bot = project
       "org.http4s"            %% "http4s-dsl"           % http4s,
       "org.http4s"            %% "http4s-core"          % http4s,
       "org.http4s"            %% "http4s-circe"         % http4s,
-      "org.http4s"            %% "http4s-blaze-server"  % http4s,
-      "org.http4s"            %% "http4s-blaze-client"  % http4s,
+      "org.http4s"            %% "http4s-ember-server"  % http4s,
+      "org.http4s"            %% "http4s-ember-client"  % http4s,
       "io.circe"              %% "circe-core"           % circe,
       "io.circe"              %% "circe-parser"         % circe,
       //DB

@@ -41,7 +41,7 @@ object Registration:
 
   val registerUri: Uri =
     val port = if Bot.chaster.publicPort != 80 then s":${Bot.chaster.publicPort}" else ""
-    Uri.unsafeFromString(s"http://${Bot.chaster.publicHost}$port/register")
+    Uri.unsafeFromString(s"http://${Bot.chaster.publicHost.toString}$port/register")
 
   private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
   private def containsAllScopes(scope: String, other: String): Boolean =

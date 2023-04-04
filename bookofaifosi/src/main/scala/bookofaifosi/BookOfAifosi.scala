@@ -13,8 +13,6 @@ import fs2.Stream
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.GatewayIntent
 import org.flywaydb.core.Flyway
-import org.http4s.blaze.client.BlazeClientBuilder
-import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.{Request, Response, Status}
 import org.http4s.client.Client
 import org.http4s.client.middleware.Retry
