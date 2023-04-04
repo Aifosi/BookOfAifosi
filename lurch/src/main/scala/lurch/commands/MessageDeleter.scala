@@ -15,7 +15,7 @@ object MessageDeleter extends TextCommand with Hidden:
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     for
       guild <- event.guild
-      channelIsLocked <- LockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).map(_.nonEmpty)
+      channelIsLocked <- LockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).isDefined
       _ <- if channelIsLocked then event.message.delete else IO.unit
     yield channelIsLocked
 

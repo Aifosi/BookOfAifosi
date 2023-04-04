@@ -34,17 +34,17 @@ object PilloryChecker extends TextCommand with Hidden with NoLog:
 
   private def validatePost(post: Post, member: Member): EitherT[IO, String, RegisteredUser] =
     for
-      user <- OptionT(RegisteredUserRepository.find(member.discordID.equalDiscordID)).toRight("You must be registered to submit pillories.")
+      user <- RegisteredUserRepository.find(member.discordID.equalDiscordID).toRight("You must be registered to submit pillories.")
       notTooOld = post.data.voteEndsAt.isAfter(Instant.now.minus(1, ChronoUnit.DAYS))
       _ <- EitherT.cond(notTooOld, (), "Pillory is too old, must not be older than 1 day.")
       keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
-        RegisteredUserRepository.find(keyholder._id.equalChasterID).map(_.isDefined)
+        RegisteredUserRepository.find(keyholder._id.equalChasterID).isDefined
       })
       _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered.")
       userSubmitted = user.chasterID == post.user._id
       votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
       _ <- EitherT.cond((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded), (), "You must either submit one of your pillories after it ended or someone else's before it ends.")
-      alreadySubmitted <- EitherT.liftF(PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).map(_.isDefined))
+      alreadySubmitted <- EitherT.liftF(PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).isDefined)
       _ <- EitherT.cond(!alreadySubmitted, (), "That pillory was already submitted.")
     yield user
 
@@ -62,7 +62,7 @@ object PilloryChecker extends TextCommand with Hidden with NoLog:
       member <- OptionT.liftF(event.authorMember)
       id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1))).map(ChasterID(_))
       guild <- OptionT.liftF(event.guild)
-      PilloryBitches(_, channel) <- OptionT(PilloryBitchesRepository.find(guild.discordID.equalGuildID))
+      PilloryBitches(_, channel) <- PilloryBitchesRepository.find(guild.discordID.equalGuildID)
       post <- OptionT(UserToken.empty.post(id).logErrorOption)
       _ <- OptionT.liftF(addReaction(post, member, channel, event))
     yield true).getOrElse(true)

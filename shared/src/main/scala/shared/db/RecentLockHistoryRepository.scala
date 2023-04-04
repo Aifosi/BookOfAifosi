@@ -6,7 +6,10 @@ import bot.db.given
 import bot.db.Log.given
 import bot.db.{ModelRepository, RegisteredUserRepository}
 import bot.model.ChasterID
+import bot.utils.Maybe
+import cats.data.EitherT
 import cats.effect.IO
+import cats.effect.LiftIO.*
 import cats.syntax.option.*
 import doobie.Fragment
 import doobie.postgres.implicits.*
@@ -27,9 +30,9 @@ object RecentLockHistoryRepository extends ModelRepository[RecentLockHistory, Re
   override protected val table: Fragment = fr"recent_lock_history"
   override protected val columns: List[String] = List("user_id", "lock_id", "most_recent_event_time")
 
-  override def toModel(lockHistory: RecentLockHistory): IO[RecentLockHistoryModel] =
+  override def toModel(lockHistory: RecentLockHistory): Maybe[RecentLockHistoryModel] =
     for
-      user <- RegisteredUserRepository.get(lockHistory.userID.equalID)
+      user <- RegisteredUserRepository.get(lockHistory.userID.equalID).to[Maybe]
     yield RecentLockHistoryModel(user, lockHistory.lockID, lockHistory.mostRecentEventTime)
 
   def add(
@@ -41,7 +44,7 @@ object RecentLockHistoryRepository extends ModelRepository[RecentLockHistory, Re
       .update
       .withUniqueGeneratedKeys[RecentLockHistory]("user_id", "lock_id", "most_recent_event_time")
       .transact(Bot.postgres.transactor)
-      .flatMap(toModel)
+      .flatMap(unsafeToModel)
 
   def update(
     userID: UUID,

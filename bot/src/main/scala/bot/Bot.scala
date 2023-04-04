@@ -144,4 +144,4 @@ object Bot:
   lazy val discordConfig: DiscordConfiguration = DiscordConfiguration.fromConfig()
   lazy val chaster: ChasterConfiguration = ChasterConfiguration.fromConfig()
   lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
-  lazy val channels: ChannelConfig = ChannelConfig.fromConfig()
+  lazy val channels: ChannelConfig = ChannelConfig.fromConfig() //Load this config after starting JDA

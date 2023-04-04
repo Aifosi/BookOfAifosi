@@ -15,7 +15,7 @@ class RegisteredUser(
   val id: UUID = dbUser.id
   val chasterID: ChasterID = dbUser.chasterID
   val keyholderIDs: List[ChasterID] = dbUser.keyholderIDs
-  val registeredKeyholders: IO[List[RegisteredUser]] = RegisteredUserRepository.list(keyholderIDs.anyKeyholder)
+  val registeredKeyholders: IO[List[Either[String, RegisteredUser]]] = RegisteredUserRepository.thoroughList(keyholderIDs.anyKeyholder)
   val isLocked: Boolean = dbUser.isLocked
   val lastLocked: Option[Instant] = dbUser.lastLocked
   val lastKeyheld: Option[Instant] = dbUser.lastKeyheld

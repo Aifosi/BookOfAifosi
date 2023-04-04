@@ -3,6 +3,7 @@ package bot.db
 import bot.Bot
 import bot.db.Filters.*
 import bot.model.{ChasterID, DiscordID, toLong}
+import bot.utils.Maybe
 import doobie.*
 import doobie.implicits.*
 import doobie.postgres.*
@@ -15,8 +16,8 @@ import cats.syntax.traverse.*
 import java.util.UUID
 import scala.concurrent.duration.*
 import scala.util.chaining.*
-import bot.model.DiscordID
 import cats.arrow.FunctionK
+import cats.data.{EitherT, OptionT}
 import cats.effect.IO
 import fs2.Stream
 
@@ -70,14 +71,19 @@ object Filters:
     def similarName: Filter = name.flatMap(_.similarName)
     def similarPartialName: Filter = name.flatMap(_.similarPartialName)
     def equalName: Filter = name.flatMap(_.equalName)
-    
+
   extension (keyholders: List[ChasterID])
     def anyKeyholder: Filter = fr"chaster_id = ANY ($keyholders)".some
 
-  def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${description.orNull}")
+  def descriptionEqual(description: Option[Option[String]]): Filter = description.map(description => fr"description = ${
+    description
+      .orNull
+  }",
+  )
 
 trait Remove:
   protected val table: Fragment
+
   def remove(filter: Filter, moreFilters: Filter*): IO[Int] =
     (fr"delete from" ++ table ++ (filter +: moreFilters).toList.combineFilters ++ fr"")
       .update
@@ -89,13 +95,16 @@ trait Insert[DB: Read]:
   protected val table: Fragment
 
   protected def unknowns(columns: Int): String = List.fill(columns)("?").mkString("(", ", ", ")")
-  protected def sql(columns: String*): String      = fr"insert into $table".internals.sql + columns.mkString("(", ", ", ") values") + unknowns(columns.length)
+
+  protected def sql(columns: String*): String = fr"insert into $table"
+    .internals
+    .sql + columns.mkString("(", ", ", ") values") + unknowns(columns.length)
 
   def insertOne[Info: Write](info: Info)(columns: String*): ConnectionIO[DB] =
-    Update[Info](sql(columns*)).withUniqueGeneratedKeys[DB](outer.columns*)(info)
+    Update[Info](sql(columns *)).withUniqueGeneratedKeys[DB](outer.columns *)(info)
 
   def insertMany[Info: Write](info: List[Info])(columns: String*): Stream[ConnectionIO, DB] =
-    Update[Info](sql(columns*)).updateManyWithGeneratedKeys[DB](outer.columns*)(info)
+    Update[Info](sql(columns *)).updateManyWithGeneratedKeys[DB](outer.columns *)(info)
 
 sealed trait RepositoryFields:
   protected val table: Fragment
@@ -105,7 +114,8 @@ trait Repository[DB: Read] extends RepositoryFields with Remove:
   private val updatedAt: Filter = fr"updated_at = NOW()".some
 
   inline private def updateQuery(updates: Filter*)(where: Fragment, more: Fragment*) =
-    (updates.toList :+ updatedAt).mkFragment(fr"update $table set", fr",", (where +: more.toList).map(_.some).combineFilters)
+    (updates.toList :+ updatedAt)
+      .mkFragment(fr"update $table set", fr",", (where +: more.toList).map(_.some).combineFilters)
       .update
 
   inline protected def innerUpdateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[DB]] =
@@ -127,28 +137,43 @@ trait Repository[DB: Read] extends RepositoryFields with Remove:
 
   def list(filters: Filter*): IO[List[DB]] = query(filters).to[List].transact(Bot.postgres.transactor)
 
-  def find(filters: Filter*): IO[Option[DB]] = query(filters).option.transact(Bot.postgres.transactor)
+  def find(filters: Filter*): OptionT[IO, DB] = OptionT(query(filters).option.transact(Bot.postgres.transactor))
 
-  def get(filters: Filter*): IO[DB] = find(filters*).flatMap(a => IO.fromOption(a)(new Exception(s"Failed to find item in repository")))
+  def get(filters: Filter*): IO[DB] = find(filters *)
+    .value
+    .map(_.toRight(new Exception(s"Failed to find item in repository")))
+    .rethrow
 
-  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[DB] = innerUpdate(updates*)(where, more*)
+  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[DB] = innerUpdate(updates *)(where, more *)
 
-  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[DB]] = innerUpdateMany(updates*)(where, more*)
+  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[DB]] =
+    innerUpdateMany(updates *)(where, more *)
 
 trait ModelRepository[DB: Read, Model] extends RepositoryFields with Remove:
   outer =>
-  def toModel(a: DB): IO[Model]
+  def toModel(a: DB): Maybe[Model]
 
-  private object Repo extends Repository[DB]:
+  final def unsafeToModel(a: DB): IO[Model] = toModel(a).rethrowT
+
+  private[db] object Repo extends Repository[DB]:
     override protected val table: Fragment = outer.table
     override protected val columns: List[String] = outer.columns
 
-  def list(filters: Filter*): IO[List[Model]] = Repo.list(filters*).flatMap(_.traverse(toModel))
+  inline private def toModelList(dbModel: DB): IO[List[Model]] = toModel(dbModel).value.map(_.toSeq.toList)
 
-  def find(filters: Filter*): IO[Option[Model]] = Repo.find(filters*).flatMap(_.traverse(toModel))
+  def list(filters: Filter*): IO[List[Model]] = Repo.list(filters *).flatMap(_.flatTraverse(toModelList(_)))
 
-  def get(filters: Filter*): IO[Model] = Repo.get(filters*).flatMap(toModel)
+  def find(filters: Filter*): OptionT[IO, Model] = Repo.find(filters *).flatMap(toModel(_).toOption)
 
-  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] = Repo.update(updates*)(where, more*).flatMap(toModel)
+  def get(filters: Filter*): IO[Model] = Repo.get(filters *).flatMap(unsafeToModel)
 
-  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[Model]] = Repo.updateMany(updates*)(where, more*).flatMap(_.traverse(toModel))
+  def update(updates: Filter*)(where: Fragment, more: Fragment*): IO[Model] =
+    Repo.update(updates *)(where, more *).flatMap(unsafeToModel)
+
+  def updateMany(updates: Filter*)(where: Fragment, more: Fragment*): IO[List[Model]] =
+    Repo.updateMany(updates *)(where, more *).flatMap(_.traverse(unsafeToModel))
+
+trait ThoroughList[DB: Read, Model, ID] extends ModelRepository[DB, Model]:
+  def id(db: DB): ID
+  def thoroughList(filters: Filter*): IO[List[Either[ID, Model]]] =
+    Repo.list(filters *).flatMap(_.traverse(dbModel => toModel(dbModel).leftMap(_ => id(dbModel)).value))

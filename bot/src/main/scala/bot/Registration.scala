@@ -72,9 +72,9 @@ object Registration:
   ): IO[RegisteredUser] =
     RegisteredUserRepository.add(chasterID, discordID, guildID, keyholderIDs, isLocked, tokenID).attempt.flatMap {
       _.fold(
-        throwable => RegisteredUserRepository.find(chasterID.equalChasterID, discordID.equalDiscordID, guildID.equalGuildID).flatMap(_.fold(IO.raiseError(throwable)) { user =>
+        throwable => RegisteredUserRepository.find(chasterID.equalChasterID, discordID.equalDiscordID, guildID.equalGuildID).foldF(IO.raiseError(throwable)) { user =>
           RegisteredUserRepository.update(user.id, tokenID = tokenID.some)
-        }),
+        },
         _.pure
       )
     }
@@ -122,21 +122,21 @@ object Registration:
   def invalidateRegistration(uuid: UUID, timeout: FiniteDuration): IO[Unit] =
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
-  def register(member: Member, timeout: FiniteDuration)(using Logger[IO]): IO[Option[Uri]] =
+  def generateURI(member: Member, scope: String, timeout: FiniteDuration)(using Logger[IO]): IO[Uri] =
     for
-      registeredUser <- RegisteredUserRepository.find(member.discordID.equalDiscordID)
-      scope = "profile keyholder shared_locks locks"
-      authenticateUri <- if registeredUser.exists(user => containsAllScopes(scope, user.scope)) then
-        None.pure[IO]
-      else
-        for
-          uuid <- IO(UUID.randomUUID())
-          _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
-          _ <- registrations.update(_ + (uuid -> (member, scope)))
-          _ <- invalidateRegistration(uuid, timeout)
-          authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
-        yield authenticateUri.some
+      uuid <- IO(UUID.randomUUID())
+      _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
+      _ <- registrations.update(_ + (uuid -> (member, scope)))
+      _ <- invalidateRegistration(uuid, timeout)
+      authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
     yield authenticateUri
+
+  def register(member: Member, timeout: FiniteDuration)(using Logger[IO]): IO[Option[Uri]] =
+    val scope = "profile keyholder shared_locks locks"
+    RegisteredUserRepository.find(member.discordID.equalDiscordID)
+      .filterNot(user => containsAllScopes(scope, user.scope))
+      .semiflatMap(_ => generateURI(member, scope, timeout))
+      .value
 
   private var unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]] = Set.empty
 
@@ -146,7 +146,7 @@ object Registration:
   def unregister(member: Member)(using Logger[IO]): IO[Option[String]] =
     import cats.syntax.list.*
     val either = for
-      registeredUser <- OptionT(RegisteredUserRepository.find(member.discordID.equalDiscordID)).toRight(s"Unable to find user $member")
+      registeredUser <- RegisteredUserRepository.find(member.discordID.equalDiscordID).toRight(s"Unable to find user $member")
       _ <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) => acc.flatMap(_ => hook(registeredUser)))
       _ <- EitherT.liftF(UserTokenRepository.remove(registeredUser.token.id.equalID))
       _ <- EitherT.liftF(RegisteredUserRepository.remove(registeredUser.id.equalID))

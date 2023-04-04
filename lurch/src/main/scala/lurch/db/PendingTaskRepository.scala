@@ -6,6 +6,9 @@ import bot.db.given
 import bot.db.Log.given
 import bot.db.{Insert, ModelRepository, RegisteredUserRepository}
 import bot.model.{ChasterID, DiscordID, RegisteredUser}
+import bot.syntax.io.*
+import bot.utils.Maybe
+import cats.data.EitherT
 import cats.effect.IO
 import cats.syntax.functor.*
 import cats.syntax.traverse.*
@@ -36,10 +39,10 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
   override protected val table: Fragment = fr"pending_tasks"
   override protected val columns: List[String] = List("id", "title", "message_discord_id", "user_id", "keyholder_id", "completed", "deadline")
 
-  override def toModel(pendingTask: PendingTask): IO[PendingTaskModel] =
+  override def toModel(pendingTask: PendingTask): Maybe[PendingTaskModel] =
     for
-      user <- RegisteredUserRepository.get(pendingTask.userID.equalID)
-      keyholder <- RegisteredUserRepository.get(pendingTask.keyholderID.equalID)
+      user <- RegisteredUserRepository.get(pendingTask.userID.equalID).to[Maybe]
+      keyholder <- RegisteredUserRepository.get(pendingTask.keyholderID.equalID).to[Maybe]
     yield PendingTaskModel(pendingTask.id, pendingTask.title, pendingTask.messageID, user, keyholder, pendingTask.completed, pendingTask.deadline)
 
   def add(
@@ -55,4 +58,4 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
       "title", "message_discord_id", "user_id", "keyholder_id", "deadline"
     )
       .transact(Bot.postgres.transactor)
-      .flatMap(toModel)
+      .flatMap(unsafeToModel)

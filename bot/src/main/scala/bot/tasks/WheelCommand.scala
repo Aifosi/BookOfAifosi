@@ -40,7 +40,7 @@ abstract class TextWheelCommand extends WheelCommand:
 def keyholder(lock: Lock)(using Logger[IO]): OptionT[IO, RegisteredUser] =
   for
     chasterKeyholder <- OptionT.fromOption(lock.keyholder)
-    keyholder <- OptionT(RegisteredUserRepository.find(chasterKeyholder._id.equalChasterID))
+    keyholder <- RegisteredUserRepository.find(chasterKeyholder._id.equalChasterID)
   yield keyholder
 
 abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] extends TextWheelCommand:

@@ -1,21 +1,45 @@
 package bot.model
 
 import cats.effect.IO
+import cats.syntax.either.*
 import net.dv8tion.jda.api.JDA
 import bot.syntax.action.*
-import cats.data.OptionT
+import cats.data.{EitherT, OptionT}
+import bot.model.Discord.*
+import bot.utils.Maybe
+
 import scala.jdk.CollectionConverters.*
 import net.dv8tion.jda.api.entities.MessageChannel
+import net.dv8tion.jda.api.requests.RestAction
 
 class Discord(val jda: JDA):
-  def userByID(id: DiscordID): IO[User] =
-    OptionT.fromOption(Option(jda.getUserById(id.toLong))).getOrElseF(jda.retrieveUserById(id.toLong).toIO).map(new User(_))
-  def guildByID(id: DiscordID): IO[Guild] =
-    IO.fromOption(Option(jda.getGuildById(id.toLong)))(new Exception(s"Failed to get guild with id $id")).map(new Guild(_))
-  def roleByID(id: DiscordID): IO[Role] =
-    IO.fromOption(Option(jda.getRoleById(id.toLong)))(new Exception(s"Failed to get role with id $id")).map(new Role(_))
-  def channelByID(id: DiscordID): IO[Channel] =
-    IO.fromOption(Option(jda.getChannelById(classOf[MessageChannel], id.toLong)))(new Exception(s"Failed to get channel with id $id")).map(new Channel(_))
+  def userByID(id: DiscordID): Maybe[User] =
+    actionGetter(id.toLong, "user", jda.retrieveUserById, new User(_))
 
-  def roles(guildID: DiscordID): IO[List[Role]] = guildByID(guildID.toLong).map(_.roles)
+  def guildByID(id: DiscordID): Maybe[Guild] =
+    getter[Long](id.toLong, "guild", jda.getGuildById, new Guild(_))
+
+  def roleByID(id: DiscordID): Maybe[Role] =
+    getter[Long](id.toLong, "role", jda.getRoleById, new Role(_))
+
+  def channelByID(id: DiscordID): Maybe[Channel] =
+    getter[Long](id.toLong, "channel", jda.getChannelById(classOf[MessageChannel], _), new Channel(_))
+
+  def roles(guildID: DiscordID): Maybe[List[Role]] = guildByID(guildID.toLong).map(_.roles)
+
+  def unsafeRoleByID(id: DiscordID): IO[Role] = roleByID(id).rethrowT
+
   def guilds: List[Guild] = jda.getGuilds.asScala.toList.map(new Guild(_))
+
+object Discord:
+  final private[model] class PartiallyAppliedGetter[ID](private val dummy: Boolean = true) extends AnyVal:
+    def apply[A, B](id: ID, what: String, get: ID => A, transform: A => B): Maybe[B] =
+      EitherT.fromOption(Option(get(id)), new Exception(s"Failed to get $what with id $id")).map(transform)
+
+  def getter[ID]: PartiallyAppliedGetter[ID] = new PartiallyAppliedGetter[ID]
+
+  final private[model] class PartiallyAppliedActionGetter[ID](private val dummy: Boolean = true) extends AnyVal:
+    def apply[A, B](id: ID, what: String, get: ID => RestAction[A], transform: A => B): Maybe[B] =
+      EitherT(get(id).toIO.attempt.map(_.leftMap(_ => new Exception(s"Failed to get $what using: $id")))).map(transform)
+
+  def actionGetter[ID]: PartiallyAppliedActionGetter[ID] = new PartiallyAppliedActionGetter[ID]
