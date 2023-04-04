@@ -6,7 +6,10 @@ import bot.db.given
 import bot.db.Log.given
 import bot.db.{ModelRepository, RegisteredUserRepository}
 import bot.model.{ChasterID, DiscordID}
+import bot.utils.Maybe
+import cats.data.EitherT
 import cats.effect.IO
+import cats.effect.LiftIO.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
@@ -31,10 +34,10 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
   override protected val table: Fragment = fr"pillory_links"
   override protected val columns: List[String] = List("user_id", "guild_discord_id", "post_id", "counted")
 
-  override def toModel(pilloryLink: PilloryLink): IO[PilloryLinkModel] =
+  override def toModel(pilloryLink: PilloryLink): Maybe[PilloryLinkModel] =
     for
-      user <- RegisteredUserRepository.get(pilloryLink.userID.equalID)
-      discord <- Bot.discord.get
+      user <- RegisteredUserRepository.get(pilloryLink.userID.equalID).to[Maybe]
+      discord <- Bot.discord.get.to[Maybe]
       guild <- discord.guildByID(pilloryLink.guildID)
     yield PilloryLinkModel(user, guild, pilloryLink.postID, pilloryLink.counted)
 
@@ -47,7 +50,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
       .update
       .withUniqueGeneratedKeys[PilloryLink]("user_id", "guild_discord_id", "post_id", "counted")
       .transact(Bot.postgres.transactor)
-      .flatMap(toModel)
+      .flatMap(unsafeToModel)
 
   def setCounted(
     guildID: DiscordID,

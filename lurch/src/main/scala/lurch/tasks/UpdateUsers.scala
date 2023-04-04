@@ -10,6 +10,7 @@ import bot.model.*
 import bot.syntax.io.*
 import bot.syntax.stream.*
 import bot.tasks.RepeatedStreams
+import bot.utils.*
 import cats.effect.IO
 import cats.effect.kernel.Ref
 import cats.instances.list.*
@@ -30,18 +31,6 @@ import java.util.UUID
 import scala.concurrent.duration.*
 
 object UpdateUsers extends RepeatedStreams:
-  private def log(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
-    Stream.eval(Logger[IO].info(message) *> Bot.channels.log.sendMessage(message).value).drain
-
-  private def logWithoutSpam(notificationsRef: Ref[IO, Set[String]])(message: => String)(using Logger[IO]): Stream[IO, Nothing] =
-    for
-      notifications <- notificationsRef.get.streamed
-      _ <- Stream.filter(!notifications.contains(message))
-      _ <- notificationsRef.update(_ + message).streamed
-      _ <- (IO.sleep(1.hour) *> notificationsRef.update(_ - message)).start.streamed
-      n <- log(message)
-    yield n
-
   private def updateUser(user: RegisteredUser, keyholderIDs: List[ChasterID], isLocked: Boolean): IO[RegisteredUser] =
     if user.keyholderIDs != keyholderIDs || user.isLocked != isLocked then
       RegisteredUserRepository.update(user.id, keyholderIDs = keyholderIDs.some, isLocked = isLocked.some, lastLocked = Option.when(isLocked)(Instant.now.some))
@@ -88,7 +77,7 @@ object UpdateUsers extends RepeatedStreams:
   private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
     if !user.token.scope.split(" ").contains("keyholder") then return notify(user).as(false)
     for
-      registeredWearers <- RegisteredUserRepository.list(fr"${profile._id} = ANY (keyholder_ids)".some)
+      registeredWearers <- RegisteredUserRepository.thoroughList(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then RegisteredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
       shouldAddKeyholder = user.lastKeyheld.exists(_.isAfter(Lurch.config.roles.lastKeyheldCutoff)) || registeredWearers.nonEmpty
       _ <- if shouldAddKeyholder then Logger[IO].debug(s"$user is keyholder of $registeredWearers") else IO.unit
@@ -141,13 +130,13 @@ object UpdateUsers extends RepeatedStreams:
     for
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
       discord <- Bot.discord.get.streamed
-      visitorRole <- discord.roleByID(Lurch.config.roles.visitor).streamed
-      guestRole <- discord.roleByID(Lurch.config.roles.guest).streamed
-      lockedRole <- discord.roleByID(Lurch.config.roles.locked).streamed
-      switchRole <- discord.roleByID(Lurch.config.roles.switch).streamed
-      keyholderRole <- discord.roleByID(Lurch.config.roles.keyholder).streamed
+      visitorRole <- discord.unsafeRoleByID(Lurch.config.roles.visitor).streamed
+      guestRole <- discord.unsafeRoleByID(Lurch.config.roles.guest).streamed
+      lockedRole <- discord.unsafeRoleByID(Lurch.config.roles.locked).streamed
+      switchRole <- discord.unsafeRoleByID(Lurch.config.roles.switch).streamed
+      keyholderRole <- discord.unsafeRoleByID(Lurch.config.roles.keyholder).streamed
       notifications <- Ref.of[IO, Set[String]](Set.empty).streamed
-      registeredUsers <- RegisteredUserRepository.list().streamed
+      registeredUsersOrLeft <- RegisteredUserRepository.thoroughList().streamed
       guild <- Stream.emits(discord.guilds)
       member <- guild.members
       memberRoles <- List(visitorRole, guestRole, lockedRole, switchRole, keyholderRole)
@@ -156,6 +145,8 @@ object UpdateUsers extends RepeatedStreams:
       addRole = (role: Role) => if !memberRoles.contains(role) then modifyRole(member, role)(member.addRole(guild, role)) else IO.unit
       removeRole = (role: Role) => if memberRoles.contains(role) then modifyRole(member, role)(member.removeRole(guild, role)) else IO.unit
       addRoleRemoveOthers = (role: Role) => (addRole(role) *> memberRoles.filter(_ != role).parTraverse(removeRole).void).streamed
+      (left, registeredUsers) = registeredUsersOrLeft.partitionMap(identity)
+      _ <- if left.isEmpty then Stream.unit else Stream.emits(left).flatMap(left => logWithoutSpam(notifications)(s"Skipping update for user that left server: $left"))
       _ <- registeredUsers.find(_.discordID == member.discordID).fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
         handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, logWithoutSpam(notifications), addRoleRemoveOthers)(guild, registeredUser)
       }.compile.drain.logErrorOption.streamed

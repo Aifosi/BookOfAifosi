@@ -33,7 +33,7 @@ object Task extends SlashCommand with Options with SlowResponse:
     val tag = event.getOption[String]("tag")
     val discordUser = event.getOption[User]("user")
     val response = for
-      user <- OptionT(RegisteredUserRepository.find(discordUser.discordID.equalDiscordID)).toRight(s"Couldn't find registered user $discordUser")
+      user <- RegisteredUserRepository.find(discordUser.discordID.equalDiscordID).toRight(s"Couldn't find registered user $discordUser")
       task <- WheelTask.handleTask(tag, user).toRight("Failed to get task.")
     yield task
     eitherTResponse(response, slashAPI).void

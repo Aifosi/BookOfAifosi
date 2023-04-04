@@ -5,8 +5,11 @@ import bot.db.mkFragment
 import bot.db.Filters.*
 import bot.db.{ModelRepository, User, UserTokenRepository, mkFragment}
 import bot.model.{ChasterID, DiscordID, RegisteredUser}
-import cats.data.OptionT
+import bot.syntax.io.*
+import bot.utils.Maybe
+import cats.data.EitherT
 import cats.effect.IO
+import cats.effect.LiftIO.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
 import doobie.postgres.implicits.*
@@ -32,16 +35,18 @@ case class User(
   lastKeyheld: Option[Instant],
 )
 
-object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
+object RegisteredUserRepository extends ModelRepository[User, RegisteredUser] with ThoroughList[User, RegisteredUser, String]:
   override protected val table: Fragment = fr"users"
   override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "guild_discord_id", "keyholder_ids", "is_locked", "token_id", "last_locked", "last_keyheld")
 
-  override def toModel(user: User): IO[RegisteredUser] =
+  override def id(db: User): String = s"guild ID: ${db.guildID}, discord ID: ${db.discordID}, chaster ID: ${db.chasterID}"
+
+  override def toModel(user: User): Maybe[RegisteredUser] =
     for
-      discord <- Bot.discord.get
+      discord <- Bot.discord.get.to[Maybe]
       guild <- discord.guildByID(user.guildID)
-      member <- guild.getMember(user.discordID)
-      token <- UserTokenRepository.get(user.tokenID.equalID)
+      member <- guild.member(user.discordID)
+      token <- UserTokenRepository.get(user.tokenID.equalID).to[Maybe]
     yield new RegisteredUser(user, member, token)
 
   def add(
@@ -56,7 +61,7 @@ object RegisteredUserRepository extends ModelRepository[User, RegisteredUser]:
       .update
       .withUniqueGeneratedKeys[User](columns*)
       .transact(Bot.postgres.transactor)
-      .flatMap(toModel)
+      .flatMap(unsafeToModel)
 
   def update(
     id: UUID,

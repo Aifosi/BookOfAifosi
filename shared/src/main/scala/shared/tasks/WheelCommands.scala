@@ -1,7 +1,7 @@
 package shared.tasks
 
 import bot.Bot
-import bot.chaster.{Event, Segment, SegmentType, WheelTurnedPayload, Lock}
+import bot.chaster.{Event, Lock, Segment, SegmentType, WheelTurnedPayload}
 import bot.chaster.Client.{*, given}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
@@ -9,8 +9,9 @@ import bot.model.{ChasterID, RegisteredUser}
 import bot.tasks.{RepeatedStreams, WheelCommand}
 import bot.syntax.io.*
 import bot.syntax.stream.*
+import bot.utils.logWithoutSpam
 import cats.data.{NonEmptyList, OptionT}
-import cats.effect.IO
+import cats.effect.{IO, Ref}
 import cats.syntax.functor.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
@@ -56,7 +57,7 @@ case class WheelCommands(
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, (Lock, RecentLockHistory)] =
     for
       lock <- Stream.evalSeq(user.locks)
-      maybeLockHistory <- RecentLockHistoryRepository.find(lock._id.equalLockID).streamed
+      maybeLockHistory <- RecentLockHistoryRepository.find(lock._id.equalLockID).value.streamed
       lockHistory <- maybeLockHistory.fold(RecentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
     yield (lock, lockHistory)
 
@@ -74,6 +75,10 @@ case class WheelCommands(
   override lazy val repeatedStream: Stream[IO, Unit] =
     for
       given Logger[IO] <- Slf4jLogger.create[IO].streamed
-      user <- Stream.evalSeq(RegisteredUserRepository.list().map(_.filter(user => user.isLocked && user.keyholderIDs.nonEmpty)))
+      notifications <- Ref.of[IO, Set[String]](Set.empty).streamed
+      registeredUsersOrLeft <- Stream.eval(RegisteredUserRepository.thoroughList())
+      (left, registeredUsers) = registeredUsersOrLeft.partitionMap(identity)
+      _ <- if left.isEmpty then Stream.unit else Stream.emits(left).flatMap(left => logWithoutSpam(notifications)(s"Skipping wheel tasks for user that left server: $left"))
+      user <- Stream.emits(registeredUsers.filter(user => user.isLocked && user.keyholderIDs.nonEmpty))
       _ <- handleUser(user).compile.drain.logErrorOption.streamed
     yield ()

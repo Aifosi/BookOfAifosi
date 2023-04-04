@@ -21,7 +21,7 @@ object Info extends SlashCommand with Options {
     val user = event.getOption[Option[User]]("user")
 
     user.map(_.discordID).flatTraverse { discordID =>
-      RegisteredUserRepository.find(discordID.equalDiscordID)
+      RegisteredUserRepository.find(discordID.equalDiscordID).value
     }
     ???
 

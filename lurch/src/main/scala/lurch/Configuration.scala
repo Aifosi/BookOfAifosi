@@ -1,7 +1,7 @@
 package lurch
 
 import bot.*
-import bot.Utils.getChannel
+import bot.utils.getChannel
 import bot.model.{Channel, DiscordID}
 import cats.data.OptionT
 import cats.effect.IO

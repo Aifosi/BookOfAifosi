@@ -26,7 +26,7 @@ open class User(private[model] val user: JDAUser):
   def sendMessage(message: String): IO[Message] = privateChannel.flatMap(_.sendMessage(message))
   def sendMessage(message: Message): IO[Message] = privateChannel.flatMap(_.sendMessage(message))
 
-  private def unsafeMember(guild: Guild): IO[Member] = guild.getMember(this)
+  private def unsafeMember(guild: Guild): IO[Member] = guild.member(this).rethrowT
 
   def addRole(guild: Guild, role: Role): IO[Unit] = unsafeMember(guild).flatMap(_.addRole(role))
 

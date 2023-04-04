@@ -6,7 +6,10 @@ import bot.db.given
 import bot.db.Log.given
 import bot.db.ModelRepository
 import bot.model.DiscordID
+import bot.utils.Maybe
+import cats.data.EitherT
 import cats.effect.IO
+import cats.effect.LiftIO.*
 import cats.syntax.applicative.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
@@ -24,9 +27,9 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
   override protected val table: Fragment = fr"pillory_bitches"
   override protected val columns: List[String] = List("guild_discord_id", "channel_discord_id")
 
-  override def toModel(pilloryBitches: PilloryBitches): IO[PilloryBitchesModel] =
+  override def toModel(pilloryBitches: PilloryBitches): Maybe[PilloryBitchesModel] =
     for
-      discord <- Bot.discord.get
+      discord <- Bot.discord.get.to[Maybe]
       guild <- discord.guildByID(pilloryBitches.guildID)
       channel <- discord.channelByID(pilloryBitches.channelID)
     yield PilloryBitchesModel(guild, channel)
@@ -50,7 +53,7 @@ object PilloryBitchesRepository extends ModelRepository[PilloryBitches, PilloryB
       .update
       .withUniqueGeneratedKeys[PilloryBitches]("guild_discord_id", "channel_discord_id")
       .transact(Bot.postgres.transactor)
-      .flatMap(toModel)
+      .flatMap(unsafeToModel)
 
   def update(
     guildID: DiscordID,
