@@ -101,7 +101,6 @@ object UpdateUsers extends RepeatedStreams:
   override lazy val delay: FiniteDuration = Lurch.config.checkFrequency
 
   def handleRegisteredUser(
-    discord: Discord,
     guestRole: Role,
     lockedRole: Role,
     switchRole: Role,
@@ -148,6 +147,6 @@ object UpdateUsers extends RepeatedStreams:
       (left, registeredUsers) = registeredUsersOrLeft.partitionMap(identity)
       _ <- if left.isEmpty then Stream.unit else Stream.emits(left).flatMap(left => logWithoutSpam(notifications)(s"Skipping update for user that left server: $left"))
       _ <- registeredUsers.find(_.discordID == member.discordID).fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
-        handleRegisteredUser(discord, guestRole, lockedRole, switchRole, keyholderRole, logWithoutSpam(notifications), addRoleRemoveOthers)(guild, registeredUser)
+        handleRegisteredUser(guestRole, lockedRole, switchRole, keyholderRole, logWithoutSpam(notifications), addRoleRemoveOthers)(guild, registeredUser)
       }.compile.drain.logErrorOption.streamed
     yield ()

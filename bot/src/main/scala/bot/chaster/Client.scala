@@ -96,7 +96,7 @@ object Client:
 
   given EntityDecoder[IO, Unit] = EntityDecoder.void
 
-  extension (token: UserToken)(using Logger[IO])
+  extension (token: UserToken)
     private def updatedToken: IO[UserToken] =
       if token.expiresAt.isAfter(Instant.now()) then
         IO.pure(token)
