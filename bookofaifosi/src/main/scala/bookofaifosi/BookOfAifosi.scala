@@ -48,23 +48,14 @@ object BookOfAifosi extends IOApp.Simple:
     )(using Transactor[IO], LogHandler, Logger[IO]): Commander[DiscordLogger] =
       val recentLockHistoryRepository = new RecentLockHistoryRepository(registeredUserRepository)
 
-      val wheelCommands: NonEmptyList[WheelCommand] = NonEmptyList.of(
-        new Once(chasterClient, registeredUserRepository),
-        new OnceGroup(chasterClient, registeredUserRepository),
-        //These two need to be before other commands
-        new DiceMultiplier(chasterClient, registeredUserRepository),
-        new VerificationPictures(chasterClient, registeredUserRepository),
-        new PilloryVoteTime(chasterClient, registeredUserRepository),
-        new DiceRolls(chasterClient, registeredUserRepository),
-        new WheelRolls(chasterClient, registeredUserRepository),
-        new VoteTarget(chasterClient, registeredUserRepository),
-        new VoteAdd(chasterClient, registeredUserRepository),
-        new VoteRemove(chasterClient, registeredUserRepository),
-        new AddSegments(chasterClient, registeredUserRepository),
-      )
-
       val tasks: NonEmptyList[Streams] = NonEmptyList.of(
-        new WheelCommands(chasterClient, registeredUserRepository, recentLockHistoryRepository, wheelCommands, config.checkFrequency),
+        new WheelCommands(
+          chasterClient,
+          registeredUserRepository,
+          recentLockHistoryRepository,
+          commonWheelCommands(chasterClient, registeredUserRepository),
+          config.checkFrequency,
+        ),
       )
 
       Commander(discordLogger, List.empty, tasks, discordLogger.complete(_, channelConfiguration))

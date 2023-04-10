@@ -499,3 +499,8 @@ object ConfigUpdate:
 case class ConfigUpdatePayload(
   extensions: List[ConfigUpdate[ExtensionConfig]]
 ) derives Encoder.AsObject
+
+case class SettingsUpdate(
+  displayRemainingTime: Boolean,
+  hideTimeLogs: Boolean,
+) derives Encoder.AsObject

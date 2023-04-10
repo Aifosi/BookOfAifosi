@@ -69,21 +69,9 @@ object Lurch extends IOApp.Simple:
         new TaskCompleter(pendingTaskRepository, lurchLogger.tortureChamberChannelDeferred),
       )
 
-      val wheelCommands: NonEmptyList[WheelCommand] = NonEmptyList.of(
-        new Once(chasterClient, registeredUserRepository),
-        new OnceGroup(chasterClient, registeredUserRepository),
-        //These two need to be before other commands
-        new DiceMultiplier(chasterClient, registeredUserRepository),
-        new VerificationPictures(chasterClient, registeredUserRepository),
-        new PilloryVoteTime(chasterClient, registeredUserRepository),
-        new DiceRolls(chasterClient, registeredUserRepository),
-        new WheelRolls(chasterClient, registeredUserRepository),
-        new VoteTarget(chasterClient, registeredUserRepository),
-        new VoteAdd(chasterClient, registeredUserRepository),
-        new VoteRemove(chasterClient, registeredUserRepository),
-        new AddSegments(chasterClient, registeredUserRepository),
-        new wheel.Task(chasterClient, registeredUserRepository, pendingTaskRepository, mysqlConfiguration.transactor)
-      )
+      val wheelCommands: NonEmptyList[WheelCommand] =
+        commonWheelCommands(chasterClient, registeredUserRepository) :+
+          new wheel.Task(chasterClient, registeredUserRepository, pendingTaskRepository, mysqlConfiguration.transactor)
 
       val tasks: NonEmptyList[Streams] = NonEmptyList.of(
         new PilloryWinner(pilloryBitchesRepository, pilloryLinkRepository, config),
