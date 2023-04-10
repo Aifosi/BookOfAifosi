@@ -1,22 +1,25 @@
 package bot.db
 
 import bot.Bot
+import bot.utils.Maybe
+import bot.db.Filters.*
+import bot.model.UserToken
+import cats.data.EitherT
+import cats.effect.IO
 import cats.syntax.option.*
-import doobie.{ConnectionIO, Fragment}
-import doobie.syntax.string.*
 import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
-import bot.db.Filters.*
+import doobie.syntax.string.*
+import doobie.{ConnectionIO, Fragment, Transactor, LogHandler}
 
 import java.time.Instant
-import bot.model.UserToken
-import cats.effect.IO
-
 import java.util.UUID
 
-object UserTokenRepository extends Repository[UserToken]:
+class UserTokenRepository(using transactor: Transactor[IO], logHandler: LogHandler) extends ModelRepository[UserToken, UserToken]:
   override protected val table: Fragment = fr"user_tokens"
   override protected val columns: List[String] = List("id", "access_token", "expires_at", "refresh_token", "scope")
+
+  override def toModel(userToken: UserToken): Maybe[UserToken] = EitherT.pure(userToken)
 
   def add(
     accessToken: String,
@@ -27,7 +30,7 @@ object UserTokenRepository extends Repository[UserToken]:
     sql"insert into $table (access_token, expires_at, refresh_token, scope) values ($accessToken, $expiresAt, $refreshToken, $scope)"
       .update
       .withUniqueGeneratedKeys[UserToken]("id", "access_token", "expires_at", "refresh_token", "scope")
-      .transact(Bot.postgres.transactor)
+      .transact(transactor)
 
   def update(
     id: UUID,

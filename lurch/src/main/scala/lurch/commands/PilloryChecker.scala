@@ -1,13 +1,11 @@
 package lurch.commands
 
-import bot.Bot
-import bot.chaster.Client.{*, given}
-import bot.chaster.Post
+import bot.chaster.{ChasterClient, Post}
 import bot.commands.{Hidden, NoLog, TextCommand}
 import bot.db.Filters.*
 import bot.db.{RegisteredUserRepository, given}
 import bot.model.event.MessageEvent
-import bot.model.*
+import bot.model.{*, given}
 import bot.syntax.io.*
 import bot.syntax.stream.*
 import bot.tasks.Streams
@@ -29,22 +27,27 @@ import scala.concurrent.duration.*
 import scala.util.chaining.*
 import scala.util.matching.Regex
 
-object PilloryChecker extends TextCommand with Hidden with NoLog:
+class PilloryChecker(
+  chasterClient: ChasterClient,
+  registeredUserRepository: RegisteredUserRepository,
+  pilloryLinkRepository: PilloryLinkRepository,
+  pilloryBitchesRepository: PilloryBitchesRepository,
+) extends TextCommand with Hidden with NoLog:
   override val pattern: Regex = ".*http(?:s)?://chaster.app/activity/(\\w{24}).*".r
 
   private def validatePost(post: Post, member: Member): EitherT[IO, String, RegisteredUser] =
     for
-      user <- RegisteredUserRepository.find(member.discordID.equalDiscordID).toRight("You must be registered to submit pillories.")
+      user <- registeredUserRepository.find(member.discordID.equalDiscordID).toRight("You must be registered to submit pillories.")
       notTooOld = post.data.voteEndsAt.isAfter(Instant.now.minus(1, ChronoUnit.DAYS))
       _ <- EitherT.cond(notTooOld, (), "Pillory is too old, must not be older than 1 day.")
       keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
-        RegisteredUserRepository.find(keyholder._id.equalChasterID).isDefined
+        registeredUserRepository.find(keyholder._id.equalChasterID).isDefined
       })
       _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered.")
       userSubmitted = user.chasterID == post.user._id
       votingEnded = post.data.voteEndsAt.isBefore(Instant.now)
       _ <- EitherT.cond((userSubmitted && votingEnded) || (!userSubmitted && !votingEnded), (), "You must either submit one of your pillories after it ended or someone else's before it ends.")
-      alreadySubmitted <- EitherT.liftF(PilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).isDefined)
+      alreadySubmitted <- EitherT.liftF(pilloryLinkRepository.find(user.id.equalUserID, fr"post_id = ${post._id}".some).isDefined)
       _ <- EitherT.cond(!alreadySubmitted, (), "That pillory was already submitted.")
     yield user
 
@@ -54,7 +57,7 @@ object PilloryChecker extends TextCommand with Hidden with NoLog:
     else
       validatePost(post, member).foldF(
         failReason => event.message.addReaction("❌") *> member.sendMessage(failReason),
-        user => event.message.addReaction("✅") *> event.guild.flatMap(guild => PilloryLinkRepository.add(user.id, guild.discordID, post._id))
+        user => event.message.addReaction("✅") *> event.guild.flatMap(guild => pilloryLinkRepository.add(user.id, guild.discordID, post._id))
       ).void
 
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
@@ -62,8 +65,8 @@ object PilloryChecker extends TextCommand with Hidden with NoLog:
       member <- OptionT.liftF(event.authorMember)
       id <- OptionT.fromOption(pattern.findFirstMatchIn(event.content).map(_.group(1))).map(ChasterID(_))
       guild <- OptionT.liftF(event.guild)
-      PilloryBitches(_, channel) <- PilloryBitchesRepository.find(guild.discordID.equalGuildID)
-      post <- OptionT(UserToken.empty.post(id).logErrorOption)
+      PilloryBitches(_, channel) <- pilloryBitchesRepository.find(guild.discordID.equalGuildID)
+      post <- OptionT(chasterClient.authenticatedEndpoints(UserToken.empty).post(id).logErrorOption)
       _ <- OptionT.liftF(addReaction(post, member, channel, event))
     yield true).getOrElse(true)
 

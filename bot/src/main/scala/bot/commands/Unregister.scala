@@ -6,14 +6,14 @@ import bot.model.event.SlashCommandEvent
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
 
-object Unregister extends SlashCommand:
+class Unregister(registration: Registration) extends SlashCommand:
   override val defaultEnabled: Boolean = true
   override val fullCommand: String = "unregister"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     for
       member <- event.authorMember
-      message <- Registration.unregister(member)
+      message <- registration.unregister(member)
       _ <- message.fold(IO.unit)(event.reply)
     yield true
 

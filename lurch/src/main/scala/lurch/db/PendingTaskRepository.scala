@@ -3,21 +3,19 @@ package lurch.db
 import bot.Bot
 import bot.db.Filters.*
 import bot.db.given
-import bot.db.Log.given
 import bot.db.{Insert, ModelRepository, RegisteredUserRepository}
-import bot.model.{ChasterID, DiscordID, RegisteredUser}
+import bot.model.{ChasterID, Discord, DiscordID, RegisteredUser}
 import bot.syntax.io.*
 import bot.utils.Maybe
 import cats.data.EitherT
-import cats.effect.IO
+import cats.effect.{Deferred, IO}
 import cats.syntax.functor.*
 import cats.syntax.traverse.*
-import doobie.Fragment
+import doobie.{Fragment, LogHandler, Transactor}
 import doobie.postgres.*
 import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
-import doobie.util.log.LogHandler
 import lurch.model.PendingTask as PendingTaskModel
 
 import java.time.Instant
@@ -35,14 +33,18 @@ private case class PendingTask(
   deadline: Option[Instant],
 )
 
-object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskModel] with Insert[PendingTask]:
+class PendingTaskRepository(
+  registeredUserRepository: RegisteredUserRepository,
+)(
+  using Transactor[IO], LogHandler
+) extends ModelRepository[PendingTask, PendingTaskModel]:
   override protected val table: Fragment = fr"pending_tasks"
   override protected val columns: List[String] = List("id", "title", "message_discord_id", "user_id", "keyholder_id", "completed", "deadline")
 
   override def toModel(pendingTask: PendingTask): Maybe[PendingTaskModel] =
     for
-      user <- RegisteredUserRepository.get(pendingTask.userID.equalID).to[Maybe]
-      keyholder <- RegisteredUserRepository.get(pendingTask.keyholderID.equalID).to[Maybe]
+      user <- registeredUserRepository.get(pendingTask.userID.equalID).to[Maybe]
+      keyholder <- registeredUserRepository.get(pendingTask.keyholderID.equalID).to[Maybe]
     yield PendingTaskModel(pendingTask.id, pendingTask.title, pendingTask.messageID, user, keyholder, pendingTask.completed, pendingTask.deadline)
 
   def add(
@@ -57,5 +59,4 @@ object PendingTaskRepository extends ModelRepository[PendingTask, PendingTaskMod
     )(
       "title", "message_discord_id", "user_id", "keyholder_id", "deadline"
     )
-      .transact(Bot.postgres.transactor)
       .flatMap(unsafeToModel)

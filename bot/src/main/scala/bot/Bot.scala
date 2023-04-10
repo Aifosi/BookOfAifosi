@@ -1,23 +1,25 @@
 package bot
 
-import doobie.util.transactor.Transactor
-import cats.data.NonEmptyList
-import cats.effect.{Deferred, ExitCode, IO, IOApp, Ref}
+import doobie.{Transactor, LogHandler}
+import cats.data.{EitherT, NonEmptyList}
+import cats.effect.{Deferred, ExitCode, IO, IOApp, Ref, Resource}
 import cats.syntax.parallel.*
 import cats.syntax.foldable.*
 import cats.syntax.traverse.*
 import fs2.Stream
 import bot.commands
 import bot.commands.*
+import bot.chaster.{ChasterClient, ChasterConfiguration}
 import bot.syntax.all.*
-import bot.model.{Channel, Discord, Role, User}
+import bot.model.{Channel, Discord, RegisteredUser, Role, User}
 import bot.tasks.*
+import bot.db.{RegisteredUserRepository, UserTokenRepository, DoobieLogHandler}
 import cats.effect.unsafe.IORuntime
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.{JDA, JDABuilder}
 import org.flywaydb.core.Flyway
 import org.http4s.ember.client.*
-import org.http4s.{Request, *}
+import org.http4s.*
 import org.http4s.dsl.io.*
 import org.http4s.client.*
 import org.http4s.client.middleware.{Retry, RetryPolicy}
@@ -34,40 +36,41 @@ import scala.jdk.CollectionConverters.*
 import scala.concurrent.duration.*
 import scala.compiletime.uninitialized
 
-trait Bot extends IOApp:
-  given IORuntime = runtime
+object Bot:
+  private def httpServer(
+    chasterConfiguration: ChasterConfiguration,
+    routes: HttpRoutes[IO],
+  )(using Logger[IO]): Resource[IO, Server] =
+    EmberServerBuilder
+      .default[IO]
+      .withLogger(summon[Logger[IO]])
+      .withHost(chasterConfiguration.host)
+      .withPort(chasterConfiguration.port)
+      .withHttpApp(routes.orNotFound)
+      .build
 
-  def commands: List[AnyCommand]
+  private def acquireDiscordClient(
+    token: String,
+    messageListener: MessageListener,
+  )(using Logger[IO]): Resource[IO, Discord] =
+    val acquire = IO {
+      JDABuilder.createDefault(token)
+        .enableIntents(GatewayIntent.GUILD_MEMBERS)
+        .addEventListeners(messageListener)
+        .build()
+        .awaitReady()
+    }
 
-  lazy val  allCommands: NonEmptyList[AnyCommand] = NonEmptyList.of(
-    Register,
-    Unregister,
-    Nuke,
-  ) ++ commands
+    Resource.make(acquire)(jda => IO(jda.shutdown()))
+      .map(new Discord(_))
+      .evalTap(_ => Logger[IO].info("Loaded JDA"))
 
-  lazy val textCommands: List[TextCommand] = allCommands.collect {
-    case command: TextCommand => command
-  }
-  lazy val reactionCommands: List[ReactionCommand] = allCommands.collect {
-    case command: ReactionCommand => command
-  }
-  lazy val slashCommands: List[SlashCommand] = allCommands.collect {
-    case command: SlashCommand => command
-  }
-  lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
-    case command: AutoCompletable => command
-  }
-
-  def tasks: NonEmptyList[Streams]
-
-  private def combinedTasks(using Logger[IO]): Stream[IO, Unit] = tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
-
-  protected def runMigrations(using Logger[IO]): IO[Unit] =
+  private def runMigrations(postgresConfig: PostgresConfiguration)(using Logger[IO]): IO[Unit] =
     for
       flyway <- IO {
         Flyway
           .configure
-          .dataSource(Bot.postgres.url, Bot.postgres.user, Bot.postgres.password)
+          .dataSource(postgresConfig.url, postgresConfig.user, postgresConfig.password)
           .validateMigrationNaming(true)
           .baselineOnMigrate(true)
           .load
@@ -76,72 +79,64 @@ trait Bot extends IOApp:
       _ <- Logger[IO].debug(s"Ran ${migrations.migrationsExecuted} migrations.")
     yield ()
 
-  private def acquireDiscordClient(using Logger[IO]): IO[Discord] =
-    val jda = JDABuilder.createDefault(Bot.discordConfig.token)
-      .enableIntents(GatewayIntent.GUILD_MEMBERS)
-      .addEventListeners(new MessageListener(this))
+  private def loadConfigs: IO[(DiscordConfiguration, PostgresConfiguration)] =
     for
-      jda <- IO(jda.build().awaitReady())
-      discord = new Discord(jda)
-      _ <- Bot.discord.complete(discord)
-      _ <- Logger[IO].info("Loaded JDA")
-    yield discord
+      discordConfig <- DiscordConfiguration.fromConfig()
+      postgres <- PostgresConfiguration.fromConfig()
+    yield (discordConfig, postgres)
 
-  private def registerSlashCommands(discord: Discord)(using Logger[IO]): IO[Unit] =
-    val patterns = SlashPattern.buildCommands(slashCommands.map(_.pattern))
-    discord.guilds.traverse_(_.addCommands(patterns))
-      *> Logger[IO].info("All Slash commands registered.")
+  abstract class Builder[A]:
+    def apply(
+      discord: Deferred[IO, Discord],
+      chasterClient: ChasterClient,
+      registeredUserRepository: RegisteredUserRepository,
+      userTokenRepository: UserTokenRepository,
+    )(using Transactor[IO], LogHandler, Logger[IO]): A
 
-  private def httpServer(using Logger[IO]): Stream[IO, Server] =
-    EmberServerBuilder
-      .default[IO]
-      .withHost(Bot.chaster.host)
-      .withPort(Bot.chaster.port)
-      .withHttpApp(Registration.routes.orNotFound)
-      .build
-      .streamed
-
-  private def acquireHttpClient(using Logger[IO]): Stream[IO, Client[IO]] =
-    def retryPolicy(request: Request[IO], response: Either[Throwable, Response[IO]], retries: Int): Option[FiniteDuration] =
-      response.toOption.flatMap {
-        case response if response.status == Status.TooManyRequests =>
-          response.headers.get(ci"x-ratelimit-reset")
-            .map(_.head.value)
-            .map(LocalDateTime.parse(_, DateTimeFormatter.ofPattern("EEE, dd MMM yyy HH:mm:ss zzz")))
-            .map(ChronoUnit.SECONDS.between(LocalDateTime.now, _).seconds)
-        case _ => None
-      }
-
+  def run[Log <: DiscordLogger](
+    commanderBuilder: Builder[Commander[Log]],
+  )(using IORuntime): IO[Unit] =
     for
-      client <- EmberClientBuilder.default[IO].withRetryPolicy(retryPolicy).build.streamed
-      _ <- Bot.client.complete(client).streamed
-      _ <- Logger[IO].info("HTTP client acquired.").streamed
-    yield client
-    
-  def extra(using Logger[IO]): IO[Unit] = IO.unit
+      given Logger[IO] <- Slf4jLogger.create[IO]
+      (discordConfig, postgresConfig) <- loadConfigs
+      //given DiscordLogger <- DiscordLogger.create
 
-  override def run(args: List[String]): IO[ExitCode] =
-    (for
-      logger  <- Slf4jLogger.create[IO].streamed
-      given Logger[IO] = logger
-      _ = Bot.runtime = runtime
-      _ <- Bot.logger.complete(logger).streamed
-      _ <- runMigrations.streamed
-      _ <- acquireHttpClient
-      discord <- acquireDiscordClient.streamed
-      _ <- registerSlashCommands(discord).start.streamed
-      _ <- extra.streamed
-      _ <- httpServer.concurrently(combinedTasks)
-    yield ExitCode.Success).compile.lastOrError
+      _ <- runMigrations(postgresConfig)
+      given Transactor[IO] = postgresConfig.transactor
+      given LogHandler <- DoobieLogHandler.default
+      discordDeferred <- Deferred[IO, Discord]
 
-object Bot:
-  val client: Deferred[IO, Client[IO]] = Deferred.unsafe
-  val discord: Deferred[IO, Discord] = Deferred.unsafe
-  val logger: Deferred[IO, Logger[IO]] = Deferred.unsafe
+      userTokenRepository = new UserTokenRepository
+      registeredUserRepository = new RegisteredUserRepository(discordDeferred, userTokenRepository)
 
-  var runtime: IORuntime = uninitialized
+      chasterClient <- ChasterClient(
+        (id, accessToken) => userTokenRepository.update(id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+      )
 
-  lazy val discordConfig: DiscordConfiguration = DiscordConfiguration.fromConfig()
-  lazy val chaster: ChasterConfiguration = ChasterConfiguration.fromConfig()
-  lazy val postgres: PostgresConfiguration = PostgresConfiguration.fromConfig()
-  lazy val channels: ChannelConfig = ChannelConfig.fromConfig() //Load this config after starting JDA
+      commander = commanderBuilder(
+        discordDeferred,
+        chasterClient,
+        registeredUserRepository,
+        userTokenRepository,
+      )
+
+      given Log = commander.logger
+
+      registration <- Registration(registeredUserRepository, userTokenRepository, chasterClient, commander.unregisterHooks)
+
+      commanderWithDefaults = commander.withDefaults(
+        registeredUserRepository,
+        userTokenRepository,
+        registration
+      )
+
+      messageListener = new MessageListener(registration, commanderWithDefaults)
+      (discord, releaseDiscord) <- acquireDiscordClient(discordConfig.token, messageListener).allocated
+      _ <- discordDeferred.complete(discord)
+      _ <- commander.onDiscordAcquired(discord)
+      (_, releaseHttpServer) <- httpServer(chasterClient.config, registration.routes).allocated
+      _ <- commanderWithDefaults.registerSlashCommands(discord).start
+      _ <- commanderWithDefaults.combinedTasks.compile.lastOrError
+      _ <- releaseDiscord
+      _ <- releaseHttpServer
+    yield ()

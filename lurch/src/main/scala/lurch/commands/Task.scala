@@ -9,6 +9,8 @@ import bot.model.{DiscordID, User}
 import cats.data.{EitherT, OptionT}
 import cats.effect.{IO, Ref}
 import doobie.implicits.*
+import doobie.util.transactor.Transactor
+import lurch.LurchLogger
 import lurch.wheel.Task as WheelTask
 import org.typelevel.log4cats.Logger
 
@@ -19,7 +21,10 @@ case class Task(
 ):
   def cleanedDescription: Task = copy(description = description.replaceAll("<br/?>", "\n").replaceAll("<.+?>", ""))
 
-object Task extends SlashCommand with Options with SlowResponse:
+class TaskCommand(
+  registeredUserRepository: RegisteredUserRepository,
+  mySqlTransactor: Transactor[IO],
+)(using LurchLogger) extends SlashCommand with Options with SlowResponse:
   override val defaultEnabled: Boolean = false
   override val fullCommand: String = "task"
   override val options: List[PatternOption] = List(
@@ -33,8 +38,8 @@ object Task extends SlashCommand with Options with SlowResponse:
     val tag = event.getOption[String]("tag")
     val discordUser = event.getOption[User]("user")
     val response = for
-      user <- RegisteredUserRepository.find(discordUser.discordID.equalDiscordID).toRight(s"Couldn't find registered user $discordUser")
-      task <- WheelTask.handleTask(tag, user).toRight("Failed to get task.")
+      user <- registeredUserRepository.find(discordUser.discordID.equalDiscordID).toRight(s"Couldn't find registered user $discordUser")
+      task <- WheelTask.handleTask(tag, user, mySqlTransactor).toRight("Failed to get task.")
     yield task
     eitherTResponse(response, slashAPI).void
 
