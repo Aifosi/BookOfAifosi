@@ -6,7 +6,6 @@ object task extends TaskSyntax
 object io extends IOSyntax
 object resource extends ResourceSyntax
 object stream extends StreamSyntax
-object string extends StringSyntax
 
 object all
   extends ChainingSyntax
@@ -15,4 +14,3 @@ object all
     with IOSyntax
     with ResourceSyntax
     with StreamSyntax
-    with StringSyntax

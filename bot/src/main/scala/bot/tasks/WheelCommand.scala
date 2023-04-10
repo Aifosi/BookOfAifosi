@@ -1,8 +1,7 @@
 package bot.tasks
 
-import bot.Bot
-import bot.chaster.{ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
-import bot.chaster.Client.{*, given}
+import bot.{Bot, DiscordLogger, chaster}
+import bot.chaster.{ChasterClient, ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
 import bot.model.{ChasterID, RegisteredUser}
@@ -17,7 +16,14 @@ import org.typelevel.log4cats.Logger
 import scala.util.matching.Regex
 import scala.reflect.Typeable
 
-abstract class WheelCommand:
+abstract class WheelCommand(client: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
+
+  def authenticatedEndpoints(lock: Lock): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
+    for
+      chasterKeyholder <- OptionT.fromOption(lock.keyholder)
+      keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID)
+    yield client.authenticatedEndpoints(keyholder.token)
+
   def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
 trait SimpleWheelCommand[T]:
@@ -29,7 +35,10 @@ trait SimpleWheelCommand[T]:
     run(user, lock, modifier(segment)).map((_, segment))
 
 
-abstract class TextWheelCommand extends WheelCommand:
+abstract class TextWheelCommand(
+  client: ChasterClient,
+  registeredUserRepository: RegisteredUserRepository,
+)(using DiscordLogger) extends WheelCommand(client, registeredUserRepository):
   def pattern: Regex
 
   override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
@@ -37,13 +46,10 @@ abstract class TextWheelCommand extends WheelCommand:
 
   def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean]
 
-def keyholder(lock: Lock)(using Logger[IO]): OptionT[IO, RegisteredUser] =
-  for
-    chasterKeyholder <- OptionT.fromOption(lock.keyholder)
-    keyholder <- RegisteredUserRepository.find(chasterKeyholder._id.equalChasterID)
-  yield keyholder
-
-abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] extends TextWheelCommand:
+abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable](
+  client: ChasterClient,
+  registeredUserRepository: RegisteredUserRepository
+)(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
   def textPattern: String
   def logName: String
 
@@ -63,13 +69,14 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable] ext
             case Some("/") => Divide(value)
             case _         => Exact(value)
 
-          (for
-            keyholder <- keyholder(lock)
-            _ <- OptionT.liftF(keyholder.updateExtension[Config](lock._id)(configUpdate(_, modifier)))
-            message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
-            _ <- OptionT.liftF(Logger[IO].debug(s"$user $logName changed $message"))
-            _ <- Bot.channels.spinlog.sendMessage(s"${user.mention} $logName changed $message")
-          yield ())
+          authenticatedEndpoints(lock).semiflatMap { endpoints =>
+            for
+              _ <- endpoints.updateExtension[Config](lock._id)(configUpdate(_, modifier))
+              message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
+              _ <- Logger[IO].debug(s"$user $logName changed $message")
+              _ <- discordLogger.logToSpinlog(s"${user.mention} $logName changed $message")
+            yield ()
+          }
             .fold(false)(_ => true)
         }
       case _ => IO.pure(false)

@@ -1,9 +1,10 @@
 package lurch.model
 
 import bot.Bot
-import bot.model.{DiscordID, Message, RegisteredUser}
+import bot.model.{Channel, DiscordID, Message, RegisteredUser}
 import cats.data.OptionT
 import cats.effect.IO
+import cats.effect.kernel.Deferred
 import lurch.Lurch
 
 import java.time.Instant
@@ -20,4 +21,5 @@ case class PendingTask(
 ):
   override def toString: String = s"Task \"$title\""
 
-  lazy val message: OptionT[IO, Message] = Lurch.channels.tortureChamber.flatMap(_.findMessageByID(messageID))
+  def message(tortureChamberChannel: Deferred[IO, Option[Channel]]): OptionT[IO, Message] =
+    OptionT(tortureChamberChannel.get).flatMap(_.findMessageByID(messageID))

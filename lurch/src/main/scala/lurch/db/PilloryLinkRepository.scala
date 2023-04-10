@@ -3,17 +3,16 @@ package lurch.db
 import bot.Bot
 import bot.db.Filters.*
 import bot.db.given
-import bot.db.Log.given
 import bot.db.{ModelRepository, RegisteredUserRepository}
-import bot.model.{ChasterID, DiscordID}
+import bot.model.{ChasterID, Discord, DiscordID, given}
 import bot.utils.Maybe
 import cats.data.EitherT
-import cats.effect.IO
+import cats.effect.{Deferred, IO}
 import cats.effect.LiftIO.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
 import cats.syntax.traverse.*
-import doobie.Fragment
+import doobie.{Fragment, LogHandler, Transactor}
 import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
@@ -30,14 +29,19 @@ case class PilloryLink(
   counted: Boolean,
 )
 
-object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkModel]:
+class PilloryLinkRepository(
+  discord: Deferred[IO, Discord],
+  registeredUserRepository: RegisteredUserRepository,
+)(
+  using transactor: Transactor[IO], logHandler: LogHandler
+) extends ModelRepository[PilloryLink, PilloryLinkModel]:
   override protected val table: Fragment = fr"pillory_links"
   override protected val columns: List[String] = List("user_id", "guild_discord_id", "post_id", "counted")
 
   override def toModel(pilloryLink: PilloryLink): Maybe[PilloryLinkModel] =
     for
-      user <- RegisteredUserRepository.get(pilloryLink.userID.equalID).to[Maybe]
-      discord <- Bot.discord.get.to[Maybe]
+      user <- registeredUserRepository.get(pilloryLink.userID.equalID).to[Maybe]
+      discord <- discord.get.to[Maybe]
       guild <- discord.guildByID(pilloryLink.guildID)
     yield PilloryLinkModel(user, guild, pilloryLink.postID, pilloryLink.counted)
 
@@ -49,7 +53,7 @@ object PilloryLinkRepository extends ModelRepository[PilloryLink, PilloryLinkMod
     sql"insert into $table (user_id, guild_discord_id, post_id) values ($userID, $guildID, $postID)"
       .update
       .withUniqueGeneratedKeys[PilloryLink]("user_id", "guild_discord_id", "post_id", "counted")
-      .transact(Bot.postgres.transactor)
+      .transact(transactor)
       .flatMap(unsafeToModel)
 
   def setCounted(

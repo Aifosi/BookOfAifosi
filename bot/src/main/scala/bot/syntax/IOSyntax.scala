@@ -20,6 +20,3 @@ trait IOSyntax:
     def streamed: Stream[IO, A] = Stream.eval(io)
     def logError(default: => A)(using Logger[IO]): IO[A] = io.attempt.flatMap(_.fold(error => Logger[IO].error(error)(error.getMessage).as(default), _.pure))
     def logErrorOption(using Logger[IO]): IO[Option[A]] = io.attempt.flatMap(_.fold(error => Logger[IO].error(error)(error.getMessage).as(None), _.some.pure))
-
-  extension (maybeChannel: OptionT[IO, Channel])
-    def sendMessage(string: String): OptionT[IO, Message] = maybeChannel.semiflatMap(_.sendMessage(string))

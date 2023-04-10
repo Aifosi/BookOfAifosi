@@ -48,59 +48,72 @@ lazy val sharedSettings = Seq(
   // format: on
 )
 
-lazy val ChasterDiscordBot = project
+lazy val root = project
   .in(file("."))
+  .settings(name := "Chaster Discord Bots")
   .aggregate(
+    chaster,
     bot,
-    shared,
+    common,
     lurch,
     bookOfAifosi,
   )
 
-lazy val bot = project
-  .in(file("bot"))
+lazy val chaster = project
+  .in(file("chaster"))
   .settings(
-    name := "Chaster Discord Bot",
-    resolvers += "jcenter-bintray" at "https://jcenter.bintray.com",
+    name := "Chaster client",
     sharedSettings,
     libraryDependencies ++= Seq(
-      "com.github.pureconfig" %% "pureconfig-core"      % pureconfig,
-      "org.typelevel"         %% "cats-effect"          % catsEffect,
-      "co.fs2"                %% "fs2-core"             % fs2,
-      //Discord
-      "net.dv8tion"            % "JDA"                  % jda,
+      "com.github.pureconfig" %% "pureconfig-core"        % pureconfig,
+      "com.github.pureconfig" %% "pureconfig-cats-effect" % pureconfig,
+      "org.typelevel"         %% "cats-effect"            % catsEffect,
+      "co.fs2"                %% "fs2-core"               % fs2,
       //HTTP
-      "org.http4s"            %% "http4s-dsl"           % http4s,
-      "org.http4s"            %% "http4s-core"          % http4s,
-      "org.http4s"            %% "http4s-circe"         % http4s,
-      "org.http4s"            %% "http4s-ember-server"  % http4s,
-      "org.http4s"            %% "http4s-ember-client"  % http4s,
-      "io.circe"              %% "circe-core"           % circe,
-      "io.circe"              %% "circe-parser"         % circe,
-      //DB
-      "org.postgresql"         % "postgresql"           % postgres,
-      "mysql"                  % "mysql-connector-java" % mysql,
-      "org.flywaydb"           % "flyway-core"          % flyway,
-      "org.tpolecat"          %% "doobie-core"          % doobie,
-      "org.tpolecat"          %% "doobie-postgres"      % doobie,
+      "org.http4s"            %% "http4s-dsl"             % http4s,
+      "org.http4s"            %% "http4s-core"            % http4s,
+      "org.http4s"            %% "http4s-circe"           % http4s,
+      "org.http4s"            %% "http4s-ember-client"    % http4s,
+      "io.circe"              %% "circe-core"             % circe,
+      "io.circe"              %% "circe-parser"           % circe,
       //Logging
-      "ch.qos.logback"         % "logback-classic"      % logback,
-      "org.typelevel"         %% "log4cats-slf4j"       % log4cats,
+      "ch.qos.logback"         % "logback-classic"        % logback,
+      "org.typelevel"         %% "log4cats-slf4j"         % log4cats,
     ),
   )
 
-lazy val shared = project
-  .in(file("shared"))
+lazy val bot = project
+  .in(file("bot"))
+  .dependsOn(chaster)
+  .settings(
+    name := "Chaster Discord Bot",
+    sharedSettings,
+    libraryDependencies ++= Seq(
+      //Discord
+      "net.dv8tion"            % "JDA"                  % jda,
+      //HTTP
+      "org.http4s"            %% "http4s-ember-server"  % http4s,
+      //DB
+      "mysql"                  % "mysql-connector-java" % mysql,
+      "org.postgresql"         % "postgresql"           % postgres,
+      "org.flywaydb"           % "flyway-core"          % flyway,
+      "org.tpolecat"          %% "doobie-core"          % doobie,
+      "org.tpolecat"          %% "doobie-postgres"      % doobie,
+    ),
+  )
+
+lazy val common = project
+  .in(file("common"))
   .dependsOn(bot)
   .settings(
-    name := "Shared",
+    name := "Bot common",
     sharedSettings,
   )
 
 lazy val lurch = project
   .in(file("lurch"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(shared)
+  .dependsOn(common)
   .settings(
     name := "Lurch",
     Universal / javaOptions ++= Seq(
@@ -113,7 +126,7 @@ lazy val lurch = project
 lazy val bookOfAifosi = project
   .in(file("bookofaifosi"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(shared)
+  .dependsOn(common)
   .settings(
     name := "BookOfAifosi",
     Universal / javaOptions ++= Seq(
@@ -122,4 +135,3 @@ lazy val bookOfAifosi = project
     dockerSettings,
     sharedSettings,
   )
-

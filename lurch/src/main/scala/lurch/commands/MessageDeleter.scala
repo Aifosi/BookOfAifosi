@@ -9,13 +9,15 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
 
-object MessageDeleter extends TextCommand with Hidden:
+class MessageDeleter(
+  lockedChannelsRepository: LockedChannelsRepository,
+) extends TextCommand with Hidden:
   override def pattern: Regex = Command.all
 
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     for
       guild <- event.guild
-      channelIsLocked <- LockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).isDefined
+      channelIsLocked <- lockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).isDefined
       _ <- if channelIsLocked then event.message.delete else IO.unit
     yield channelIsLocked
 

@@ -21,7 +21,10 @@ import net.dv8tion.jda.api.interactions.commands.OptionType
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAdapter:
+class MessageListener(
+  registration: Registration,
+  commander: Commander[?],
+)(using l: Logger[IO], r: IORuntime, discordLogger: DiscordLogger) extends ListenerAdapter:
   private def runCommandList[T, E <: Event](
     event: E,
     commands: List[Command[T, E]],
@@ -54,12 +57,12 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
     for
       guild <- event.guild
       mention = if guild.isOwner(event.author) then event.author.name else event.author.mention
-      _ <- Bot.channels.log.sendMessage(mention + message).value.void //TODO Add to base bot config, maybe on same namespace?
+      _ <- discordLogger.logToChannel(mention + message)
       _ <- Logger[IO].info(event.author.toString + message)
     yield ()
 
   override def onMessageReceived(event: MessageReceivedEvent): Unit =
-    runCommandList(event, bot.textCommands) { (event, command) =>
+    runCommandList(event, commander.textCommands) { (event, command) =>
       lazy val subgroups = command.pattern.findFirstMatchIn(event.content).get.subgroups.mkString(" ")
       if command.pattern != Command.all then
         log(event, s" issued text command $command $subgroups".stripTrailing)
@@ -68,12 +71,12 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
     }.unsafeRunSync()
 
   override def onMessageReactionAdd(event: MessageReactionAddEvent): Unit =
-    runCommandList(event, bot.reactionCommands) { (event, command) =>
+    runCommandList(event, commander.reactionCommands) { (event, command) =>
       log(event, s" issued reaction command $command".stripTrailing)
     }.unsafeRunSync()
 
   override def onSlashCommandInteraction(event: SlashCommandInteractionEvent): Unit =
-    runCommandList(event, bot.slashCommands) { (event, command) =>
+    runCommandList(event, commander.slashCommands) { (event, command) =>
       val options = event.allOptions.map {
         case option if option.getType == OptionType.MENTIONABLE || option.getType == OptionType.USER || option.getType == OptionType.ROLE || option.getType == OptionType.CHANNEL =>
           s"${option.getName}: ${option.getAsMentionable.getAsMention}"
@@ -84,7 +87,7 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
     }.unsafeRunSync()
 
   override def onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent): Unit =
-    bot.autoCompletableCommands.foldLeft(IO.pure(false)) {
+    commander.autoCompletableCommands.foldLeft(IO.pure(false)) {
       case (io, command) if command.matchesAutoComplete(event) =>
         for
           stopped <- io
@@ -98,7 +101,7 @@ class MessageListener(bot: Bot)(using Logger[IO], IORuntime) extends ListenerAda
   override def onGuildMemberRemove(event: GuildMemberRemoveEvent): Unit =
     val io = for
       logger  <- Slf4jLogger.create[IO]
-      message <- Registration.unregister(new Member(event.getMember))
+      message <- registration.unregister(new Member(event.getMember))
       _ <- message.fold(IO.unit)(new User(event.getUser).sendMessage)
     yield ()
     io.unsafeRunSync()
