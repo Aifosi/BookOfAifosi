@@ -185,6 +185,17 @@ class ChasterClient private(
     def unfreeze(lock: ChasterID): IO[Unit] = setFreeze(lock, false)
     def action[Payload: Encoder, Response: Decoder](lock: ChasterID, extension: ChasterID)(payload: Payload): IO[Response] =
       expectAuthenticated(POST(payload, API / "locks" / lock / "extensions" / extension / "action"))
+    def settings(lockID: ChasterID, settingsUpdate: SettingsUpdate): IO[Unit] =
+      expectAuthenticated(POST(settingsUpdate, API / "locks" / lockID / "settings"))
+    def updateSettings(lockID: ChasterID, settingsUpdate: SettingsUpdate => SettingsUpdate): IO[Unit] =
+      for
+        lock <- lock(lockID)
+        currentSettings = SettingsUpdate(
+          lock.displayRemainingTime,
+          lock.hideTimeLogs,
+        )
+        _ <- settings(lockID, settingsUpdate(currentSettings))
+      yield ()
     def extensions(lock: ChasterID, extensionUpdates: ConfigUpdate[ExtensionConfig]*): IO[Unit] =
       expectAuthenticated(POST(ConfigUpdatePayload(extensionUpdates.toList), API / "locks" / lock / "extensions"))
     def updateExtensions(lockID: ChasterID)(update: List[ConfigUpdate[ExtensionConfig]] => List[ConfigUpdate[ExtensionConfig]]): IO[Unit] =
