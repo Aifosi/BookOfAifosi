@@ -14,4 +14,8 @@ class SessionVoteRemove(
   override def pattern: String = SessionVoter.remove
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =
-    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Remove).fold(false)(_ => true)
+    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Remove)
+      .foldF(
+        error => Logger[IO].debug(error).as(false),
+        _ => IO.pure(true),
+      )

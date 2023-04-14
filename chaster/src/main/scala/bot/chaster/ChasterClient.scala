@@ -184,8 +184,14 @@ class ChasterClient private(
     def setFreeze(lock: ChasterID, freeze: Boolean): IO[Unit] = expectAuthenticated(POST(Json.obj("isFrozen" -> Json.fromBoolean(freeze)), API / "locks" / lock / "freeze"))
     def freeze(lock: ChasterID): IO[Unit] = setFreeze(lock, true)
     def unfreeze(lock: ChasterID): IO[Unit] = setFreeze(lock, false)
-    def action[Payload: Encoder, Response: Decoder](lock: ChasterID, extension: ChasterID)(payload: Payload): IO[Response] =
-      expectAuthenticated(POST(payload, API / "locks" / lock / "extensions" / extension / "action"))
+    def action[Response: Decoder](
+      lock: ChasterID,
+      extension: ChasterID,
+    )(
+      action: String,
+      payload: ExtensionActionPayload,
+    ): IO[Response] =
+      expectAuthenticated(POST(ExtensionAction(action, payload), API / "locks" / lock / "extensions" / extension / "action"))
     def settings(lockID: ChasterID, settingsUpdate: SettingsUpdate): IO[Unit] =
       expectAuthenticated(POST(settingsUpdate, API / "locks" / lockID / "settings"))
     def updateSettings(lockID: ChasterID, settingsUpdate: SettingsUpdate => SettingsUpdate): IO[Unit] =
@@ -221,8 +227,8 @@ class ChasterClient private(
     def sharedLink(sharedLink: ChasterID): IO[SharedLink] =
       expectAuthenticated(GET(API / "shared-links" / sharedLink))
 
-    def vote(lock: ChasterID, extension: ChasterID, action: VoteAction, sharedLink: ChasterID): IO[Unit] =
-      authenticatedEndpoints.action[VotePayload, Unit](lock, extension)(VotePayload(action, sharedLink))
+    def vote(lock: ChasterID, extension: ChasterID, action: VoteAction, sharedLink: ChasterID): IO[FiniteDuration] =
+      authenticatedEndpoints.action[VoteResponse](lock, extension)("vote", VotePayload(action, sharedLink)).map(_.duration)
 
 object ChasterClient:
   private def acquireHttpClient: Resource[IO, Client[IO]] =

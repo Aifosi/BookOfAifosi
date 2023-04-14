@@ -11,9 +11,9 @@ object DiscordID:
 
   given Write[DiscordID] = Write.fromPut[Long]
   
-  given Get[DiscordID] = Get[Long].map(DiscordID(_))
+  given Get[DiscordID] = Instances.getLong.map(DiscordID(_))
 
-  given Put[DiscordID] = Put[Long].contramap(_.toLong)
+  given Put[DiscordID] = Instances.putLong.contramap(_.toLong)
   given ConfigReader[DiscordID] = ConfigReader.longConfigReader
 
   def apply(id: Long): DiscordID = id

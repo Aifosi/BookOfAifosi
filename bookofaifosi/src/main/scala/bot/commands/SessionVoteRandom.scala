@@ -14,4 +14,8 @@ class SessionVoteRandom(
   override def pattern: String = SessionVoter.random
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =
-    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Random).fold(false)(_ => true)
+    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Random)
+      .foldF(
+        error => Logger[IO].debug(error).as(false),
+        _ => IO.pure(true),
+      )

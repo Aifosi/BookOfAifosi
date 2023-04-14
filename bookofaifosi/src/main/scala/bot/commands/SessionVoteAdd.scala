@@ -14,5 +14,9 @@ class SessionVoteAdd(
   override def pattern: String = SessionVoter.add
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =
-    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Add).fold(false)(_ => true)
+    SessionVoter.vote(chasterClient, registeredUserRepository, event, VoteAction.Add)
+      .foldF(
+        error => Logger[IO].debug(error).as(false),
+        _ => IO.pure(true),
+      )
 
