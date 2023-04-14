@@ -504,3 +504,25 @@ case class SettingsUpdate(
   displayRemainingTime: Boolean,
   hideTimeLogs: Boolean,
 ) derives Encoder.AsObject
+
+case class SharedLink(
+  lockId: ChasterID,
+  extensionId: ChasterID,
+  votes: Int,
+  minVotes: Int,
+  canVote: Boolean,
+) derives Decoder
+
+enum VoteAction:
+  case Add, Remove, Random
+
+object VoteAction:
+  given Decoder[VoteAction] = Decoder[String].emapTry { string =>
+    Try(VoteAction.valueOf(string.capitalize))
+  }
+  given Encoder[VoteAction] = Encoder[String].contramap(_.toString.toLowerCase)
+
+case class VotePayload(
+  action: VoteAction,
+  sessionId: ChasterID,
+) derives Encoder.AsObject

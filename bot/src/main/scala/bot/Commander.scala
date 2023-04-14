@@ -15,21 +15,21 @@ import org.typelevel.log4cats.Logger
 
 case class Commander[Log <: DiscordLogger](
   logger: Log,
-  allCommands: List[AnyCommand],
+  commands: List[AnyCommand],
   tasks: NonEmptyList[Streams],
   onDiscordAcquired: Discord => IO[Unit],
   unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]] = Set.empty,
 )(using Logger[IO]):
-  lazy val textCommands: List[TextCommand] = allCommands.collect {
+  lazy val textCommands: List[TextCommand] = commands.collect {
     case command: TextCommand => command
   }
-  lazy val reactionCommands: List[ReactionCommand] = allCommands.collect {
+  lazy val reactionCommands: List[ReactionCommand] = commands.collect {
     case command: ReactionCommand => command
   }
-  lazy val slashCommands: List[SlashCommand] = allCommands.collect {
+  lazy val slashCommands: List[SlashCommand] = commands.collect {
     case command: SlashCommand => command
   }
-  lazy val autoCompletableCommands: List[AutoCompletable] = allCommands.collect {
+  lazy val autoCompletableCommands: List[AutoCompletable] = commands.collect {
     case command: AutoCompletable => command
   }
 
@@ -50,4 +50,4 @@ case class Commander[Log <: DiscordLogger](
       new Unregister(registration),
       new Nuke(registeredUserRepository, userTokenRepository),
     )
-    copy(allCommands = alwaysEnabled ++ allCommands)
+    copy(commands = alwaysEnabled ++ commands)

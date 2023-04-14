@@ -15,7 +15,7 @@ import doobie.{ConnectionIO, Fragment, Transactor, LogHandler}
 import java.time.Instant
 import java.util.UUID
 
-class UserTokenRepository(using transactor: Transactor[IO], logHandler: LogHandler) extends ModelRepository[UserToken, UserToken]:
+class UserTokenRepository(using transactor: Transactor[IO], logHandler: LogHandler) extends ModelRepository[UserToken, UserToken] with RepositoryFields:
   override protected val table: Fragment = fr"user_tokens"
   override protected val columns: List[String] = List("id", "access_token", "expires_at", "refresh_token", "scope")
 

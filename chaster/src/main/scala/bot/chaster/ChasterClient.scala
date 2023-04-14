@@ -96,6 +96,7 @@ class ChasterClient private(
   def authenticatedEndpoints(token: UserToken): AuthenticatedEndpoints = new AuthenticatedEndpoints(token)
 
   class AuthenticatedEndpoints(token: UserToken):
+    authenticatedEndpoints =>
     private def withUpdatedToken: IO[AuthenticatedEndpoints] =
       if token.expiresAt.isAfter(Instant.now()) then
         IO.pure(this)
@@ -217,6 +218,11 @@ class ChasterClient private(
         }
         _ <- extensions(lockID, updatedConfigs*)
       yield ()
+    def sharedLink(sharedLink: ChasterID): IO[SharedLink] =
+      expectAuthenticated(GET(API / "shared-links" / sharedLink))
+
+    def vote(lock: ChasterID, extension: ChasterID, action: VoteAction, sharedLink: ChasterID): IO[Unit] =
+      authenticatedEndpoints.action[VotePayload, Unit](lock, extension)(VotePayload(action, sharedLink))
 
 object ChasterClient:
   private def acquireHttpClient: Resource[IO, Client[IO]] =
