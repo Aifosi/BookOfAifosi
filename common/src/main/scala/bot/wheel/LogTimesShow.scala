@@ -1,4 +1,4 @@
-package shared.wheel
+package bot.wheel
 
 import bot.DiscordLogger
 import bot.chaster.{ChasterClient, Lock}
