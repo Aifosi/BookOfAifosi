@@ -144,9 +144,12 @@ class Registration private(
   def register(member: Member, timeout: FiniteDuration): IO[Option[Uri]] =
     val scope = "profile keyholder shared_locks locks"
     registeredUserRepository.find(member.discordID.equalDiscordID)
-      .filterNot(user => containsAllScopes(scope, user.token.scope))
-      .semiflatMap(_ => generateURI(member, scope, timeout))
+      .filter(user => containsAllScopes(scope, user.token.scope))
       .value
+      .flatMap {
+        case Some(_) => IO.pure(None) //Use already registered with all scopes
+        case None => generateURI(member, scope, timeout).map(_.some)
+      }
 
   def unregister(member: Member): IO[Option[String]] =
     import cats.syntax.list.*

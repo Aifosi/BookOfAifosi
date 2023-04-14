@@ -504,3 +504,52 @@ case class SettingsUpdate(
   displayRemainingTime: Boolean,
   hideTimeLogs: Boolean,
 ) derives Encoder.AsObject
+
+case class SharedLink(
+  lockId: ChasterID,
+  extensionId: ChasterID,
+  votes: Int,
+  minVotes: Int,
+  canVote: Boolean,
+) derives Decoder
+
+enum VoteAction:
+  case Add, Remove, Random
+
+object VoteAction:
+  given Decoder[VoteAction] = Decoder[String].emapTry { string =>
+    Try(VoteAction.valueOf(string.capitalize))
+  }
+  given Encoder[VoteAction] = Encoder[String].contramap(_.toString.toLowerCase)
+
+
+sealed trait ExtensionActionPayload
+object ExtensionActionPayload:
+/*  given Decoder[ExtensionActionPayload] = List[Decoder[ExtensionActionPayload]](
+    Decoder[VotePayload].widen,
+  ).reduceLeft(_.or(_))*/
+
+  given Encoder[ExtensionActionPayload] = Encoder.instance {
+    case payload: VotePayload => payload.asJson
+  }
+
+
+case class ExtensionAction[+Payload <: ExtensionActionPayload: Encoder](
+  action: String,
+  payload: Payload
+)
+
+object ExtensionAction:
+  given Encoder[ExtensionAction[ExtensionActionPayload]] = extensionAction => Json.obj(
+    "action" -> extensionAction.action.asJson,
+    "payload" -> extensionAction.payload.asJson,
+  )
+
+case class VotePayload(
+  action: VoteAction,
+  sessionId: ChasterID,
+) extends ExtensionActionPayload derives Encoder.AsObject
+
+case class VoteResponse(
+  duration: FiniteDuration,
+) derives Decoder

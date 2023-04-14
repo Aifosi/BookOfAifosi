@@ -4,6 +4,7 @@
             <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%-22thread] %highlight(%-5level) %cyan(%logger{15}) - %msg%n</pattern>
         </encoder>
     </appender>
+
     <logger name="org.http4s" level="INFO" />
     <logger name="net.dv8tion.jda" level="INFO" />
     <logger name="org.flywaydb" level="INFO" />

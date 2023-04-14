@@ -30,7 +30,7 @@ extension (filters: List[Filter])
       start ++ flattened.reduceLeft(_ ++ sep ++ _) ++ end
   def combineFilters: Fragment = mkFragment(fr"where", fr"and")
 
-private[db] trait RepositoryFields:
+trait RepositoryFields:
   protected val table: Fragment
   protected val columns: List[String]
 

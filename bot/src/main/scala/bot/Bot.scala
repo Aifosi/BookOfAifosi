@@ -99,9 +99,9 @@ object Bot:
     for
       given Logger[IO] <- Slf4jLogger.create[IO]
       (discordConfig, postgresConfig) <- loadConfigs
-      //given DiscordLogger <- DiscordLogger.create
 
       _ <- runMigrations(postgresConfig)
+
       given Transactor[IO] = postgresConfig.transactor
       given LogHandler <- DoobieLogHandler.default
       discordDeferred <- Deferred[IO, Discord]

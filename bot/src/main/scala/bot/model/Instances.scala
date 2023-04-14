@@ -1,9 +1,11 @@
 package bot.model
 
-import doobie.util.{Read, Write}
+import doobie.{Read, Write, Get, Put}
 
 object Instances:
   import doobie.postgres.implicits.*
+  lazy val getLong: Get[Long] = Get[Long]
+  lazy val putLong: Put[Long] = Put[Long]
   lazy val stringListRead: Read[List[String]] = Read[List[String]]
   lazy val stringListWrite: Write[List[String]] = Write[List[String]]
   lazy val stringOptionRead: Read[Option[String]] = Read[Option[String]]
