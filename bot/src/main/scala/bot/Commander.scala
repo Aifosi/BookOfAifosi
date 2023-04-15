@@ -58,5 +58,6 @@ case class Commander[Log <: DiscordLogger](
       new Register(registration),
       new Unregister(registration),
       new Nuke(registeredUserRepository, userTokenRepository),
+      Compress,
     )
     copy(commands = alwaysEnabled ++ commands)
