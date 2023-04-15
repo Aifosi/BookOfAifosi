@@ -26,3 +26,4 @@ class DiceRolls(
         }
       )
     )
+  override val description: String = "Changes the number of required dice rolls"

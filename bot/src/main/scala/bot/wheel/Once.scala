@@ -11,12 +11,13 @@ import cats.effect.IO
 import org.typelevel.log4cats.Logger
 
 import scala.annotation.tailrec
+import scala.util.matching.Regex
 
 class Once(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using discordLogger: DiscordLogger) extends WheelCommand(client, registeredUserRepository):
-  private val onceRegex = "Once: (.+)".r
+)(using discordLogger: DiscordLogger) extends WheelCommand[Regex](client, registeredUserRepository):
+  override val pattern: Regex = "Once: (.+)".r
 
   @tailrec private def dropFirstSegment(
     segments: List[Segment],
@@ -31,7 +32,7 @@ class Once(
   override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     val originalText = segment.text
     originalText match
-      case onceRegex(text) =>
+      case pattern(text) =>
         authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
           for
             _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
@@ -48,3 +49,5 @@ class Once(
           .value
           .as((false, segment.copy(text = text)))
       case _ => IO.pure((false, segment))
+
+  override val description: String = "A segment that deletes itself after being rolled (wheels must always have at least two segments after deleting)"

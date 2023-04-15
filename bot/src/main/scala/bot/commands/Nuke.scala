@@ -13,7 +13,7 @@ class Nuke(
   registeredUserRepository: RegisteredUserRepository,
   userTokenRepository: UserTokenRepository,
 ) extends SlashCommand with Options:
-  override val defaultEnabled: Boolean = false
+  override val isUserCommand: Boolean = false
   override val fullCommand: String = "nuke"
   override val options: List[PatternOption] = List(
     _.addOption[Option[User]]("user", "Discord user mention to delete data for."),

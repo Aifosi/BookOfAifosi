@@ -25,7 +25,7 @@ class Task(
   pendingTaskRepository: PendingTaskRepository,
   mySqlTransactor: Transactor[IO],
 )(using LurchLogger) extends TextWheelCommand(client, registeredUserRepository):
-  override def pattern: Regex = "Task: (.+)".r
+  override val pattern: Regex = "Task: (.+)".r
 
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     lazy val keyholder: OptionT[IO, RegisteredUser] =
@@ -46,6 +46,8 @@ class Task(
       )
 
     Task.handleTask(text, user, mySqlTransactor, addReaction).value.as(true)
+
+  override val description: String = "Grabs a task with the given tag and issues it to the lockee"
 
 object Task:
   def handleTask(

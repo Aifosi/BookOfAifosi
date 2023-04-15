@@ -1,20 +1,17 @@
 package bot.db
 
 import bot.db.Filters.*
-import bot.db.given
-import bot.db.{ModelRepository, RegisteredUserRepository}
-import bot.model.ChasterID
-import bot.model.given
+import bot.db.{ModelRepository, RegisteredUserRepository, given}
+import bot.model.{ChasterID, RecentLockHistory as RecentLockHistoryModel, given}
 import bot.utils.Maybe
 import cats.data.EitherT
 import cats.effect.IO
 import cats.effect.LiftIO.*
 import cats.syntax.option.*
-import doobie.{Fragment, LogHandler, Transactor}
 import doobie.postgres.implicits.*
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
-import bot.model.RecentLockHistory as RecentLockHistoryModel
+import doobie.{Fragment, LogHandler, Transactor}
 
 import java.time.Instant
 import java.util.UUID

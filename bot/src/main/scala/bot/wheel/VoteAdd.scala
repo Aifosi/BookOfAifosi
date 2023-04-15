@@ -28,4 +28,5 @@ class VoteAdd(
         timeToAdd = modifier.apply(configUpdate.config.timeToAdd.toMinutes.toInt).minutes
       )
     )
-    
+
+  override val description: String = "Changes the time added per vote of the shared link"

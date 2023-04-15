@@ -9,7 +9,7 @@ import cats.syntax.foldable.*
 import org.typelevel.log4cats.Logger
 
 object TriggerMessage extends SlashCommand with Options:
-  override val defaultEnabled: Boolean = false
+  override val isUserCommand: Boolean = false
   override val fullCommand: String = "trigger"
   override val options: List[PatternOption] = List(
     _.addOption[User]("user", "Who do you want to send the message to."),

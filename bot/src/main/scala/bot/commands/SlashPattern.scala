@@ -24,6 +24,9 @@ case class SlashPattern(
       copy(subCommandOptions = subCommandOptions :+ option)
     }
 
+  override lazy val toString: String =
+    s"$name${subCommandGroup.fold("")(group => s" $group")}${subCommand.fold("")(subCommand => s" $subCommand")}"
+
 object SlashPattern:
   extension [A](command: A)
     def applyOptions(options: List[A => A]) = options.foldLeft(command)((command, option) => option(command))

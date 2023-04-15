@@ -89,3 +89,5 @@ class AddSegments(
         }
           .fold(false)(_ => true)
       case _ => IO.pure(false)
+
+  override val description: String = "Adds segments to the wheel, the segments text is compressed, use helper command to compress it"

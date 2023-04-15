@@ -9,7 +9,7 @@ import org.typelevel.log4cats.Logger
 class LockChannel(
   lockedChannelsRepository: LockedChannelsRepository,
 ) extends SlashCommand:
-  override val defaultEnabled: Boolean = false
+  override val isUserCommand: Boolean = false
   override val fullCommand: String = "lock channel"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =

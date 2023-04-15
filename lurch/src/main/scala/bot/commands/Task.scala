@@ -25,7 +25,7 @@ class TaskCommand(
   registeredUserRepository: RegisteredUserRepository,
   mySqlTransactor: Transactor[IO],
 )(using LurchLogger) extends SlashCommand with Options with SlowResponse:
-  override val defaultEnabled: Boolean = false
+  override val isUserCommand: Boolean = false
   override val fullCommand: String = "task"
   override val options: List[PatternOption] = List(
     _.addOption[User]("user", "Discord user to give the task to."),

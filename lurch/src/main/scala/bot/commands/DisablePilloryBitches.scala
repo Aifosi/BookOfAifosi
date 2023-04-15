@@ -10,7 +10,7 @@ import org.typelevel.log4cats.Logger
 class DisablePilloryBitches(
   pilloryBitchesRepository: PilloryBitchesRepository,
 ) extends SlashCommand:
-  override val defaultEnabled: Boolean = false
+  override val isUserCommand: Boolean = false
   override val fullCommand: String = "pillory bitches disable"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
