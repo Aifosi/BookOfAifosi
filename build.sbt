@@ -21,7 +21,6 @@ ThisBuild / githubWorkflowIncludeClean := false
 ThisBuild / githubWorkflowTargetBranches := Seq("master")
 ThisBuild / githubWorkflowTargetPaths := Paths.Include(List("**version.sbt"))
 ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.Equals(Ref.Branch("master")))
-ThisBuild / githubWorkflowArtifactUpload := false
 
 ThisBuild / githubWorkflowPublishPreamble  := Seq(
   WorkflowStep.Use(
