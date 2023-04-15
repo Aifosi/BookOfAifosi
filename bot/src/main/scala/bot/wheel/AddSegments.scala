@@ -3,11 +3,13 @@ package bot.wheel
 import bot.{Bot, DiscordLogger}
 import bot.chaster.SegmentType.Text
 import bot.chaster.{ChasterClient, Lock, Segment, SegmentType, WheelOfFortuneConfig}
+import bot.commands.Compress
 import bot.db.RegisteredUserRepository
 import bot.db.Filters.*
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
 import bot.tasks.TextWheelCommand
+import bot.wheel.AddSegments.*
 import cats.data.OptionT
 import cats.effect.IO
 import io.circe.parser.decode
@@ -32,6 +34,30 @@ class AddSegments(
 )(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
   override lazy val pattern: Regex = "AddSegments: (.+?)".r
 
+  override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
+    text match
+      case pattern(text) =>
+        authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
+          for
+            _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
+              configUpdate.copy(
+                config = configUpdate.config.copy(
+                  segments = configUpdate.config.segments ++ text.decodeSegments
+                ),
+              )
+            }
+            _ <- Logger[IO].debug(s"Added $text segments to $user Wheel of fortune")
+            _ <- discordLogger.logToSpinlog(s"$text segments to ${user.mention} Wheel of fortune")
+          yield ()
+        }
+          .fold(false)(_ => true)
+      case _ => IO.pure(false)
+
+  override val description: String = s"Adds segments to the wheel, the segments text is compressed, use ${Compress.fullCommand} command to compress them"
+
+
+
+object AddSegments:
   extension (string: String)
     def inflate: Try[String] = Try {
       val bytes = Base64.getDecoder.decode(string)
@@ -70,24 +96,3 @@ class AddSegments(
               }
             }
       }
-
-  override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
-    text match
-      case pattern(text) =>
-        authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
-          for
-            _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
-              configUpdate.copy(
-                config = configUpdate.config.copy(
-                  segments = configUpdate.config.segments ++ text.decodeSegments
-                ),
-              )
-            }
-            _ <- Logger[IO].debug(s"Added $text segments to $user Wheel of fortune")
-            _ <- discordLogger.logToSpinlog(s"$text segments to ${user.mention} Wheel of fortune")
-          yield ()
-        }
-          .fold(false)(_ => true)
-      case _ => IO.pure(false)
-
-  override val description: String = "Adds segments to the wheel, the segments text is compressed, use helper command to compress it"
