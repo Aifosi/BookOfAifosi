@@ -11,6 +11,36 @@ val flyway = "9.16.0"
 val logback = "1.4.6"
 val log4cats = "2.5.0"
 
+val scala3Version = "3.2.2"
+ThisBuild / scalaVersion := scala3Version
+
+ThisBuild / publish / skip := true
+ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+ThisBuild / crossScalaVersions := List(scala3Version)
+ThisBuild / githubWorkflowIncludeClean := false
+ThisBuild / githubWorkflowTargetBranches := Seq("master")
+ThisBuild / githubWorkflowTargetPaths := Paths.Include(List("**version.sbt"))
+ThisBuild / githubWorkflowPublishTargetBranches := Seq(RefPredicate.Equals(Ref.Branch("master")))
+ThisBuild / githubWorkflowArtifactUpload := false
+
+ThisBuild / githubWorkflowPublishPreamble  := Seq(
+  WorkflowStep.Use(
+    name = Some("Login to DockerHub"),
+    ref = UseRef.Public("docker", "login-action", "v2"),
+    params = Map(
+      "username" -> "${{ secrets.DOCKERHUB_USERNAME }}",
+      "password" -> "${{ secrets.DOCKERHUB_PASS }}",
+    ),
+  ),
+)
+
+ThisBuild / githubWorkflowPublish := Seq(
+  WorkflowStep.Sbt(
+    List("Docker / publish"),
+    name = Some("Publish to docker hub")
+  )
+)
+
 lazy val dockerSettings = Seq(
   Docker / dockerRepository := Some("aifosi"),
   dockerUpdateLatest := true,
@@ -19,7 +49,6 @@ lazy val dockerSettings = Seq(
 )
 
 lazy val sharedSettings = Seq(
-  scalaVersion := "3.2.2",
   // format: off
   javacOptions ++= Seq("-Xlint", "-encoding", "UTF-8"),
   scalacOptions ++= Seq(
@@ -48,8 +77,6 @@ lazy val sharedSettings = Seq(
   )
   // format: on
 )
-
-ThisBuild / publish / skip := true
 
 lazy val root = project
   .in(file("."))
