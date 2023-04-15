@@ -28,3 +28,5 @@ class DiceMultiplier(
         multiplier = modifier.apply(configUpdate.config.multiplier.toMinutes.toInt).minutes
       )
     )
+    
+  override val description: String = "Changes the dice multiplier"

@@ -9,7 +9,7 @@ import cats.data.NonEmptyList
 def commonWheelCommands(
   chasterClient: ChasterClient,
   registeredUserRepository: RegisteredUserRepository
-)(using DiscordLogger): NonEmptyList[WheelCommand] = NonEmptyList.of(
+)(using DiscordLogger): NonEmptyList[WheelCommand[?]] = NonEmptyList.of(
   new Once(chasterClient, registeredUserRepository),
   new OnceGroup(chasterClient, registeredUserRepository),
   //These two need to be before other commands

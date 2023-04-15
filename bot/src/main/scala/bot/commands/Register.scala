@@ -7,7 +7,7 @@ import scala.concurrent.duration.*
 import org.typelevel.log4cats.Logger
 
 class Register(registration: Registration) extends SlashCommand:
-  override val defaultEnabled: Boolean = true
+  override val isUserCommand: Boolean = true
 
   override val fullCommand: String = "register"
 
@@ -20,4 +20,4 @@ class Register(registration: Registration) extends SlashCommand:
       _ <- event.replyEphemeral(message)
     yield true
 
-  override val description: String = "Allows you to register, linking your discord and chaster accounts."
+  override val description: String = "Allows you to register, linking your discord and chaster accounts"

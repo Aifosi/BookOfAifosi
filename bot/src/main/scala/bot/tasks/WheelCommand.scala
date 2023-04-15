@@ -16,7 +16,9 @@ import org.typelevel.log4cats.Logger
 import scala.util.matching.Regex
 import scala.reflect.Typeable
 
-abstract class WheelCommand(client: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
+abstract class WheelCommand[Pattern](client: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
+  def pattern: Pattern
+  def description: String
 
   def authenticatedEndpoints(lock: Lock): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
     for
@@ -26,21 +28,11 @@ abstract class WheelCommand(client: ChasterClient, registeredUserRepository: Reg
 
   def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
-trait SimpleWheelCommand[T]:
-  this: WheelCommand =>
-  def modifier(segment: Segment): T
-  def run(user: RegisteredUser, lock: Lock, t: T)(using Logger[IO]): IO[Boolean]
-
-  final override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
-    run(user, lock, modifier(segment)).map((_, segment))
-
 
 abstract class TextWheelCommand(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using DiscordLogger) extends WheelCommand(client, registeredUserRepository):
-  def pattern: Regex
-
+)(using DiscordLogger) extends WheelCommand[Regex](client, registeredUserRepository):
   override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     if pattern.matches(segment.text) then run(user, lock, segment.text).map((_, segment)) else IO.pure((false, segment))
 

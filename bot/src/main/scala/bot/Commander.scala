@@ -3,10 +3,11 @@ package bot
 import bot.commands
 import bot.commands.*
 import bot.db.{RegisteredUserRepository, UserTokenRepository}
-import bot.model.{Discord, RegisteredUser}
+import bot.model.{Discord, DiscordID, RegisteredUser}
+import bot.syntax.action.*
 import bot.syntax.stream.*
 import bot.tasks.Streams
-import cats.data.{NonEmptyList, EitherT}
+import cats.data.{EitherT, NonEmptyList}
 import cats.effect.{Deferred, IO}
 import cats.syntax.traverse.*
 import cats.syntax.foldable.*
@@ -28,7 +29,7 @@ case class Commander[Log <: DiscordLogger](
   }
   lazy val slashCommands: List[SlashCommand] = commands.collect {
     case command: SlashCommand => command
-  }
+  } :+ new Help(commands, tasks)
   lazy val autoCompletableCommands: List[AutoCompletable] = commands.collect {
     case command: AutoCompletable => command
   }
@@ -37,8 +38,16 @@ case class Commander[Log <: DiscordLogger](
     tasks.map(_.stream.logErrorAndContinue()).reduceLeft(_.concurrently(_))
 
   def registerSlashCommands(discord: Discord): IO[Unit] =
-    val patterns = SlashPattern.buildCommands(slashCommands.map(_.pattern))
-    discord.guilds.traverse_(_.addCommands(patterns)) *> Logger[IO].info("All Slash commands registered.")
+    lazy val slashCommandData = SlashPattern.buildCommands(slashCommands.map(_.pattern))
+    discord.guilds.traverse_ { guild =>
+      for
+        commandsAdded <- guild.addCommands(slashCommandData)
+        commands <- guild.commands
+        _ <- commands.collect {
+          case jdaCommand if !commandsAdded.contains(DiscordID(jdaCommand.getIdLong)) => jdaCommand.delete.toIO
+        }.sequence_
+      yield ()
+    } *> Logger[IO].info("All Slash commands registered.")
 
   def withDefaults(
     registeredUserRepository: RegisteredUserRepository,

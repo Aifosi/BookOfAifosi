@@ -26,3 +26,5 @@ class VerificationPictures(
         }
       )
     )
+
+  override val description: String = "Changes the number of verified pictures required"

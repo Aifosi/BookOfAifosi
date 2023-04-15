@@ -12,6 +12,7 @@ import fs2.Stream
 import bot.model.Discord.*
 import bot.utils.Maybe
 import cats.data.EitherT
+import net.dv8tion.jda.api.interactions.commands.Command as JDACommand
 
 import scala.jdk.CollectionConverters.*
 
@@ -33,4 +34,11 @@ class Guild(private[model] val guild: JDAGuild):
   def member(userDiscordID: DiscordID): Maybe[Member] =
     actionGetter[Long](userDiscordID.toLong, "guild member", guild.retrieveMemberById, new Member(_))
 
-  def addCommands(commands: List[SlashCommandData]): IO[Unit] = guild.updateCommands().addCommands(commands *).toIO.void
+  def addCommands(commands: List[SlashCommandData]): IO[List[DiscordID]] =
+    guild
+      .updateCommands()
+      .addCommands(commands *)
+      .toIO
+      .map(_.asScala.toList.map(command => DiscordID(command.getIdLong)))
+  
+  def commands: IO[List[JDACommand]] = guild.retrieveCommands().toIO.map(_.asScala.toList)

@@ -19,3 +19,5 @@ class LogTimesToggle(
     client.authenticatedEndpoints(user.token)
       .updateSettings(lock._id, settings => settings.copy(hideTimeLogs = !settings.hideTimeLogs))
       .as(true)
+
+  override val description: String = "Toggles time being shown in the lock log"

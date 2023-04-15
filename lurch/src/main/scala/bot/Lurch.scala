@@ -68,7 +68,7 @@ object Lurch extends IOApp.Simple:
         new TaskCompleter(pendingTaskRepository, lurchLogger.tortureChamberChannelDeferred),
       )
 
-      val wheelCommands: NonEmptyList[WheelCommand] =
+      val wheelCommands: NonEmptyList[WheelCommand[?]] =
         commonWheelCommands(chasterClient, registeredUserRepository) :+
           new wheel.Task(chasterClient, registeredUserRepository, pendingTaskRepository, mysqlConfiguration.transactor)
 

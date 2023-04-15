@@ -28,3 +28,5 @@ class VoteRemove(
         timeToRemove = modifier.apply(configUpdate.config.timeToRemove.toMinutes.toInt).minutes
       )
     )
+
+  override val description: String = "Changes the time removed per vote of the shared link"

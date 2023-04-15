@@ -27,3 +27,5 @@ class VoteTarget(
         nbVisits = modifier.apply(configUpdate.config.nbVisits)
       )
     )
+
+  override val description: String = "Change the number of votes required for the lock"

@@ -23,3 +23,4 @@ class PilloryVoteTime(
       )
     )
 
+  override val description: String = "Changes the time added per vote in the pillory"

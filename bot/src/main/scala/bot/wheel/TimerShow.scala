@@ -10,12 +10,14 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
 
-class TimerToggle(
+class TimerShow(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
 )(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
-  override lazy val pattern: Regex = "(Toggle|Show/Hide)Timer".r
+  override lazy val pattern: Regex = "ShowTimer".r
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     client.authenticatedEndpoints(user.token)
-      .updateSettings(lock._id, settings => settings.copy(displayRemainingTime = !settings.displayRemainingTime))
+      .updateSettings(lock._id, _.copy(displayRemainingTime = true))
       .as(true)
+
+  override val description: String = "Shows the lock timer"

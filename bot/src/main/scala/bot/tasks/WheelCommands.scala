@@ -1,13 +1,13 @@
 package bot.tasks
 
-import bot.{Bot, DiscordLogger}
-import bot.chaster.{ChasterClient, Event, Lock, Segment, SegmentType, WheelTurnedPayload}
+import bot.chaster.*
 import bot.db.Filters.*
-import bot.db.RegisteredUserRepository
-import bot.model.{ChasterID, RegisteredUser}
-import bot.tasks.{RepeatedStreams, WheelCommand}
+import bot.db.{RecentLockHistoryRepository, RegisteredUserRepository}
+import bot.model.{ChasterID, RecentLockHistory, RegisteredUser}
 import bot.syntax.io.*
 import bot.syntax.stream.*
+import bot.tasks.{RepeatedStreams, WheelCommand}
+import bot.{Bot, DiscordLogger}
 import cats.data.{NonEmptyList, OptionT}
 import cats.effect.{IO, Ref}
 import cats.syntax.functor.*
@@ -15,8 +15,6 @@ import cats.syntax.option.*
 import cats.syntax.traverse.*
 import fs2.Stream
 import io.circe.Json
-import bot.db.RecentLockHistoryRepository
-import bot.model.RecentLockHistory
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -27,7 +25,7 @@ class WheelCommands(
   chasterClient: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
   recentLockHistoryRepository: RecentLockHistoryRepository,
-  commands: NonEmptyList[WheelCommand],
+  val commands: NonEmptyList[WheelCommand[?]],
   override val delay: FiniteDuration,
 )(using discordLogger: DiscordLogger) extends RepeatedStreams:
   private def handleEvent(user: RegisteredUser, event: Event[Json], lock: Lock)(using Logger[IO]): IO[Unit] =

@@ -10,12 +10,14 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
 
-class LogTimesHide(
+class LogTimesShow(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
 )(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
-  override lazy val pattern: Regex = "HideLogTimes".r
+  override lazy val pattern: Regex = "ShowLogTimes".r
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     client.authenticatedEndpoints(user.token)
-      .updateSettings(lock._id, _.copy(hideTimeLogs = true))
+      .updateSettings(lock._id, _.copy(hideTimeLogs = false))
       .as(true)
+
+  override val description: String = "Shows times in the lock log"

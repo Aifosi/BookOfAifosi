@@ -54,7 +54,6 @@ lazy val root = project
   .aggregate(
     chaster,
     bot,
-    common,
     lurch,
     bookOfAifosi,
   )
@@ -102,18 +101,10 @@ lazy val bot = project
     ),
   )
 
-lazy val common = project
-  .in(file("common"))
-  .dependsOn(bot)
-  .settings(
-    name := "Bot common",
-    sharedSettings,
-  )
-
 lazy val lurch = project
   .in(file("lurch"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(common)
+  .dependsOn(bot)
   .settings(
     name := "Lurch",
     Universal / javaOptions ++= Seq(
@@ -126,7 +117,7 @@ lazy val lurch = project
 lazy val bookOfAifosi = project
   .in(file("bookofaifosi"))
   .enablePlugins(JavaAppPackaging, DockerPlugin)
-  .dependsOn(common)
+  .dependsOn(bot)
   .settings(
     name := "BookOfAifosi",
     Universal / javaOptions ++= Seq(

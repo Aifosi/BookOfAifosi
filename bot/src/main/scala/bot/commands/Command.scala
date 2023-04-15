@@ -43,7 +43,10 @@ abstract class ReactionCommand extends Command[String, ReactionEvent]:
   override def matches(event: ReactionEvent): Boolean = pattern == event.content
 
 abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
-  val defaultEnabled: Boolean
+  /**
+   * If set to false only admins can see it by default.
+   */
+  val isUserCommand: Boolean
 
   val fullCommand: String
 
@@ -55,7 +58,7 @@ abstract class SlashCommand extends Command[SlashPattern, SlashCommandEvent]:
   }
 
   final protected lazy val slashPattern: SlashPattern =
-    SlashPattern(command, subCommandGroup, subCommand, description, defaultEnabled)
+    SlashPattern(command, subCommandGroup, subCommand, description, isUserCommand)
 
   override lazy val pattern: SlashPattern = slashPattern
 

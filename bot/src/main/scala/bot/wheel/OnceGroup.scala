@@ -16,12 +16,12 @@ import scala.util.matching.Regex
 class OnceGroup(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using discordLogger: DiscordLogger) extends WheelCommand(client, registeredUserRepository):
-  private val onceGroupRegex = "OnceGroup (.+?): (.+)".r
+)(using discordLogger: DiscordLogger) extends WheelCommand[Regex](client, registeredUserRepository):
+  override val pattern: Regex = "OnceGroup (.+?): (.+)".r
 
   override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     segment.text match
-      case onceGroupRegex(group, text) =>
+      case pattern(group, text) =>
         authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
           for
             _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
@@ -38,3 +38,5 @@ class OnceGroup(
           .value
           .as((false, segment.copy(text = text)))
       case _ => IO.pure((false, segment))
+
+  override val description: String = "A segment that deletes itself and all others in the same group after being rolled (wheels must always have at least two segments after deleting)"

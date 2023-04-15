@@ -26,3 +26,5 @@ class WheelRolls(
         }
       )
     )
+
+  override val description: String = "Changes the number of wheel of fortune rolls required"
