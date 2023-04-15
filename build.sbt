@@ -60,6 +60,7 @@ lazy val root = project
 
 lazy val chaster = project
   .in(file("chaster"))
+  .disablePlugins(UniversalPlugin)
   .settings(
     name := "Chaster client",
     sharedSettings,
@@ -83,6 +84,7 @@ lazy val chaster = project
 
 lazy val bot = project
   .in(file("bot"))
+  .disablePlugins(UniversalPlugin)
   .dependsOn(chaster)
   .settings(
     name := "Chaster Discord Bot",

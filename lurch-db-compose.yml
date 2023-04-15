@@ -1,8 +1,9 @@
 version: '3.8'
 
 services:
-  db:
+  lurch-db:
     image: library/postgres:14
+    container_name: lurch-db
     ports:
       - "127.0.0.1:5432:5432"
     environment:
