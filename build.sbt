@@ -15,6 +15,7 @@ lazy val dockerSettings = Seq(
   Docker / dockerRepository := Some("aifosi"),
   dockerUpdateLatest := true,
   dockerBaseImage := "openjdk:17-jdk",
+  publish / skip := false,
 )
 
 lazy val sharedSettings = Seq(
@@ -48,9 +49,13 @@ lazy val sharedSettings = Seq(
   // format: on
 )
 
+ThisBuild / publish / skip := true
+
 lazy val root = project
   .in(file("."))
-  .settings(name := "Chaster Discord Bots")
+  .settings(
+    name := "Chaster Discord Bots",
+  )
   .aggregate(
     chaster,
     bot,
@@ -60,7 +65,6 @@ lazy val root = project
 
 lazy val chaster = project
   .in(file("chaster"))
-  .disablePlugins(UniversalPlugin)
   .settings(
     name := "Chaster client",
     sharedSettings,
@@ -84,7 +88,6 @@ lazy val chaster = project
 
 lazy val bot = project
   .in(file("bot"))
-  .disablePlugins(UniversalPlugin)
   .dependsOn(chaster)
   .settings(
     name := "Chaster Discord Bot",
