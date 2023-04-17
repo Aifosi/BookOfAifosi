@@ -78,7 +78,7 @@ class ChasterClient private(
       "client_id" -> config.clientId,
       "client_secret" -> config.secretKey,
     )
-    val fullFormData = UrlForm(data ++ formData *)
+    val fullFormData = UrlForm(data ++ formData*)
     client.expect[AccessToken](POST.apply(uri).withEntity(fullFormData))
 
   given EntityDecoder[IO, Unit] = EntityDecoder.void

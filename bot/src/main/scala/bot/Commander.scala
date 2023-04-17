@@ -13,6 +13,7 @@ import cats.syntax.traverse.*
 import cats.syntax.foldable.*
 import fs2.Stream
 import org.typelevel.log4cats.Logger
+import scala.util.chaining.*
 
 case class Commander[Log <: DiscordLogger](
   logger: Log,
@@ -29,7 +30,7 @@ case class Commander[Log <: DiscordLogger](
   }
   lazy val slashCommands: List[SlashCommand] = commands.collect {
     case command: SlashCommand => command
-  } :+ new Help(commands, tasks)
+  }
   lazy val autoCompletableCommands: List[AutoCompletable] = commands.collect {
     case command: AutoCompletable => command
   }
@@ -59,5 +60,9 @@ case class Commander[Log <: DiscordLogger](
       new Unregister(registration),
       new Nuke(registeredUserRepository, userTokenRepository),
       Compress,
+      new WheelCommandsList(tasks),
+      WheelCommandsHelp,
     )
-    copy(commands = alwaysEnabled ++ commands)
+    val allCommands = (alwaysEnabled ++ commands)
+      .pipe(commands => commands :+ new Help(commands))
+    copy(commands = allCommands)

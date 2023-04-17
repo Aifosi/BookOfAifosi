@@ -86,7 +86,7 @@ object AddSegments:
         val ends = decoded.indexesOf("]").reverse
         starts.zip(ends) match
           case Nil => Nil
-          case (start, end) :: Nil => decoded.substring(start + 1, end).split(", ").map(Segment(_)).toList
+          case (start, end) :: Nil => decoded.substring(start + 1, end).split(", ?").map(Segment(_)).toList
           case (start, end) :: (innerArrayStart, innerArrayEnd) :: _ =>
             val innerArray = decoded.substring(innerArrayStart, innerArrayEnd + 1)
             val replacedString = decoded.substring(start + 1, innerArrayStart) + "[]" + decoded.substring(innerArrayEnd + 1, end)

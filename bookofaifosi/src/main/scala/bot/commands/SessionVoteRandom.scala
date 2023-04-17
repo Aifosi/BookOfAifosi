@@ -10,7 +10,7 @@ import org.typelevel.log4cats.Logger
 class SessionVoteRandom(
   chasterClient: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-) extends ReactionCommand with Hidden with NoLog:
+) extends ReactionCommand with Hidden:
   override def pattern: String = SessionVoter.random
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =

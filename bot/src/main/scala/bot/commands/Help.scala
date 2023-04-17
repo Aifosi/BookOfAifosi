@@ -10,7 +10,7 @@ import org.typelevel.log4cats.Logger
 
 import scala.util.matching.Regex
 
-class Help(commands: List[AnyCommand], tasks: NonEmptyList[Streams]) extends SlashCommand:
+class Help(commands: List[AnyCommand]) extends SlashCommand:
   override val isUserCommand: Boolean = true
   override val fullCommand: String = "help"
   override val description: String = "Shows help for existing commands"
@@ -21,15 +21,6 @@ class Help(commands: List[AnyCommand], tasks: NonEmptyList[Streams]) extends Sla
       case command: SlashCommand => command.isUserCommand
       case _ => true
     }.map(command => s"**${command.pattern}** - ${command.description}")
-
-    val wheelCommandsWithDescriptions = tasks.collect {
-      case wheelcommands: WheelCommands =>
-        "Wheel commands:" +: wheelcommands.commands.map {
-          case command: WheelCommand[?] => s"  **${command.pattern}** - ${command.description}"
-        }.toList
-    }.flatten
-
-
-    event.replyEphemeral((commandWithDescriptions ++ wheelCommandsWithDescriptions).mkString("\n")).as(true)
+    event.replyEphemeral(commandWithDescriptions.mkString("\n")).as(true)
 
 

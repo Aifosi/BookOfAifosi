@@ -106,7 +106,7 @@ class Registration private(
     _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
   yield ()
 
-  def routes: HttpRoutes[IO] = HttpRoutes.of {
+  val routes: HttpRoutes[IO] = HttpRoutes.of {
     case GET -> Root / "register" :? CodeParamMatcher(authorizationCode) +& UUIDParamMatcher(uuid) =>
       registrations.get.flatMap {
         case registrations if !registrations.contains(uuid) => ExpectationFailed()
