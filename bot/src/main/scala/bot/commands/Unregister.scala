@@ -14,7 +14,7 @@ class Unregister(registration: Registration) extends SlashCommand:
     for
       member <- event.authorMember
       message <- registration.unregister(member)
-      _ <- message.fold(IO.unit)(event.reply)
+      _ <- message.fold(IO.unit)(event.replyEphemeral)
     yield true
 
   override val description: String = "Unlink your discord and chaster"

@@ -16,7 +16,7 @@ class LockChannel(
     for
       guild <- event.guild
       _ <- lockedChannelsRepository.add(guild.discordID, event.channel.discordID)
-      _ <- event.replyEphemeral("New messages in this channel will be automatically deleted.")
+      _ <- event.reply("New messages in this channel will be automatically deleted.")
     yield true
 
   override val description: String = "Deletes all new messages in this channel"

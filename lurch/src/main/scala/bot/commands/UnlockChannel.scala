@@ -18,7 +18,7 @@ class UnlockChannel(
       guild <- event.guild
       lockedChannelRemoved <- lockedChannelsRepository.remove(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).map(_ == 1)
       message = if lockedChannelRemoved then "No longer deleting new messages on this channel." else "This channel was not locked!"
-      _ <- event.reply(message)
+      _ <- event.replyEphemeral(message)
     yield true
 
   override val description: String = "Stops deleting messages in this channel"
