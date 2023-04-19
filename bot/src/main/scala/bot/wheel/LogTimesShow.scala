@@ -16,8 +16,9 @@ class LogTimesShow(
 )(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
   override lazy val pattern: Regex = "ShowLogTimes".r
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
-    client.authenticatedEndpoints(user.token)
-      .updateSettings(lock._id, _.copy(hideTimeLogs = false))
-      .as(true)
+    for
+      authenticatedEndpoints <- user.authenticatedEndpoints(client)
+      _ <- authenticatedEndpoints.updateSettings(lock._id, _.copy(hideTimeLogs = false))
+    yield true
 
   override val description: String = "Shows times in the lock log"

@@ -4,7 +4,7 @@ import bot.{Bot, DiscordLogger, chaster}
 import bot.chaster.{ChasterClient, ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
-import bot.model.{ChasterID, RegisteredUser}
+import bot.model.{ChasterID, DiscordID, RegisteredUser}
 import bot.syntax.io.*
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
@@ -16,15 +16,16 @@ import org.typelevel.log4cats.Logger
 import scala.util.matching.Regex
 import scala.reflect.Typeable
 
-abstract class WheelCommand[Pattern](client: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
+abstract class WheelCommand[Pattern](chasterClient: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
   def pattern: Pattern
   def description: String
 
-  def authenticatedEndpoints(lock: Lock): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
+  def keyholderAuthenticatedEndpoints(lock: Lock, guildId: DiscordID): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
     for
       chasterKeyholder <- OptionT.fromOption(lock.keyholder)
-      keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID)
-    yield client.authenticatedEndpoints(keyholder.token)
+      keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID, guildId.equalGuildID)
+      authenticatedEndpoints <- OptionT.liftF(keyholder.authenticatedEndpoints(chasterClient))
+    yield authenticatedEndpoints
 
   def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
@@ -61,7 +62,7 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable](
             case Some("/") => Divide(value)
             case _         => Exact(value)
 
-          authenticatedEndpoints(lock).semiflatMap { endpoints =>
+          keyholderAuthenticatedEndpoints(lock, user.guildID).semiflatMap { endpoints =>
             for
               _ <- endpoints.updateExtension[Config](lock._id)(configUpdate(_, modifier))
               message = maybeModifierString.fold("to ")(sign => s"by $sign") + value

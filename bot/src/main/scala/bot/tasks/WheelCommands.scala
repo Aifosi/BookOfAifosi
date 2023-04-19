@@ -49,13 +49,15 @@ class WheelCommands(
 
   private def handleHistory(user: RegisteredUser, lock: Lock, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
     for
-      event <- chasterClient.authenticatedEndpoints(user.token).lockHistory(lock._id, mostRecentEventTime)
+      authenticatedEndpoints <- user.authenticatedEndpoints(chasterClient).streamed
+      event <- authenticatedEndpoints.lockHistory(lock._id, mostRecentEventTime)
       _ <- handleEvent(user, event, lock).streamed
     yield event.createdAt
 
   private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, (Lock, RecentLockHistory)] =
     for
-      lock <- Stream.evalSeq(chasterClient.authenticatedEndpoints(user.token).locks)
+      authenticatedEndpoints <- user.authenticatedEndpoints(chasterClient).streamed
+      lock <- Stream.evalSeq(authenticatedEndpoints.locks)
       maybeLockHistory <- recentLockHistoryRepository.find(lock._id.equalLockID).value.streamed
       lockHistory <- maybeLockHistory.fold(recentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
     yield (lock, lockHistory)

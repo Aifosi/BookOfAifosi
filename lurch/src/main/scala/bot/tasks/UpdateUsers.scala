@@ -67,10 +67,10 @@ class UpdateUsers(
         yield ()
     }
 
-  private def shouldAddLocked(user: RegisteredUser, guild: Guild)(using Logger[IO]): IO[Boolean] =
-    if !user.token.scope.split(" ").contains("locks") then return notify(user).as(false)
+  private def shouldAddLocked(user: RegisteredUser, token: UserToken)(using Logger[IO]): IO[Boolean] =
+    if !token.scope.split(" ").contains("locks") then return notify(user).as(false)
     for
-      locks <- chasterClient.authenticatedEndpoints(user.token).locks
+      locks <- chasterClient.authenticatedEndpoints(token).locks
       lockedLocks = locks.filter(lock => lock.status == LockStatus.Locked && !lock.isTestLock)
       keyholders = lockedLocks.flatMap(_.keyholder).map(_._id)
       user <- updateUser(user, keyholders, lockedLocks.nonEmpty)
@@ -79,8 +79,9 @@ class UpdateUsers(
       _ <- if shouldAddLocked then Logger[IO].debug(s"$user is locked by $registeredKeyholders") else IO.unit
     yield shouldAddLocked
 
-  private def shouldAddKeyholder(user: RegisteredUser, guild: Guild, profile: PublicUser)(using Logger[IO]): IO[Boolean] =
-    if !user.token.scope.split(" ").contains("keyholder") then return notify(user).as(false)
+
+  private def shouldAddKeyholder(user: RegisteredUser, profile: PublicUser, token: UserToken)(using Logger[IO]): IO[Boolean] =
+    if !token.scope.split(" ").contains("keyholder") then return notify(user).as(false)
     for
       registeredWearers <- registeredUserRepository.thoroughList(fr"${profile._id} = ANY (keyholder_ids)".some)
       _ <- if registeredWearers.nonEmpty then registeredUserRepository.update(user.id, lastKeyheld = Instant.now.some.some) else IO.unit
@@ -120,8 +121,9 @@ class UpdateUsers(
     for
       profile <- checkChasterUserDeleted(user)
       _ <- checkDiscordUserDeleted(user, guild)
-      addLocked <- shouldAddLocked(user, guild).streamed
-      addKeyholder <- shouldAddKeyholder(user, guild, profile).streamed
+      token <- user.tokenGetter.streamed
+      addLocked <- shouldAddLocked(user, token).streamed
+      addKeyholder <- shouldAddKeyholder(user, profile, token).streamed
       _ <- (addLocked, addKeyholder) match
         case (true, true) => addRoleRemoveOthers(switchRole)
         case (false, true) => addRoleRemoveOthers(keyholderRole)

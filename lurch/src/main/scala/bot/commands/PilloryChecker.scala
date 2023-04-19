@@ -37,11 +37,11 @@ class PilloryChecker(
 
   private def validatePost(post: Post, member: Member): EitherT[IO, String, RegisteredUser] =
     for
-      user <- registeredUserRepository.find(member.discordID.equalDiscordID).toRight("You must be registered to submit pillories.")
+      user <- registeredUserRepository.find(member.equalDiscordAndGuildID).toRight("You must be registered to submit pillories.")
       notTooOld = post.data.voteEndsAt.isAfter(Instant.now.minus(1, ChronoUnit.DAYS))
       _ <- EitherT.cond(notTooOld, (), "Pillory is too old, must not be older than 1 day.")
       keyholderIsRegistered <- EitherT.liftF(post.lock.keyholder.fold(IO.pure(false)) { keyholder =>
-        registeredUserRepository.find(keyholder._id.equalChasterID).isDefined
+        registeredUserRepository.find(keyholder._id.equalChasterID, user.guildID.equalGuildID).isDefined
       })
       _ <- EitherT.cond(keyholderIsRegistered, (), "Your keyholder must be registered.")
       userSubmitted = user.chasterID == post.user._id

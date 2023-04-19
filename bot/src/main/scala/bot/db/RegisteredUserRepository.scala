@@ -50,7 +50,6 @@ class RegisteredUserRepository(
       discord <- discord.get.to[Maybe]
       guild <- discord.guildByID(user.guildID)
       member <- guild.member(user.discordID)
-      token <- userTokenRepository.get(user.tokenID.equalID).to[Maybe]
     yield new RegisteredUser(
       user.id,
       user.chasterID,
@@ -60,7 +59,8 @@ class RegisteredUserRepository(
       user.lastLocked,
       user.lastKeyheld,
       member,
-      token
+      userTokenRepository.get(user.tokenID.equalID),
+      user.tokenID,
     )
 
   def add(

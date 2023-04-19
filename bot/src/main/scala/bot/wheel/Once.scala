@@ -33,7 +33,7 @@ class Once(
     val originalText = segment.text
     originalText match
       case pattern(text) =>
-        authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
+        keyholderAuthenticatedEndpoints(lock, user.guildID).semiflatMap { authenticatedEndpoints =>
           for
             _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
               configUpdate.copy(

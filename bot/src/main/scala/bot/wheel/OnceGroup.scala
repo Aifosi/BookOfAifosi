@@ -22,7 +22,7 @@ class OnceGroup(
   override def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)] =
     segment.text match
       case pattern(group, text) =>
-        authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
+        keyholderAuthenticatedEndpoints(lock, user.guildID).semiflatMap { authenticatedEndpoints =>
           for
             _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
               configUpdate.copy(

@@ -143,20 +143,21 @@ class Registration private(
 
   def register(member: Member, timeout: FiniteDuration): IO[Option[Uri]] =
     val scope = "profile keyholder shared_locks locks"
-    registeredUserRepository.find(member.discordID.equalDiscordID)
-      .filter(user => containsAllScopes(scope, user.token.scope))
+    registeredUserRepository.find(member.equalDiscordAndGuildID)
+      .semiflatMap(_.tokenGetter)
+      .filter(token => containsAllScopes(scope, token.scope))
       .value
       .flatMap {
         case Some(_) => IO.pure(None) //Use already registered with all scopes
-        case None => generateURI(member, scope, timeout).map(_.some)
+        case None    => generateURI(member, scope, timeout).map(_.some)
       }
 
   def unregister(member: Member): IO[Option[String]] =
     import cats.syntax.list.*
     val either = for
-      registeredUser <- registeredUserRepository.find(member.discordID.equalDiscordID).toRight(s"Unable to find user $member")
+      registeredUser <- registeredUserRepository.find(member.equalDiscordAndGuildID).toRight(s"Unable to find user $member")
       _ <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) => acc.flatMap(_ => hook(registeredUser)))
-      _ <- EitherT.liftF(userTokenRepository.remove(registeredUser.token.id.equalID))
+      _ <- EitherT.liftF(userTokenRepository.remove(registeredUser.tokenID.equalID))
       _ <- EitherT.liftF(registeredUserRepository.remove(registeredUser.id.equalID))
     yield "If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password"
     either.foldF(

@@ -1,7 +1,6 @@
 package bot.db
 
-import bot.model.{ChasterID, DiscordID}
-import bot.model.given
+import bot.model.{ChasterID, DiscordID, Member, given}
 import cats.syntax.option.*
 import doobie.*
 import doobie.implicits.*
@@ -19,6 +18,11 @@ object Filters:
   extension (id: Option[UUID])
     def equalID: Filter = id.flatMap(_.equalID)
 
+  extension (member: Member)
+    //def equalDiscordAndGuildID = List(member.discordID.equalDiscordID, member.guild.discordID.equalGuildID)
+    def equalDiscordAndGuildID =
+      fr"user_discord_id = ${member.discordID} and guild_discord_id = ${member.guild.discordID}".some
+  
   extension (id: DiscordID)
     def equalDiscordID: Filter = fr"user_discord_id = $id".some
     def equalGuildID: Filter = fr"guild_discord_id = $id".some

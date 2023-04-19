@@ -2,14 +2,18 @@ package bot.chaster
 
 import bot.chaster.*
 import bot.model.{ChasterID, UserToken}
+import cats.data.EitherT
 import cats.effect.{IO, Resource}
 import cats.syntax.applicative.*
 import cats.syntax.option.*
+import cats.syntax.either.*
+import cats.syntax.bifunctor.*
 import fs2.Stream
 import io.circe.syntax.*
 import io.circe.{Decoder, Encoder, HCursor, Json}
 import org.http4s.*
 import org.http4s.Method.*
+import org.http4s.Status.*
 import org.http4s.circe.CirceEntityDecoder.*
 import org.http4s.circe.CirceEntityEncoder.*
 import org.http4s.client.dsl.io.*
@@ -72,6 +76,18 @@ class ChasterClient private(
 
   private val API = config.apiUri
 
+  extension (client: Client[IO])
+    def expectOrChasterError[E, A](req: Request[IO])(recover: PartialFunction[ChasterAPIError, EitherT[IO, E, A]])(using EntityDecoder[IO, A]): EitherT[IO, E, A] =
+      EitherT {
+        client.expectOr[A](req) {
+          case ClientError(response) =>
+            EntityDecoder[IO, ChasterAPIError].decode(response, strict = false).leftWiden[Throwable].rethrowT
+          case resp => IO.pure(UnexpectedStatus(resp.status, req.method, req.uri))
+        }.map(_.asRight).recoverWith {
+          case chasterError: ChasterAPIError => recover.applyOrElse(chasterError, _ => EitherT.liftF(IO.raiseError(chasterError))).value
+        }
+      }
+
   def token(formData: (String, String)*): IO[AccessToken] =
     val uri = config.authUri / "token"
     val data = Seq(
@@ -84,13 +100,9 @@ class ChasterClient private(
   given EntityDecoder[IO, Unit] = EntityDecoder.void
 
   def publicProfileByID(id: ChasterID): IO[PublicUser] = client.expect[PublicUser](GET(API / "users" / "profile" / "by-id" / id))
-  def publicProfileByName(name: String): IO[Option[PublicUser]] = client.expect[PublicUser](GET(API / "users" / "profile" / name)).attempt.flatMap(_.fold(
-    {
-      case UnexpectedStatus(Status.NotFound, _, _) => None.pure
-      case error => IO.raiseError(error)
-    },
-    _.some.pure
-  ))
+  def publicProfileByName(name: String): IO[Option[PublicUser]] = client.expectOrChasterError[String, PublicUser](GET(API / "users" / "profile" / name)) {
+    case ChasterAPIError(Status.NotFound, message, _) => EitherT.leftT(message)
+  }.toOption.value
 
   def apply(token: UserToken): AuthenticatedEndpoints = new AuthenticatedEndpoints(token)
   def authenticatedEndpoints(token: UserToken): AuthenticatedEndpoints = new AuthenticatedEndpoints(token)
@@ -98,27 +110,37 @@ class ChasterClient private(
   class AuthenticatedEndpoints(token: UserToken):
     authenticatedEndpoints =>
     private def withUpdatedToken: IO[AuthenticatedEndpoints] =
-      if token.expiresAt.isAfter(Instant.now()) then
+      IO.println(token.expiresAt) *> IO.println(Instant.now()) *> IO.println(token.expiresAt.isAfter(Instant.now())) *> (if token.expiresAt.isAfter(Instant.now()) then
         IO.pure(this)
       else
         for
           logger <- Slf4jLogger.create[IO]
+          _ <- IO(Thread.dumpStack()).attempt.flatMap(_ => IO.unit)
           _ <- logger.debug(s"Refreshing access token with ID: ${token.id}")
           accessToken <- chasterClient.token(
             "grant_type" -> "refresh_token",
             "refresh_token" -> token.refreshToken,
           )
           token <- onTokenRefresh(token.id, accessToken)
-        yield AuthenticatedEndpoints(token)
+        yield AuthenticatedEndpoints(token))
 
     private def authorizationHeader: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, token.accessToken))
 
-    private def expectAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
+    private def expectAuthenticatedOrChasterError[E, A](
+      req: Request[IO]
+    )(
+      recover: PartialFunction[ChasterAPIError, EitherT[IO, E, A]]
+    )(
+      using EntityDecoder[IO, A]
+    ): EitherT[IO, E, A] =
       for
-        token <- withUpdatedToken
+        token <- EitherT.liftF(withUpdatedToken)
         request = req.putHeaders(token.authorizationHeader)
-        response <- client.expect[A](request)
+        response <- client.expectOrChasterError[E, A](request)(recover)
       yield response
+
+    private def expectAuthenticated[A](req: Request[IO])(using EntityDecoder[IO, A]): IO[A] =
+      expectAuthenticatedOrChasterError[Throwable, A](req)(PartialFunction.empty).rethrowT
     private def getAll[A <: WithID: Decoder](uri: Uri): Stream[IO, A] =
       for
         authenticatedEndpoints <- Stream.eval(withUpdatedToken)
@@ -184,14 +206,16 @@ class ChasterClient private(
     def setFreeze(lock: ChasterID, freeze: Boolean): IO[Unit] = expectAuthenticated(POST(Json.obj("isFrozen" -> Json.fromBoolean(freeze)), API / "locks" / lock / "freeze"))
     def freeze(lock: ChasterID): IO[Unit] = setFreeze(lock, true)
     def unfreeze(lock: ChasterID): IO[Unit] = setFreeze(lock, false)
-    def action[Response: Decoder](
+    def action[E, Response: Decoder](
       lock: ChasterID,
       extension: ChasterID,
     )(
       action: String,
       payload: ExtensionActionPayload,
-    ): IO[Response] =
-      expectAuthenticated(POST(ExtensionAction(action, payload), API / "locks" / lock / "extensions" / extension / "action"))
+    )(
+      recover: PartialFunction[ChasterAPIError, EitherT[IO, E, Response]]
+    ): EitherT[IO, E, Response] =
+      expectAuthenticatedOrChasterError(POST(ExtensionAction(action, payload), API / "locks" / lock / "extensions" / extension / "action"))(recover)
     def settings(lockID: ChasterID, settingsUpdate: SettingsUpdate): IO[Unit] =
       expectAuthenticated(POST(settingsUpdate, API / "locks" / lockID / "settings"))
     def updateSettings(lockID: ChasterID, settingsUpdate: SettingsUpdate => SettingsUpdate): IO[Unit] =
@@ -227,8 +251,10 @@ class ChasterClient private(
     def sharedLink(sharedLink: ChasterID): IO[SharedLink] =
       expectAuthenticated(GET(API / "shared-links" / sharedLink))
 
-    def vote(lock: ChasterID, extension: ChasterID, action: VoteAction, sharedLink: ChasterID): IO[FiniteDuration] =
-      authenticatedEndpoints.action[VoteResponse](lock, extension)("vote", VotePayload(action, sharedLink)).map(_.duration)
+    def vote(lock: ChasterID, extension: ChasterID, action: VoteAction, sharedLink: ChasterID): EitherT[IO, String, FiniteDuration] =
+      authenticatedEndpoints.action[String, VoteResponse](lock, extension)("vote", VotePayload(action, sharedLink)){
+        case ChasterAPIError(Status.BadRequest, error @ "Cannot vote now", _) => EitherT.leftT(error)
+      }.map(_.duration)
 
 object ChasterClient:
   private def acquireHttpClient: Resource[IO, Client[IO]] =

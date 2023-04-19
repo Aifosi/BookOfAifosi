@@ -37,7 +37,7 @@ class AddSegments(
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
     text match
       case pattern(text) =>
-        authenticatedEndpoints(lock).semiflatMap { authenticatedEndpoints =>
+        keyholderAuthenticatedEndpoints(lock, user.guildID).semiflatMap { authenticatedEndpoints =>
           for
             _ <- authenticatedEndpoints.updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
               configUpdate.copy(

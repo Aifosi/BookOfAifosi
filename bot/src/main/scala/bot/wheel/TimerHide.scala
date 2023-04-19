@@ -16,8 +16,9 @@ class TimerHide(
 )(using discordLogger: DiscordLogger) extends TextWheelCommand(client, registeredUserRepository):
   override lazy val pattern: Regex = "HideTimer".r
   override def run(user: RegisteredUser, lock: Lock, text: String)(using Logger[IO]): IO[Boolean] =
-    client.authenticatedEndpoints(user.token)
-      .updateSettings(lock._id, _.copy(displayRemainingTime = false))
-      .as(true)
+    for
+      authenticatedEndpoints <- user.authenticatedEndpoints(client)
+      _ <- authenticatedEndpoints.updateSettings(lock._id, _.copy(displayRemainingTime = false))
+    yield true
 
   override val description: String = "Hides the lock timer"
