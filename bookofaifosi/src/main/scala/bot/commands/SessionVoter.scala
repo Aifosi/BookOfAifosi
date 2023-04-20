@@ -4,13 +4,13 @@ import bot.chaster.{ChasterClient, SharedLink, VoteAction}
 import bot.commands.{Hidden, NoLog, TextCommand}
 import bot.db.{RegisteredUserRepository, given}
 import bot.db.Filters.*
+import bot.instances.functionk.given
 import bot.model.{ChasterID, *}
 import bot.model.event.{MessageEvent, ReactionEvent}
 import bot.syntax.io.*
+import bot.syntax.kleisli.*
 import bot.syntax.stream.*
 import bot.tasks.Streams
-import bot.syntax.kleisli.*
-import bot.instances.functionk.given
 
 import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.IO
@@ -65,14 +65,15 @@ object SessionVoter extends TextCommand with Hidden with NoLog:
       Kleisli { (token: UserToken) =>
         for
           sharedLink <- client.sharedLink(sharedLinkId).run(token)
-          voteResult = client.vote(sharedLink.lockId, sharedLink.extensionId, action, sharedLinkId).run(token)
-          _ <- voteResult.foldF(
-            _ => user.sendMessage("You can't vote on that lock yet."),
-            duration =>
-              user.sendMessage(
-                s"I've voted on your behalf! Time was ${if duration.toSeconds > 0 then "Added" else "Removed"}",
-              ),
-          )
+          voteResult  = client.vote(sharedLink.lockId, sharedLink.extensionId, action, sharedLinkId).run(token)
+          _          <- voteResult.foldF(
+                          _ => user.sendMessage("You can't vote on that lock yet."),
+                          duration =>
+                            user.sendMessage(
+                              s"I've voted on your behalf! Time was ${if duration.toSeconds > 0 then "Added" else "Removed"}",
+                            ),
+                        )
         yield ()
-      }.runUsingTokenOf(user)
+      }
+        .runUsingTokenOf(user)
     }
