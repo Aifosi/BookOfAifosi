@@ -46,9 +46,13 @@ object SessionVoter extends TextCommand with Hidden with NoLog:
     event: ReactionEvent,
   ): EitherT[IO, String, (RegisteredUser, ChasterID)] = for
     message      <- EitherT.liftF(event.message)
-    sharedLinkId <- message.content match
-                      case pattern(sharedLinkId) => EitherT.pure[IO, String](ChasterID(sharedLinkId))
-                      case _                     => EitherT.leftT[IO, ChasterID](s"Could no extract shared link from $message")
+    sharedLinkId <-
+      pattern
+        .findFirstMatchIn(message.content)
+        .map(_.group(1))
+        .fold(EitherT.leftT[IO, ChasterID](s"Could not extract shared link from $message")) { sharedLinkId =>
+          EitherT.pure[IO, String](ChasterID(sharedLinkId))
+        }
     author       <- EitherT.liftF(event.authorMember)
     user         <- registeredUserRepository
                       .find(author.equalDiscordAndGuildID)
