@@ -1,15 +1,16 @@
 package bot.db
 
 import bot.Bot
+import bot.chaster.ChasterClient
 import bot.db.mkFragment
 import bot.db.Filters.*
 import bot.db.{ModelRepository, User, UserTokenRepository, mkFragment}
-import bot.model.{ChasterID, DiscordID, RegisteredUser, Discord}
+import bot.model.{ChasterID, Discord, DiscordID, RegisteredUser}
 import bot.model.given
 import bot.syntax.io.*
 import bot.utils.Maybe
 import cats.data.EitherT
-import cats.effect.{IO, Deferred}
+import cats.effect.{Deferred, IO}
 import cats.effect.LiftIO.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
@@ -17,7 +18,7 @@ import doobie.postgres.implicits.*
 import doobie.syntax.SqlInterpolator.SingleFragment
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
-import doobie.{ConnectionIO, Fragment, Transactor, LogHandler}
+import doobie.{ConnectionIO, Fragment, LogHandler, Transactor}
 
 import java.time.Instant
 import java.util.UUID
@@ -37,6 +38,7 @@ case class User(
 class RegisteredUserRepository(
   discord: Deferred[IO, Discord],
   userTokenRepository: UserTokenRepository,
+  chasterClient: ChasterClient,
 )(
   using transactor: Transactor[IO], logHandler: LogHandler
 ) extends ModelRepository[User, RegisteredUser] with ThoroughList[User, RegisteredUser, String]:
@@ -50,7 +52,6 @@ class RegisteredUserRepository(
       discord <- discord.get.to[Maybe]
       guild <- discord.guildByID(user.guildID)
       member <- guild.member(user.discordID)
-      token <- userTokenRepository.get(user.tokenID.equalID).to[Maybe]
     yield new RegisteredUser(
       user.id,
       user.chasterID,
@@ -60,7 +61,8 @@ class RegisteredUserRepository(
       user.lastLocked,
       user.lastKeyheld,
       member,
-      token
+      userTokenRepository.get(user.tokenID.equalID).flatMap(chasterClient.updatedToken),
+      user.tokenID,
     )
 
   def add(

@@ -31,7 +31,7 @@ class ReactionEvent(
 object ReactionEvent:
   given Conversion[MessageReactionAddEvent, ReactionEvent] = event =>
     new ReactionEvent(
-      event.getReactionEmote.getEmoji,
+      event.getReactionEmote.getAsReactionCode,
       event.getChannel,
       event.getUser,
       Option(event.getMember),

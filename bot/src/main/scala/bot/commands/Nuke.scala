@@ -21,12 +21,12 @@ class Nuke(
     _.addOption[Option[String]]("chaster_user_id", "Chaster id to delete data for."),
   )
 
-  private def userFromDiscordUserID(user: Option[User], discordUserID: Option[DiscordID]): OptionT[IO, RegisteredUser] =
+  private def userFromDiscordUserID(user: Option[User], discordUserID: Option[DiscordID], guildID: DiscordID): OptionT[IO, RegisteredUser] =
     OptionT.fromOption(user.map(_.discordID).orElse(discordUserID))
-      .flatMap(discordID => registeredUserRepository.find(discordID.equalDiscordID))
+      .flatMap(discordID => registeredUserRepository.find(discordID.equalDiscordID, guildID.equalGuildID))
 
-  private def userFromChasterUserID(chasterUserID: Option[ChasterID]): OptionT[IO, RegisteredUser] =
-    OptionT.fromOption(chasterUserID).flatMap(chasterID => registeredUserRepository.find(chasterID.equalChasterID))
+  private def userFromChasterUserID(chasterUserID: Option[ChasterID], guildID: DiscordID): OptionT[IO, RegisteredUser] =
+    OptionT.fromOption(chasterUserID).flatMap(chasterID => registeredUserRepository.find(chasterID.equalChasterID, guildID.equalGuildID))
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val user = event.getOption[Option[User]]("user")
@@ -35,9 +35,10 @@ class Nuke(
 
     (for
       _ <- EitherT.cond[IO](List(user, discordUserID, chasterUserID).count(_.isDefined) == 1, (), "Please specify exactly 1 way to identify a user.")
-      user <- userFromDiscordUserID(user, discordUserID).orElse(userFromChasterUserID(chasterUserID))
+      guild <- EitherT.liftF(event.guild)
+      user <- userFromDiscordUserID(user, discordUserID, guild.discordID).orElse(userFromChasterUserID(chasterUserID, guild.discordID))
         .toRight("Could not find user to delete!")
-      _ <- EitherT.liftF(userTokenRepository.remove(user.token.id.equalID))
+      _ <- EitherT.liftF(userTokenRepository.remove(user.tokenID.equalID))
       _ <- EitherT.liftF(registeredUserRepository.remove(user.id.equalID))
     yield ()).foldF(
       error => event.replyEphemeral(error),

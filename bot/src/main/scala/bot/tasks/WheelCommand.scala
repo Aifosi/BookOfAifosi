@@ -1,14 +1,16 @@
 package bot.tasks
 
 import bot.{Bot, DiscordLogger, chaster}
-import bot.chaster.{ChasterClient, ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
+import bot.chaster.*
+import bot.syntax.kleisli.*
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
-import bot.model.{ChasterID, RegisteredUser}
+import bot.model.{ChasterID, DiscordID, RegisteredUser}
 import bot.syntax.io.*
+import bot.instances.functionk.given
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
-import cats.data.OptionT
+import cats.data.{Kleisli, OptionT}
 import cats.effect.IO
 import cats.syntax.traverse.*
 import org.typelevel.log4cats.Logger
@@ -16,15 +18,15 @@ import org.typelevel.log4cats.Logger
 import scala.util.matching.Regex
 import scala.reflect.Typeable
 
-abstract class WheelCommand[Pattern](client: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
+abstract class WheelCommand[Pattern](chasterClient: ChasterClient, registeredUserRepository: RegisteredUserRepository)(using DiscordLogger):
   def pattern: Pattern
   def description: String
 
-  def authenticatedEndpoints(lock: Lock): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
+  def keyholder(lock: Lock, guildId: DiscordID): OptionT[IO, RegisteredUser] =
     for
       chasterKeyholder <- OptionT.fromOption(lock.keyholder)
-      keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID)
-    yield client.authenticatedEndpoints(keyholder.token)
+      keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID, guildId.equalGuildID)
+    yield keyholder
 
   def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
@@ -61,9 +63,9 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable](
             case Some("/") => Divide(value)
             case _         => Exact(value)
 
-          authenticatedEndpoints(lock).semiflatMap { endpoints =>
+          keyholder(lock, user.guildID).semiflatMap { keyholder =>
             for
-              _ <- endpoints.updateExtension[Config](lock._id)(configUpdate(_, modifier))
+              _ <- client.updateExtension[Config](lock._id)(configUpdate(_, modifier)).runUsingTokenOf(keyholder)
               message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
               _ <- Logger[IO].debug(s"$user $logName changed $message")
               _ <- discordLogger.logToSpinlog(s"${user.mention} $logName changed $message")

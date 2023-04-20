@@ -31,7 +31,7 @@ class Task(
     lazy val keyholder: OptionT[IO, RegisteredUser] =
       for
         chasterKeyholder <- OptionT.fromOption(lock.keyholder)
-        keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID)
+        keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID, user.guildID.equalGuildID)
       yield keyholder
 
     def addReaction(message: Message, task: TaskCommand): IO[Unit] =

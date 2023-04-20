@@ -18,6 +18,9 @@ trait StreamSyntax:
     def when[F[_], A](cond: Boolean)(a: => A): Stream[F, A] = emitI(Option.when(cond)(a))
     def whenS[F[_], A](cond: Boolean)(a: => IterableOnce[A]): Stream[F, A] = emitI(Option.when(cond)(a).iterator.flatten)
     def whenF[F[_]: Functor, A](cond: Boolean)(a: => F[A]): Stream[F, A] = evalOption(a.map(Option.when(cond)))
+    def whenA[F[_]](cond: Boolean)(action: => Stream[F, Unit]): Stream[F, Unit] =
+      Applicative[[O] =>> Stream[F, O]].whenA(cond)(action)
+      
     //def println[A](a: A)(using S: Show[A] = Show.fromToString[A]): Stream[IO, Unit] = Stream.eval(IO.println(a))
     def unit: Stream[IO, Unit] = Stream.emit(())
 

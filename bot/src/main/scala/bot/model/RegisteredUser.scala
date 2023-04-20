@@ -1,5 +1,6 @@
 package bot.model
 
+import bot.chaster.ChasterClient
 import bot.db.Filters.*
 import cats.effect.IO
 
@@ -15,7 +16,7 @@ class RegisteredUser(
   val lastLocked: Option[Instant],
   val lastKeyheld: Option[Instant],
   member: Member,
-  val token: UserToken,
+  val updatedToken: IO[UserToken],
+  val tokenID: UUID,
 ) extends Member(member.member):
-
   override lazy val toString: String = member.toString

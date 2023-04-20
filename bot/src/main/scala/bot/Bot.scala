@@ -107,11 +107,12 @@ object Bot:
       discordDeferred <- Deferred[IO, Discord]
 
       userTokenRepository = new UserTokenRepository
-      registeredUserRepository = new RegisteredUserRepository(discordDeferred, userTokenRepository)
 
       chasterClient <- ChasterClient(
         (id, accessToken) => userTokenRepository.update(id, accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
       )
+
+      registeredUserRepository = new RegisteredUserRepository(discordDeferred, userTokenRepository, chasterClient)
 
       commander = commanderBuilder(
         discordDeferred,
