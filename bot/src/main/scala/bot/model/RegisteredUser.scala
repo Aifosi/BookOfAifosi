@@ -16,11 +16,7 @@ class RegisteredUser(
   val lastLocked: Option[Instant],
   val lastKeyheld: Option[Instant],
   member: Member,
-  val tokenGetter: IO[UserToken],
+  val updatedToken: IO[UserToken],
   val tokenID: UUID,
 ) extends Member(member.member):
-  
-  def authenticatedEndpoints(client: ChasterClient): IO[ChasterClient#AuthenticatedEndpoints] =
-    tokenGetter.map(client.authenticatedEndpoints)
-
   override lazy val toString: String = member.toString

@@ -1,14 +1,16 @@
 package bot.tasks
 
 import bot.chaster.*
+import bot.syntax.kleisli.*
 import bot.db.Filters.*
 import bot.db.{RecentLockHistoryRepository, RegisteredUserRepository}
-import bot.model.{ChasterID, RecentLockHistory, RegisteredUser}
+import bot.model.{ChasterID, RecentLockHistory, RegisteredUser, UserToken}
 import bot.syntax.io.*
 import bot.syntax.stream.*
+import bot.instances.functionk.given
 import bot.tasks.{RepeatedStreams, WheelCommand}
 import bot.{Bot, DiscordLogger}
-import cats.data.{NonEmptyList, OptionT}
+import cats.data.{Kleisli, NonEmptyList, OptionT}
 import cats.effect.{IO, Ref}
 import cats.syntax.functor.*
 import cats.syntax.option.*
@@ -47,31 +49,35 @@ class WheelCommands(
         yield segment
     }.value.void
 
-  private def handleHistory(user: RegisteredUser, lock: Lock, mostRecentEventTime: Option[Instant])(using Logger[IO]): Stream[IO, Instant] =
-    for
-      authenticatedEndpoints <- user.authenticatedEndpoints(chasterClient).streamed
-      event <- authenticatedEndpoints.lockHistory(lock._id, mostRecentEventTime)
-      _ <- handleEvent(user, event, lock).streamed
-    yield event.createdAt
+  private def handleHistory(user: RegisteredUser, lock: Lock, mostRecentEventTime: Option[Instant])(using Logger[IO]): TokenAuthenticatedStream[Instant] =
+    Kleisli { (token: UserToken) =>
+      for
+        event <- chasterClient.lockHistory(lock._id, mostRecentEventTime).run(token)
+        _ <- handleEvent(user, event, lock).streamed
+      yield event.createdAt
+    }
 
-  private def getLockHistory(user: RegisteredUser)(using Logger[IO]): Stream[IO, (Lock, RecentLockHistory)] =
-    for
-      authenticatedEndpoints <- user.authenticatedEndpoints(chasterClient).streamed
-      lock <- Stream.evalSeq(authenticatedEndpoints.locks)
-      maybeLockHistory <- recentLockHistoryRepository.find(lock._id.equalLockID).value.streamed
-      lockHistory <- maybeLockHistory.fold(recentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
-    yield (lock, lockHistory)
+  private def getLockHistory(user: RegisteredUser)(using Logger[IO]): TokenAuthenticatedStream[(Lock, RecentLockHistory)] =
+    Kleisli { (token: UserToken) =>
+      for
+        lock <- Stream.evalSeq(chasterClient.locks.run(token))
+        maybeLockHistory <- recentLockHistoryRepository.find(lock._id.equalLockID).value.streamed
+        lockHistory <- maybeLockHistory.fold(recentLockHistoryRepository.add(user.id, lock._id, Instant.now().some).streamed)(Stream.emit)
+      yield (lock, lockHistory)
+    }
 
-  def handleUser(user: RegisteredUser)(using Logger[IO]): Stream[IO, Unit] =
-    for
-      (lock, RecentLockHistory(_, lockID, mostRecentEventTimeDB)) <- getLockHistory(user)
-      mostRecentEventTime <- handleHistory(user, lock, mostRecentEventTimeDB).compile.toList.map(_.maxOption).streamed
-      _ <- mostRecentEventTime.fold(Stream.unit) {
-        case mostRecentEventTime if mostRecentEventTimeDB.forall(_.isBefore(mostRecentEventTime)) =>
-          recentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed
-        case _ => Stream.unit
-      }
-    yield ()
+  def handleUser(user: RegisteredUser)(using Logger[IO]): TokenAuthenticatedStream[Unit] =
+    Kleisli { (token: UserToken) =>
+      for
+        (lock, RecentLockHistory(_, lockID, mostRecentEventTimeDB)) <- getLockHistory(user).run(token)
+        mostRecentEventTime <- handleHistory(user, lock, mostRecentEventTimeDB).run(token).compile.toList.map(_.maxOption).streamed
+        _ <- mostRecentEventTime.fold(Stream.unit) {
+          case mostRecentEventTime if mostRecentEventTimeDB.forall(_.isBefore(mostRecentEventTime)) =>
+            recentLockHistoryRepository.update(user.id, lockID, mostRecentEventTime.some).streamed
+          case _ => Stream.unit
+        }
+      yield ()
+    }
 
   override lazy val repeatedStream: Stream[IO, Unit] =
     for
@@ -80,5 +86,5 @@ class WheelCommands(
       (left, registeredUsers) = registeredUsersOrLeft.partitionMap(identity)
       _ <- if left.isEmpty then Stream.unit else Stream.emits(left).flatMap(left => discordLogger.logWithoutSpam(s"Skipping wheel tasks for user that left server: $left"))
       user <- Stream.emits(registeredUsers.filter(user => user.isLocked && user.keyholderIDs.nonEmpty))
-      _ <- handleUser(user).compile.drain.logErrorOption.streamed
+      _ <- handleUser(user).runUsingTokenOf(user).compile.drain.logErrorOption.streamed
     yield ()

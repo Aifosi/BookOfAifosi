@@ -1,14 +1,16 @@
 package bot.tasks
 
 import bot.{Bot, DiscordLogger, chaster}
-import bot.chaster.{ChasterClient, ConfigUpdate, DiceConfig, ExtensionConfig, Lock, Segment, SegmentType}
+import bot.chaster.*
+import bot.syntax.kleisli.*
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
 import bot.model.{ChasterID, DiscordID, RegisteredUser}
 import bot.syntax.io.*
+import bot.instances.functionk.given
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
-import cats.data.OptionT
+import cats.data.{Kleisli, OptionT}
 import cats.effect.IO
 import cats.syntax.traverse.*
 import org.typelevel.log4cats.Logger
@@ -20,12 +22,11 @@ abstract class WheelCommand[Pattern](chasterClient: ChasterClient, registeredUse
   def pattern: Pattern
   def description: String
 
-  def keyholderAuthenticatedEndpoints(lock: Lock, guildId: DiscordID): OptionT[IO, ChasterClient#AuthenticatedEndpoints] =
+  def keyholder(lock: Lock, guildId: DiscordID): OptionT[IO, RegisteredUser] =
     for
       chasterKeyholder <- OptionT.fromOption(lock.keyholder)
       keyholder <- registeredUserRepository.find(chasterKeyholder._id.equalChasterID, guildId.equalGuildID)
-      authenticatedEndpoints <- OptionT.liftF(keyholder.authenticatedEndpoints(chasterClient))
-    yield authenticatedEndpoints
+    yield keyholder
 
   def apply(user: RegisteredUser, lock: Lock, segment: Segment)(using Logger[IO]): IO[(Boolean, Segment)]
 
@@ -62,9 +63,9 @@ abstract class ModifierTextWheelCommand[Config <: ExtensionConfig: Typeable](
             case Some("/") => Divide(value)
             case _         => Exact(value)
 
-          keyholderAuthenticatedEndpoints(lock, user.guildID).semiflatMap { endpoints =>
+          keyholder(lock, user.guildID).semiflatMap { keyholder =>
             for
-              _ <- endpoints.updateExtension[Config](lock._id)(configUpdate(_, modifier))
+              _ <- client.updateExtension[Config](lock._id)(configUpdate(_, modifier)).runUsingTokenOf(keyholder)
               message = maybeModifierString.fold("to ")(sign => s"by $sign") + value
               _ <- Logger[IO].debug(s"$user $logName changed $message")
               _ <- discordLogger.logToSpinlog(s"${user.mention} $logName changed $message")

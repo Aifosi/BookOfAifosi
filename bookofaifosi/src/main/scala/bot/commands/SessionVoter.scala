@@ -2,14 +2,17 @@ package bot.commands
 
 import bot.chaster.{ChasterClient, SharedLink, VoteAction}
 import bot.commands.{Hidden, NoLog, TextCommand}
-import bot.db.Filters.*
 import bot.db.{RegisteredUserRepository, given}
+import bot.db.Filters.*
 import bot.model.{ChasterID, *}
 import bot.model.event.{MessageEvent, ReactionEvent}
 import bot.syntax.io.*
 import bot.syntax.stream.*
 import bot.tasks.Streams
-import cats.data.{EitherT, OptionT}
+import bot.syntax.kleisli.*
+import bot.instances.functionk.given
+
+import cats.data.{EitherT, Kleisli, OptionT}
 import cats.effect.IO
 import cats.syntax.foldable.*
 import cats.syntax.option.*
@@ -17,16 +20,15 @@ import cats.syntax.traverse.*
 import doobie.postgres.implicits.*
 import doobie.syntax.string.*
 import fs2.Stream
-import org.typelevel.log4cats.Logger
-
-import java.time.temporal.ChronoUnit
 import java.time.{Instant, ZoneOffset}
+import java.time.temporal.ChronoUnit
+import org.typelevel.log4cats.Logger
 import scala.concurrent.duration.*
 import scala.util.chaining.*
 import scala.util.matching.Regex
 
 object SessionVoter extends TextCommand with Hidden with NoLog:
-  val add = "⏫"
+  val add    = "⏫"
   val remove = "⏬"
   val random = "\uD83D\uDD00"
 
@@ -43,31 +45,34 @@ object SessionVoter extends TextCommand with Hidden with NoLog:
     registeredUserRepository: RegisteredUserRepository,
     event: ReactionEvent,
   ): EitherT[IO, String, (RegisteredUser, ChasterID)] = for
-    message <- EitherT.liftF(event.message)
+    message      <- EitherT.liftF(event.message)
     sharedLinkId <- message.content match
-      case pattern(sharedLinkId) => EitherT.pure[IO, String](ChasterID(sharedLinkId))
-      case _                     => EitherT.leftT[IO, ChasterID](s"Could no extract shared link from $message")
-    author <- EitherT.liftF(event.authorMember)
-    user <- registeredUserRepository.find(author.equalDiscordAndGuildID)
-      .toRight(s"Could not find registered used ${event.author}")
+                      case pattern(sharedLinkId) => EitherT.pure[IO, String](ChasterID(sharedLinkId))
+                      case _                     => EitherT.leftT[IO, ChasterID](s"Could no extract shared link from $message")
+    author       <- EitherT.liftF(event.authorMember)
+    user         <- registeredUserRepository
+                      .find(author.equalDiscordAndGuildID)
+                      .toRight(s"Could not find registered used ${event.author}")
   yield (user, sharedLinkId)
 
   def vote(
     client: ChasterClient,
     registeredUserRepository: RegisteredUserRepository,
     event: ReactionEvent,
-    action: VoteAction
+    action: VoteAction,
   ): EitherT[IO, String, Unit] =
     getRegisteredUserAndSharedLink(registeredUserRepository, event).semiflatMap { (user, sharedLinkId) =>
-      for
-        authenticatedEndpoints <- user.authenticatedEndpoints(client)
-        sharedLink <- authenticatedEndpoints.sharedLink(sharedLinkId)
-        _ <- IO.println("test")
-        voteResult = authenticatedEndpoints.vote(sharedLink.lockId, sharedLink.extensionId, action, sharedLinkId)
-        _ <- voteResult.foldF(
-          _ => user.sendMessage("You can't vote on that lock yet."),
-          duration => user.sendMessage(s"I've voted on your behalf! Time was ${if duration.toSeconds > 0 then "Added" else "Removed"}")
-        )
-        _ <- IO.println("test2")
-      yield ()
+      Kleisli { (token: UserToken) =>
+        for
+          sharedLink <- client.sharedLink(sharedLinkId).run(token)
+          voteResult = client.vote(sharedLink.lockId, sharedLink.extensionId, action, sharedLinkId).run(token)
+          _ <- voteResult.foldF(
+            _ => user.sendMessage("You can't vote on that lock yet."),
+            duration =>
+              user.sendMessage(
+                s"I've voted on your behalf! Time was ${if duration.toSeconds > 0 then "Added" else "Removed"}",
+              ),
+          )
+        yield ()
+      }.runUsingTokenOf(user)
     }

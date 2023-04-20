@@ -95,8 +95,7 @@ class Registration private(
       "redirect_uri" -> registerUri.renderString,
     )
     userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
-    profile <- chasterClient(userToken).profile
-    locks <- chasterClient(userToken).locks
+    (profile, locks) <- chasterClient.profile.flatMap(profile => chasterClient.locks.map(profile -> _)).run(userToken)
     keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
     isLocked = locks.exists(_.status == LockStatus.Locked)
     //scopes = accessToken.scope.split(" ")
@@ -144,7 +143,7 @@ class Registration private(
   def register(member: Member, timeout: FiniteDuration): IO[Option[Uri]] =
     val scope = "profile keyholder shared_locks locks"
     registeredUserRepository.find(member.equalDiscordAndGuildID)
-      .semiflatMap(_.tokenGetter)
+      .semiflatMap(_.updatedToken)
       .filter(token => containsAllScopes(scope, token.scope))
       .value
       .flatMap {
