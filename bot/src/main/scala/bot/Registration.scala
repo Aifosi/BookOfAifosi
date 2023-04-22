@@ -1,42 +1,45 @@
 package bot
 
-import bot.chaster.{AccessToken, ChasterClient, LockStatus}
+import bot.chaster.model.{AccessToken, LockStatus}
+import bot.chaster.ChasterClient
 import bot.db.{Filter, RegisteredUserRepository, User, UserTokenRepository}
 import bot.db.Filters.*
-import bot.model.DiscordID.given_Put_DiscordID
 import bot.model.{ChasterID, DiscordID, Guild, Member, Message, RegisteredUser, User, UserToken}
-import cats.effect.{IO, Ref}
-import doobie.syntax.connectionio.*
-import io.circe.Decoder
-import org.http4s.*
-import org.http4s.dsl.io.*
-import org.http4s.circe.CirceEntityDecoder.*
-import org.http4s.Method.*
-import org.http4s.client.dsl.io.*
-import org.http4s.headers.{Authorization, Location}
-import cats.syntax.option.*
-import cats.syntax.applicative.*
-import cats.syntax.traverse.*
-import doobie.syntax.string.*
-import doobie.{Get, Put}
-
-import java.time.Instant
-import scala.concurrent.duration.*
-import java.util.UUID
-import scala.util.Try
+import bot.model.DiscordID.given_Put_DiscordID
 import bot.syntax.io.*
+
 import cats.data.{EitherT, OptionT}
+import cats.effect.{IO, Ref}
+import cats.syntax.applicative.*
+import cats.syntax.option.*
+import cats.syntax.traverse.*
+import doobie.{Get, Put}
+import doobie.syntax.connectionio.*
+import doobie.syntax.string.*
+import io.circe.Decoder
+import java.time.Instant
+import java.util.UUID
+import org.http4s.*
+import org.http4s.Method.*
+import org.http4s.circe.CirceEntityDecoder.*
+import org.http4s.client.dsl.io.*
+import org.http4s.dsl.io.*
+import org.http4s.headers.{Authorization, Location}
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scala.concurrent.duration.*
+import scala.util.Try
 
-class Registration private(
+class Registration private (
   registeredUserRepository: RegisteredUserRepository,
   userTokenRepository: UserTokenRepository,
   chasterClient: ChasterClient,
   registrations: Ref[IO, Map[UUID, (Member, String)]],
   unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]],
 )(using l: Logger[IO], discordLogger: DiscordLogger):
-  given QueryParamDecoder[UUID] = QueryParamDecoder[String].emap(uuid => Try(UUID.fromString(uuid)).toEither.left.map(error => new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)))
+  given QueryParamDecoder[UUID]               = QueryParamDecoder[String].emap(uuid =>
+    Try(UUID.fromString(uuid)).toEither.left.map(error => new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)),
+  )
   def authUri(uuid: UUID, scope: String): Uri =
     (chasterClient.config.authUri / "auth")
       .withQueryParam("client_id", chasterClient.config.clientId)
@@ -52,7 +55,8 @@ class Registration private(
     val port = if chasterClient.config.publicPort != 80 then s":${chasterClient.config.publicPort}" else ""
     Uri.unsafeFromString(s"http://${chasterClient.config.publicHost}$port/register")
 
-  private def joinScopes(scope: String, other: String): String = (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
+  private def joinScopes(scope: String, other: String): String         =
+    (scope.split(" ") ++ other.split(" ")).distinct.mkString(" ")
   private def containsAllScopes(scope: String, other: String): Boolean =
     scope.split(" ").toSet.subsetOf(other.split(" ").toSet)
 
@@ -64,10 +68,12 @@ class Registration private(
   ): IO[UserToken] =
     userTokenRepository.add(accessToken, expiresAt, refreshToken, scope).attempt.flatMap {
       _.fold(
-        throwable => userTokenRepository.get(accessToken.equalAccessToken).flatMap { userToken =>
-          userTokenRepository.update(userToken.id, accessToken, expiresAt, refreshToken, joinScopes(userToken.scope, scope))
-        },
-        _.pure
+        throwable =>
+          userTokenRepository.get(accessToken.equalAccessToken).flatMap { userToken =>
+            userTokenRepository
+              .update(userToken.id, accessToken, expiresAt, refreshToken, joinScopes(userToken.scope, scope))
+          },
+        _.pure,
       )
     }
 
@@ -81,28 +87,37 @@ class Registration private(
   ): IO[RegisteredUser] =
     registeredUserRepository.add(chasterID, discordID, guildID, keyholderIDs, isLocked, tokenID).attempt.flatMap {
       _.fold(
-        throwable => registeredUserRepository.find(chasterID.equalChasterID, discordID.equalDiscordID, guildID.equalGuildID).foldF(IO.raiseError(throwable)) { user =>
-          registeredUserRepository.update(user.id, tokenID = tokenID.some)
-        },
-        _.pure
+        throwable =>
+          registeredUserRepository
+            .find(chasterID.equalChasterID, discordID.equalDiscordID, guildID.equalGuildID)
+            .foldF(IO.raiseError(throwable)) { user =>
+              registeredUserRepository.update(user.id, tokenID = tokenID.some)
+            },
+        _.pure,
       )
     }
 
   def requestAccessToken(member: Member, authorizationCode: String, uuid: UUID): IO[Unit] = for
-    accessToken <- chasterClient.token(
-      "grant_type" -> "authorization_code",
-      "code" -> authorizationCode,
-      "redirect_uri" -> registerUri.renderString,
-    )
-    userToken <- addOrUpdateTokenScope(accessToken.access_token, accessToken.expiresAt, accessToken.refresh_token, accessToken.scope)
+    accessToken      <- chasterClient.token(
+                          "grant_type"   -> "authorization_code",
+                          "code"         -> authorizationCode,
+                          "redirect_uri" -> registerUri.renderString,
+                        )
+    userToken        <- addOrUpdateTokenScope(
+                          accessToken.access_token,
+                          accessToken.expiresAt,
+                          accessToken.refresh_token,
+                          accessToken.scope,
+                        )
     (profile, locks) <- chasterClient.profile.flatMap(profile => chasterClient.locks.map(profile -> _)).run(userToken)
-    keyholderIDs = locks.flatMap(_.keyholder.map(_._id))
-    isLocked = locks.exists(_.status == LockStatus.Locked)
-    //scopes = accessToken.scope.split(" ")
-    registeredUser <- addOrUpdateUser(profile._id, member.discordID, member.guild.discordID, keyholderIDs, isLocked, userToken.id)
-    _ <- registrations.update(_ - uuid)
-    _ <- discordLogger.logToChannel(s"Registration successful for ${member.mention} -> ${profile.username}")
-    _ <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
+    keyholderIDs      = locks.flatMap(_.keyholder.map(_._id))
+    isLocked          = locks.exists(_.status == LockStatus.Locked)
+    // scopes = accessToken.scope.split(" ")
+    registeredUser   <-
+      addOrUpdateUser(profile._id, member.discordID, member.guild.discordID, keyholderIDs, isLocked, userToken.id)
+    _                <- registrations.update(_ - uuid)
+    _                <- discordLogger.logToChannel(s"Registration successful for ${member.mention} -> ${profile.username}")
+    _                <- Logger[IO].info(s"Registration successful for $member -> ${profile.username}, UUID: $uuid")
   yield ()
 
   val routes: HttpRoutes[IO] = HttpRoutes.of {
@@ -112,7 +127,7 @@ class Registration private(
         case registrations                                  =>
           val member = registrations(uuid)._1
           for
-            _ <- requestAccessToken(member, authorizationCode, uuid)
+            _        <- requestAccessToken(member, authorizationCode, uuid)
             response <- Ok("Registration Successful")
           yield response
       }
@@ -130,43 +145,46 @@ class Registration private(
     (IO.sleep(timeout) *> registrations.update(_ - uuid)).start.void
 
   given QueryParamEncoder[UUID] = (uuid: UUID) => QueryParamEncoder[String].encode(uuid.toString)
-  
+
   def generateURI(member: Member, scope: String, timeout: FiniteDuration): IO[Uri] =
     for
-      uuid <- IO(UUID.randomUUID())
-      _ <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
-      _ <- registrations.update(_ + (uuid -> (member, scope)))
-      _ <- invalidateRegistration(uuid, timeout)
+      uuid           <- IO(UUID.randomUUID())
+      _              <- Logger[IO].info(s"Starting registration for $member, UUID: $uuid")
+      _              <- registrations.update(_ + (uuid -> (member, scope)))
+      _              <- invalidateRegistration(uuid, timeout)
       authenticateUri = (registerUri / "authenticate").withQueryParam("state", uuid)
     yield authenticateUri
 
   def register(member: Member, timeout: FiniteDuration): IO[Option[Uri]] =
-    val scope = "profile keyholder shared_locks locks"
-    registeredUserRepository.find(member.equalDiscordAndGuildID)
+    val scope = "openid keyholder locks profile shared_locks email"
+    registeredUserRepository
+      .find(member.equalDiscordAndGuildID)
       .semiflatMap(_.updatedToken)
       .filter(token => containsAllScopes(scope, token.scope))
       .value
       .flatMap {
-        case Some(_) => IO.pure(None) //Use already registered with all scopes
+        case Some(_) => IO.pure(None) // Use already registered with all scopes
         case None    => generateURI(member, scope, timeout).map(_.some)
       }
 
   def unregister(member: Member): IO[Option[String]] =
     import cats.syntax.list.*
     val either = for
-      registeredUser <- registeredUserRepository.find(member.equalDiscordAndGuildID).toRight(s"Unable to find user $member")
-      _ <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) => acc.flatMap(_ => hook(registeredUser)))
-      _ <- EitherT.liftF(userTokenRepository.remove(registeredUser.tokenID.equalID))
-      _ <- EitherT.liftF(registeredUserRepository.remove(registeredUser.id.equalID))
+      registeredUser <-
+        registeredUserRepository.find(member.equalDiscordAndGuildID).toRight(s"Unable to find user $member")
+      _              <- unregisterHooks.foldLeft(EitherT.liftF[IO, String, Unit](IO.unit))((acc, hook) =>
+                          acc.flatMap(_ => hook(registeredUser)),
+                        )
+      _              <- EitherT.liftF(userTokenRepository.remove(registeredUser.tokenID.equalID))
+      _              <- EitherT.liftF(registeredUserRepository.remove(registeredUser.id.equalID))
     yield "If you want you can unregister this application from chaster, you can do that here: https://chaster.app/settings/password"
     either.foldF(
-      error => {
+      error =>
         for
           _ <- discordLogger.logToChannel(s"Unable to unregister ${member.mention} $error")
           _ <- Logger[IO].info(s"Unable to unregister $member $error")
-        yield None
-      },
-      _.some.pure
+        yield None,
+      _.some.pure,
     )
 
 object Registration:
@@ -174,11 +192,11 @@ object Registration:
     registeredUserRepository: RegisteredUserRepository,
     userTokenRepository: UserTokenRepository,
     chasterClient: ChasterClient,
-    unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]]
+    unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]],
   )(using DiscordLogger): IO[Registration] =
     for
-      registrations <- Ref.of[IO, Map[UUID, (Member, String)]](Map.empty)
-      given Logger[IO]  <- Slf4jLogger.create[IO]
+      registrations    <- Ref.of[IO, Map[UUID, (Member, String)]](Map.empty)
+      given Logger[IO] <- Slf4jLogger.create[IO]
     yield new Registration(
       registeredUserRepository,
       userTokenRepository,
@@ -186,4 +204,3 @@ object Registration:
       registrations,
       unregisterHooks,
     )
-    

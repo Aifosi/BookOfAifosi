@@ -1,7 +1,8 @@
 package bot.wheel
 
 import bot.DiscordLogger
-import bot.chaster.{ChasterClient, ConfigUpdate, DiceRollPunishmentConfig, PenaltyConfig, WheelOfFortuneTurnsPunishmentConfig}
+import bot.chaster.ChasterClient
+import bot.chaster.model.{ConfigUpdate, DiceRollPunishmentConfig, PenaltyConfig, WheelOfFortuneTurnsPunishmentConfig}
 import bot.db.RegisteredUserRepository
 import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier

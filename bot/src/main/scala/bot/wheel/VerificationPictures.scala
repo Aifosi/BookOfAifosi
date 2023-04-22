@@ -1,7 +1,8 @@
 package bot.wheel
 
 import bot.DiscordLogger
-import bot.chaster.{ChasterClient, ConfigUpdate, PenaltyConfig, VerificationPictureVerifyPunishmentConfig}
+import bot.chaster.ChasterClient
+import bot.chaster.model.{ConfigUpdate, PenaltyConfig, VerificationPictureVerifyPunishmentConfig}
 import bot.db.RegisteredUserRepository
 import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier

@@ -1,8 +1,8 @@
 package bot.wheel
 
 import bot.{Bot, DiscordLogger}
-import bot.chaster.{ChasterClient, Lock, Segment, SegmentType, WheelOfFortuneConfig}
-import bot.chaster.SegmentType.Text
+import bot.chaster.ChasterClient
+import bot.chaster.model.{Lock, Segment, SegmentType, WheelOfFortuneConfig}
 import bot.commands.Compress
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository

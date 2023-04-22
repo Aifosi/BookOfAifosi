@@ -1,6 +1,8 @@
 package bot.chaster
 
 import bot.chaster.*
+import bot.chaster.model.*
+import bot.chaster.model.instances.given
 import bot.model.{ChasterID, UserToken}
 
 import cats.~>

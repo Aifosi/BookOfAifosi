@@ -1,7 +1,8 @@
 package bot.wheel
 
 import bot.DiscordLogger
-import bot.chaster.{ChasterClient, ConfigUpdate, PilloryConfig}
+import bot.chaster.ChasterClient
+import bot.chaster.model.{ConfigUpdate, PilloryConfig}
 import bot.db.RegisteredUserRepository
 import bot.tasks.ModifierTextWheelCommand
 

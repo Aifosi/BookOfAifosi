@@ -1,4 +1,4 @@
-package bot.chaster
+package bot.chaster.model
 
 import io.circe.Decoder
 import org.http4s.Status

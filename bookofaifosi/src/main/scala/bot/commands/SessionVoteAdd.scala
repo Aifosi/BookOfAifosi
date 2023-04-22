@@ -1,6 +1,7 @@
 package bot.commands
 
-import bot.chaster.{ChasterClient, VoteAction}
+import bot.chaster.ChasterClient
+import bot.chaster.model.VoteAction
 import bot.db.RegisteredUserRepository
 import bot.db.Filters.*
 import bot.model.event.ReactionEvent

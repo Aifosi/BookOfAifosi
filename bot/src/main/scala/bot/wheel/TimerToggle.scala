@@ -1,7 +1,8 @@
 package bot.wheel
 
 import bot.DiscordLogger
-import bot.chaster.{ChasterClient, Lock}
+import bot.chaster.ChasterClient
+import bot.chaster.model.Lock
 import bot.db.RegisteredUserRepository
 import bot.model.RegisteredUser
 import bot.tasks.TextWheelCommand

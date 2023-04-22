@@ -2,7 +2,8 @@ package bot.tasks
 
 import bot.{Bot, DiscordLogger}
 import bot.Configuration
-import bot.chaster.{ChasterClient, LockStatus, PublicUser, TokenAuthenticated, TokenAuthenticatedStream}
+import bot.chaster.{ChasterClient, TokenAuthenticated, TokenAuthenticatedStream}
+import bot.chaster.model.{LockStatus, PublicUser}
 import bot.db.{RegisteredUserRepository, given}
 import bot.db.Filters.*
 import bot.model.{*, given}
@@ -195,8 +196,7 @@ class UpdateUsers(
       _                      <- registeredUsers
                                   .find(_.discordID == member.discordID)
                                   .fold(addRoleRemoveOthers(visitorRole)) { registeredUser =>
-                                    handleRegisteredUser(guestRole, lockedRole, switchRole, keyholderRole,
-                                      addRoleRemoveOthers)(
+                                    handleRegisteredUser(guestRole, lockedRole, switchRole, keyholderRole, addRoleRemoveOthers)(
                                       guild,
                                       registeredUser,
                                     )

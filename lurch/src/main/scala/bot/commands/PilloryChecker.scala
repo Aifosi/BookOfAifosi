@@ -1,6 +1,7 @@
 package bot.commands
 
-import bot.chaster.{ChasterClient, Post}
+import bot.chaster.ChasterClient
+import bot.chaster.model.Post
 import bot.commands.{Hidden, NoLog, TextCommand}
 import bot.db.{PilloryBitchesRepository, PilloryLinkRepository}
 import bot.db.{RegisteredUserRepository, given}

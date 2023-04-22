@@ -1,7 +1,8 @@
 package bot.tasks
 
-import bot.{Bot, DiscordLogger, chaster}
-import bot.chaster.*
+import bot.{Bot, DiscordLogger}
+import bot.chaster.ChasterClient
+import bot.chaster.model.*
 import bot.syntax.kleisli.*
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository

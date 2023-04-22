@@ -1,6 +1,7 @@
 package bot.tasks
 
 import bot.chaster.*
+import bot.chaster.model.*
 import bot.syntax.kleisli.*
 import bot.db.Filters.*
 import bot.db.{RecentLockHistoryRepository, RegisteredUserRepository}

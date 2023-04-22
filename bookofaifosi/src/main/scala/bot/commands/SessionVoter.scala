@@ -1,6 +1,7 @@
 package bot.commands
 
-import bot.chaster.{ChasterClient, SharedLink, VoteAction}
+import bot.chaster.ChasterClient
+import bot.chaster.model.{SharedLink, VoteAction}
 import bot.commands.{Hidden, NoLog, TextCommand}
 import bot.db.{RegisteredUserRepository, given}
 import bot.db.Filters.*
