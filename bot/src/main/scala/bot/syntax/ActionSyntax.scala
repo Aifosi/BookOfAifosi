@@ -1,9 +1,9 @@
 package bot.syntax
 
-import cats.effect.IO
 import bot.Bot
-import net.dv8tion.jda.api.requests.RestAction
 
+import cats.effect.IO
+import net.dv8tion.jda.api.requests.RestAction
 import scala.annotation.targetName
 import scala.concurrent.Promise
 

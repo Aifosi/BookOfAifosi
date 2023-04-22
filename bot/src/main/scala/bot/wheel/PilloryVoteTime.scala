@@ -12,16 +12,19 @@ import scala.reflect.Typeable
 class PilloryVoteTime(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using DiscordLogger) extends ModifierTextWheelCommand[PilloryConfig](client, registeredUserRepository):
+)(using DiscordLogger)
+    extends ModifierTextWheelCommand[PilloryConfig](client, registeredUserRepository):
   override def textPattern: String = "PilloryVoteTime:"
 
   override def logName: String = "pillory vote time"
 
-  override def configUpdate(configUpdate: ConfigUpdate[PilloryConfig], modifier: ModifierTextWheelCommand.Modifier)(using Typeable[PilloryConfig]): ConfigUpdate[PilloryConfig] =
+  override def configUpdate(configUpdate: ConfigUpdate[PilloryConfig], modifier: ModifierTextWheelCommand.Modifier)(
+    using Typeable[PilloryConfig],
+  ): ConfigUpdate[PilloryConfig] =
     configUpdate.copy(
       config = configUpdate.config.copy(
-        timeToAdd = modifier.apply(configUpdate.config.timeToAdd.toMinutes.toInt).minutes
-      )
+        timeToAdd = modifier.apply(configUpdate.config.timeToAdd.toMinutes.toInt).minutes,
+      ),
     )
 
   override val description: String = "Changes the time added per vote in the pillory"

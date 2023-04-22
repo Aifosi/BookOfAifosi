@@ -1,12 +1,12 @@
 package bot.model
 
 import bot.Bot
+import bot.Lurch
 import bot.model.{Channel, DiscordID, Message, RegisteredUser}
+
 import cats.data.OptionT
 import cats.effect.IO
 import cats.effect.kernel.Deferred
-import bot.Lurch
-
 import java.time.Instant
 import java.util.UUID
 

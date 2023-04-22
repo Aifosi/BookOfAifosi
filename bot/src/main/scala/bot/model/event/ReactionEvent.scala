@@ -2,10 +2,11 @@ package bot.model.event
 
 import bot.Bot
 import bot.model.{DiscordID, Message}
-import cats.effect.IO
-import bot.syntax.all.*
 import bot.model.toLong
-import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}
+import bot.syntax.all.*
+
+import cats.effect.IO
+import net.dv8tion.jda.api.entities.{Guild as JDAGuild, Member as JDAMember, MessageChannel, User as JDAUser}
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent
 
 class ReactionEvent(
@@ -20,13 +21,13 @@ class ReactionEvent(
   def addReaction(emoji: String): IO[Unit] =
     for
       message <- jdaChannel.retrieveMessageById(messageID.toLong).toIO
-      _ <- message.addReaction(emoji).toIO
+      _       <- message.addReaction(emoji).toIO
     yield ()
 
   lazy val message: IO[Message] =
-    channel.findMessageByID(messageID)
+    channel
+      .findMessageByID(messageID)
       .getOrRaise(new Exception(s"Message $messageID not found in channel ${channel.discordID}"))
-
 
 object ReactionEvent:
   given Conversion[MessageReactionAddEvent, ReactionEvent] = event =>

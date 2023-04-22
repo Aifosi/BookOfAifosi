@@ -1,10 +1,10 @@
 package bot.tasks
 
 import bot.Bot
+
 import cats.effect.IO
 import fs2.Stream
 import org.typelevel.log4cats.Logger
-
 import scala.concurrent.duration.FiniteDuration
 
 trait Streams:

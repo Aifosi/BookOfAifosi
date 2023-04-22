@@ -4,10 +4,10 @@ import bot.DiscordLogger
 import bot.chaster.ChasterClient
 import bot.chaster.model.Lock
 import bot.db.RegisteredUserRepository
-import bot.model.RegisteredUser
-import bot.tasks.TextWheelCommand
-import bot.syntax.kleisli.*
 import bot.instances.functionk.given
+import bot.model.RegisteredUser
+import bot.syntax.kleisli.*
+import bot.tasks.TextWheelCommand
 
 import cats.effect.IO
 import org.typelevel.log4cats.Logger

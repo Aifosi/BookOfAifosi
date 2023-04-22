@@ -2,9 +2,9 @@ package bot
 
 import cats.effect.IO
 import com.typesafe.config.{Config, ConfigFactory}
+import pureconfig.{ConfigReader, ConfigSource}
 import pureconfig.generic.derivation.default.derived
 import pureconfig.module.catseffect.syntax.*
-import pureconfig.{ConfigReader, ConfigSource}
 
 case class DiscordConfiguration(
   token: String,

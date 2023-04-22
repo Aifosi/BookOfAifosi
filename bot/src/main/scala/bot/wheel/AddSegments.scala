@@ -6,11 +6,11 @@ import bot.chaster.model.{Lock, Segment, SegmentType, WheelOfFortuneConfig}
 import bot.commands.Compress
 import bot.db.Filters.*
 import bot.db.RegisteredUserRepository
+import bot.instances.functionk.given
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
-import bot.instances.functionk.given
-import bot.tasks.TextWheelCommand
 import bot.syntax.kleisli.*
+import bot.tasks.TextWheelCommand
 import bot.wheel.AddSegments.*
 
 import cats.data.OptionT
@@ -43,14 +43,14 @@ class AddSegments(
         keyholder(lock, user.guildID).semiflatMap { keyholder =>
           for
             _ <- client
-              .updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
-                configUpdate.copy(
-                  config = configUpdate.config.copy(
-                    segments = configUpdate.config.segments ++ text.decodeSegments,
-                  ),
-                )
-              }
-              .runUsingTokenOf(keyholder)
+                   .updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
+                     configUpdate.copy(
+                       config = configUpdate.config.copy(
+                         segments = configUpdate.config.segments ++ text.decodeSegments,
+                       ),
+                     )
+                   }
+                   .runUsingTokenOf(keyholder)
             _ <- Logger[IO].debug(s"Added $text segments to $user Wheel of fortune")
             _ <- discordLogger.logToSpinlog(s"$text segments to ${user.mention} Wheel of fortune")
           yield ()

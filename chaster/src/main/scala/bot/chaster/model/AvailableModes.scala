@@ -1,8 +1,9 @@
 package bot.chaster.model
 
+import bot.chaster.model.instances.*
+
 import io.circe.{Decoder, Encoder}
 import scala.util.Try
-import bot.chaster.model.instances.*
 
 enum AvailableModes:
   case Unlimited, Cumulative, NonCumulative, Turn

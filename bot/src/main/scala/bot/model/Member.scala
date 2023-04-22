@@ -1,10 +1,10 @@
 package bot.model
 
+import bot.syntax.action.*
+
 import cats.effect.IO
 import cats.syntax.functor.*
-import bot.syntax.action.*
 import net.dv8tion.jda.api.entities.Member as JDAMember
-
 import scala.jdk.CollectionConverters.*
 
 open class Member(private[model] val member: JDAMember) extends User(member.getUser):

@@ -4,16 +4,23 @@ import bot.*
 import bot.Bot.Builder
 import bot.chaster.ChasterClient
 import bot.commands.*
+import bot.db.{RegisteredUserRepository, UserTokenRepository}
+import bot.db.Filters.*
+import bot.db.RecentLockHistoryRepository
 import bot.model.Discord
 import bot.tasks.{Streams, WheelCommand}
-import bot.db.Filters.*
-import bot.db.{RegisteredUserRepository, UserTokenRepository}
+import bot.tasks.WheelCommands
+import bot.wheel.*
+
 import cats.data.{EitherT, NonEmptyList}
-import cats.effect.unsafe.IORuntime
 import cats.effect.{Deferred, ExitCode, IO, IOApp}
+import cats.effect.unsafe.IORuntime
 import doobie.LogHandler
 import doobie.util.transactor.Transactor
 import fs2.Stream
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.requests.GatewayIntent
 import org.flywaydb.core.Flyway
@@ -22,13 +29,6 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.Retry
 import org.typelevel.log4cats.Logger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import bot.db.RecentLockHistoryRepository
-import bot.tasks.WheelCommands
-import bot.wheel.*
-
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import scala.concurrent.duration.FiniteDuration
 
 //https://discord.com/oauth2/authorize?client_id=987840268726312970&scope=bot%20applications.commands&permissions=534992186432
@@ -69,8 +69,8 @@ object BookOfAifosi extends IOApp.Simple:
 
   override def run: IO[Unit] =
     for
-      config <- Configuration.fromConfig()
-      channels <- ChannelConfiguration.fromConfig()
+      config              <- Configuration.fromConfig()
+      channels            <- ChannelConfiguration.fromConfig()
       given DiscordLogger <- DiscordLogger.create
-      _ <- Bot.run(commanderBuilder(config, channels))(using runtime)
+      _                   <- Bot.run(commanderBuilder(config, channels))(using runtime)
     yield ()

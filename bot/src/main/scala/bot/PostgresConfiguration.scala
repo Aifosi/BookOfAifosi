@@ -10,8 +10,9 @@ final case class PostgresConfiguration(
   driver: String,
   user: String,
   password: String,
-  url: String
-) extends DBConfig derives ConfigReader
+  url: String,
+) extends DBConfig
+    derives ConfigReader
 
 object PostgresConfiguration:
   def fromConfig(config: Config = ConfigFactory.load()): IO[PostgresConfiguration] =

@@ -2,11 +2,11 @@ package bot.commands
 
 import bot.commands.{Command, Hidden, TextCommand}
 import bot.db.Filters.*
-import bot.model.event.MessageEvent
-import cats.effect.IO
 import bot.db.LockedChannelsRepository
-import org.typelevel.log4cats.Logger
+import bot.model.event.MessageEvent
 
+import cats.effect.IO
+import org.typelevel.log4cats.Logger
 import scala.util.matching.Regex
 
 class MessageDeleter(
@@ -16,7 +16,8 @@ class MessageDeleter(
 
   override def apply(pattern: Regex, event: MessageEvent)(using Logger[IO]): IO[Boolean] =
     for
-      guild <- event.guild
-      channelIsLocked <- lockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).isDefined
-      _ <- if channelIsLocked then event.message.delete else IO.unit
+      guild           <- event.guild
+      channelIsLocked <-
+        lockedChannelsRepository.find(guild.discordID.equalGuildID, event.channel.discordID.equalChannelID).isDefined
+      _               <- if channelIsLocked then event.message.delete else IO.unit
     yield channelIsLocked

@@ -2,24 +2,24 @@ package bot.db
 
 import bot.Bot
 import bot.chaster.ChasterClient
-import bot.db.mkFragment
+import bot.db.{mkFragment, ModelRepository, User, UserTokenRepository}
 import bot.db.Filters.*
-import bot.db.{ModelRepository, User, UserTokenRepository, mkFragment}
+import bot.db.mkFragment
 import bot.model.{ChasterID, Discord, DiscordID, RegisteredUser}
 import bot.model.given
 import bot.syntax.io.*
 import bot.utils.Maybe
+
 import cats.data.EitherT
 import cats.effect.{Deferred, IO}
 import cats.effect.LiftIO.*
 import cats.syntax.functor.*
 import cats.syntax.option.*
+import doobie.{ConnectionIO, Fragment, LogHandler, Transactor}
 import doobie.postgres.implicits.*
 import doobie.syntax.SqlInterpolator.SingleFragment
 import doobie.syntax.connectionio.*
 import doobie.syntax.string.*
-import doobie.{ConnectionIO, Fragment, LogHandler, Transactor}
-
 import java.time.Instant
 import java.util.UUID
 
@@ -39,19 +39,31 @@ class RegisteredUserRepository(
   discord: Deferred[IO, Discord],
   userTokenRepository: UserTokenRepository,
   chasterClient: ChasterClient,
-)(
-  using transactor: Transactor[IO], logHandler: LogHandler
+)(using
+  transactor: Transactor[IO],
+  logHandler: LogHandler,
 ) extends ModelRepository[User, RegisteredUser] with ThoroughList[User, RegisteredUser, String]:
-  override protected val table: Fragment = fr"users"
-  override protected val columns: List[String] = List("id", "chaster_id", "user_discord_id", "guild_discord_id", "keyholder_ids", "is_locked", "token_id", "last_locked", "last_keyheld")
+  override protected val table: Fragment       = fr"users"
+  override protected val columns: List[String] = List(
+    "id",
+    "chaster_id",
+    "user_discord_id",
+    "guild_discord_id",
+    "keyholder_ids",
+    "is_locked",
+    "token_id",
+    "last_locked",
+    "last_keyheld",
+  )
 
-  override def id(db: User): String = s"guild ID: ${db.guildID}, discord ID: ${db.discordID}, chaster ID: ${db.chasterID}"
+  override def id(db: User): String =
+    s"guild ID: ${db.guildID}, discord ID: ${db.discordID}, chaster ID: ${db.chasterID}"
 
   override def toModel(user: User): Maybe[RegisteredUser] =
     for
       discord <- discord.get.to[Maybe]
-      guild <- discord.guildByID(user.guildID)
-      member <- guild.member(user.discordID)
+      guild   <- discord.guildByID(user.guildID)
+      member  <- guild.member(user.discordID)
     yield new RegisteredUser(
       user.id,
       user.chasterID,
@@ -73,8 +85,7 @@ class RegisteredUserRepository(
     isLocked: Boolean,
     tokenID: UUID,
   ): IO[RegisteredUser] =
-    sql"insert into $table (chaster_id, user_discord_id, guild_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $guildID, $keyholderIDs, $isLocked, $tokenID)"
-      .update
+    sql"insert into $table (chaster_id, user_discord_id, guild_discord_id, keyholder_ids, is_locked, token_id) values ($chasterID, $discordID, $guildID, $keyholderIDs, $isLocked, $tokenID)".update
       .withUniqueGeneratedKeys[User](columns*)
       .transact(transactor)
       .flatMap(unsafeToModel)

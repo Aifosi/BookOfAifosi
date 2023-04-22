@@ -1,7 +1,7 @@
 package bot.model.event
 
+import net.dv8tion.jda.api.entities.{Guild as JDAGuild, Member as JDAMember, MessageChannel, User as JDAUser}
 import net.dv8tion.jda.api.entities.MessageChannel
-import net.dv8tion.jda.api.entities.{MessageChannel, Guild as JDAGuild, Member as JDAMember, User as JDAUser}
 
 abstract class GenericTextEvent(
   jdaChannel: MessageChannel,
