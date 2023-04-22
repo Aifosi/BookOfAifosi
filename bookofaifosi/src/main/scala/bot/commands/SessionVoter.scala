@@ -4,7 +4,6 @@ import bot.chaster.ChasterClient
 import bot.chaster.model.{SharedLink, VoteAction}
 import bot.commands.{Hidden, NoLog, TextCommand}
 import bot.db.{RegisteredUserRepository, given}
-import bot.db.Filters.*
 import bot.instances.functionk.given
 import bot.model.{ChasterID, *}
 import bot.model.event.{MessageEvent, ReactionEvent}
@@ -42,31 +41,13 @@ object SessionVoter extends TextCommand with Hidden with NoLog:
       _ <- event.message.addReaction(random)
     yield true
 
-  private def getRegisteredUserAndSharedLink(
-    registeredUserRepository: RegisteredUserRepository,
-    event: ReactionEvent,
-  ): EitherT[IO, String, (RegisteredUser, ChasterID)] = for
-    message      <- EitherT.liftF(event.message)
-    sharedLinkId <-
-      pattern
-        .findFirstMatchIn(message.content)
-        .map(_.group(1))
-        .fold(EitherT.leftT[IO, ChasterID](s"Could not extract shared link from $message")) { sharedLinkId =>
-          EitherT.pure[IO, String](ChasterID(sharedLinkId))
-        }
-    author       <- EitherT.liftF(event.authorMember)
-    user         <- registeredUserRepository
-                      .find(author.equalDiscordAndGuildID)
-                      .toRight(s"Could not find registered used ${event.author}")
-  yield (user, sharedLinkId)
-
   def vote(
     client: ChasterClient,
     registeredUserRepository: RegisteredUserRepository,
     event: ReactionEvent,
     action: VoteAction,
   ): EitherT[IO, String, Unit] =
-    getRegisteredUserAndSharedLink(registeredUserRepository, event).semiflatMap { (user, sharedLinkId) =>
+    Voter.getRegisteredUserAndChasterID(pattern, registeredUserRepository, event).semiflatMap { (user, sharedLinkId) =>
       Kleisli { (token: UserToken) =>
         for
           sharedLink <- client.sharedLink(sharedLinkId).run(token)

@@ -9,10 +9,10 @@ import bot.model.event.ReactionEvent
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
 
-class SessionVoteRandom(
+class VoterRandom(
   chasterClient: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-) extends ReactionCommand with Hidden:
+) extends ReactionCommand with Hidden with NoLog:
   override def pattern: String = SessionVoter.random
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =

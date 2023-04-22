@@ -50,9 +50,10 @@ object BookOfAifosi extends IOApp.Simple:
 
       val commands: List[AnyCommand] = List(
         SessionVoter,
-        new SessionVoteAdd(chasterClient, registeredUserRepository),
-        new SessionVoteRemove(chasterClient, registeredUserRepository),
-        new SessionVoteRandom(chasterClient, registeredUserRepository),
+        PilloryVoter,
+        new VoterAdd(chasterClient, registeredUserRepository),
+        new VoterRemove(chasterClient, registeredUserRepository),
+        new VoterRandom(chasterClient, registeredUserRepository),
       )
 
       val tasks: NonEmptyList[Streams] = NonEmptyList.of(

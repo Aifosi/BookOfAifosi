@@ -96,9 +96,13 @@ class ChasterClient private (
               EntityDecoder[IO, ChasterAPIError].decode(response, strict = false).leftWiden[Throwable].rethrowT
             case resp                  => IO.pure(UnexpectedStatus(resp.status, req.method, req.uri))
           }
+          .recoverWith { //This needs to be done here so the recover function below can catch this
+            case error: MalformedMessageBodyFailure => IO.raiseError(ChasterAPIError(Status.Ok, "Invalid JSON", error.message))
+          }
           .map(_.asRight)
-          .recoverWith { case chasterError: ChasterAPIError =>
-            recover.applyOrElse(chasterError, _ => EitherT.liftF(IO.raiseError(chasterError))).value
+          .recoverWith {
+            case chasterError: ChasterAPIError      =>
+              recover.applyOrElse(chasterError, _ => EitherT.liftF(IO.raiseError(chasterError))).value
           }
       }
 
@@ -338,6 +342,17 @@ class ChasterClient private (
         case ChasterAPIError(Status.BadRequest, error @ "Cannot vote now", _) => EitherT.leftT(error)
       }
       .map(_.duration)
+
+  def voteOnPillory(
+    lock: ChasterID,
+    extension: ChasterID,
+    pillory: ChasterID,
+  ): TokenAuthenticatedEither[String, Unit] =
+    this
+      .action[String, Unit](lock, extension)("votePublic", VotePublicPayload(pillory)) {
+        case ChasterAPIError(Status.Ok, "Invalid JSON", _) => EitherT.pure(())
+        case ChasterAPIError(Status.BadRequest, error @ "You have already voted.", _) => EitherT.leftT(error)
+      }
 
 object ChasterClient:
   private def acquireHttpClient: Resource[IO, Client[IO]] =

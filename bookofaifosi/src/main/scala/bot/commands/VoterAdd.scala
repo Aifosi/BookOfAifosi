@@ -9,16 +9,18 @@ import bot.model.event.ReactionEvent
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
 
-class SessionVoteAdd(
+class VoterAdd(
   chasterClient: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-) extends ReactionCommand with Hidden:
-  override def pattern: String = SessionVoter.add
+) extends ReactionCommand with Hidden with NoLog:
+  override def pattern: String = PilloryVoter.add
 
   override def apply(pattern: String, event: ReactionEvent)(using Logger[IO]): IO[Boolean] =
     SessionVoter
       .vote(chasterClient, registeredUserRepository, event, VoteAction.Add)
-      .foldF(
-        error => Logger[IO].debug(error).as(false),
-        _ => IO.pure(true),
+      .orElse(PilloryVoter.vote(chasterClient, registeredUserRepository, event))
+      .leftSemiflatTap(error => Logger[IO].debug(error))
+      .fold(
+        _ => false,
+        _ => true,
       )
