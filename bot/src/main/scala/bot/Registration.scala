@@ -38,9 +38,9 @@ class Registration private (
   unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]],
 )(using l: Logger[IO], discordLogger: DiscordLogger):
   given QueryParamDecoder[UUID]               = QueryParamDecoder[String].emap(uuid =>
-    Try(UUID.fromString(uuid)).toEither.left.map(error =>
-      new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage),
-    ),
+    Try(UUID.fromString(uuid)).toEither.left.map { error =>
+      new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)
+    },
   )
   def authUri(uuid: UUID, scope: String): Uri =
     (chasterClient.config.authUri / "auth")
