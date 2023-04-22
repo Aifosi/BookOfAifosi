@@ -1,16 +1,16 @@
 package bot.model
 
+import bot.model.Discord.*
+import bot.syntax.action.*
+import bot.utils.Maybe
+
+import cats.data.{EitherT, OptionT}
 import cats.effect.IO
 import cats.syntax.either.*
 import net.dv8tion.jda.api.JDA
-import bot.syntax.action.*
-import cats.data.{EitherT, OptionT}
-import bot.model.Discord.*
-import bot.utils.Maybe
-
-import scala.jdk.CollectionConverters.*
 import net.dv8tion.jda.api.entities.MessageChannel
 import net.dv8tion.jda.api.requests.RestAction
+import scala.jdk.CollectionConverters.*
 
 class Discord(val jda: JDA):
   def userByID(id: DiscordID): Maybe[User] =

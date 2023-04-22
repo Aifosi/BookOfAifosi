@@ -9,5 +9,8 @@ trait DBConfig:
   def password: String
   def url: String
   lazy val transactor: Transactor[IO] = Transactor.fromDriverManager[IO](
-    driver, url, user, password
+    driver,
+    url,
+    user,
+    password,
   )

@@ -9,25 +9,28 @@ import bot.syntax.io.*
 import bot.tasks.ModifierTextWheelCommand
 import bot.tasks.ModifierTextWheelCommand.Modifier
 import bot.tasks.ModifierTextWheelCommand.Modifier.*
+
 import cats.data.OptionT
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
-
 import scala.concurrent.duration.*
 import scala.reflect.Typeable
 
 class VoteRemove(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using DiscordLogger) extends ModifierTextWheelCommand[LinkConfig](client, registeredUserRepository):
+)(using DiscordLogger)
+    extends ModifierTextWheelCommand[LinkConfig](client, registeredUserRepository):
   override def textPattern: String = "VoteRemove:"
-  override def logName: String = "time removed per vote"
+  override def logName: String     = "time removed per vote"
 
-  override def configUpdate(configUpdate: ConfigUpdate[LinkConfig], modifier: Modifier)(using Typeable[LinkConfig]): ConfigUpdate[LinkConfig] =
+  override def configUpdate(configUpdate: ConfigUpdate[LinkConfig], modifier: Modifier)(using
+    Typeable[LinkConfig],
+  ): ConfigUpdate[LinkConfig] =
     configUpdate.copy(
       config = configUpdate.config.copy(
-        timeToRemove = modifier.apply(configUpdate.config.timeToRemove.toMinutes.toInt).minutes
-      )
+        timeToRemove = modifier.apply(configUpdate.config.timeToRemove.toMinutes.toInt).minutes,
+      ),
     )
 
   override val description: String = "Changes the time removed per vote of the shared link"

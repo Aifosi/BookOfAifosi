@@ -1,13 +1,13 @@
 package bot
 
 import bot.ChannelConfiguration
+
 import cats.effect.IO
 import com.typesafe.config.{Config, ConfigFactory}
-import pureconfig.generic.derivation.default.derived
-import pureconfig.{ConfigReader, ConfigSource}
-import pureconfig.module.catseffect.syntax.*
-
 import java.time.Instant
+import pureconfig.{ConfigReader, ConfigSource}
+import pureconfig.generic.derivation.default.derived
+import pureconfig.module.catseffect.syntax.*
 import scala.concurrent.duration.FiniteDuration
 
 case class Configuration(

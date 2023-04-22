@@ -1,6 +1,7 @@
 package bot
 
 import bot.model.DiscordID
+
 import cats.effect.IO
 import com.typesafe.config.{Config, ConfigFactory}
 import pureconfig.{ConfigReader, ConfigSource}

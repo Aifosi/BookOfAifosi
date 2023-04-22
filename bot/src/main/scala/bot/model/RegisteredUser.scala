@@ -2,8 +2,8 @@ package bot.model
 
 import bot.chaster.ChasterClient
 import bot.db.Filters.*
-import cats.effect.IO
 
+import cats.effect.IO
 import java.time.Instant
 import java.util.UUID
 

@@ -1,7 +1,7 @@
 package bot
 
-import bot.chaster.model.{AccessToken, LockStatus}
 import bot.chaster.ChasterClient
+import bot.chaster.model.{AccessToken, LockStatus}
 import bot.db.{Filter, RegisteredUserRepository, User, UserTokenRepository}
 import bot.db.Filters.*
 import bot.model.{ChasterID, DiscordID, Guild, Member, Message, RegisteredUser, User, UserToken}
@@ -38,7 +38,9 @@ class Registration private (
   unregisterHooks: Set[RegisteredUser => EitherT[IO, String, Unit]],
 )(using l: Logger[IO], discordLogger: DiscordLogger):
   given QueryParamDecoder[UUID]               = QueryParamDecoder[String].emap(uuid =>
-    Try(UUID.fromString(uuid)).toEither.left.map(error => new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage)),
+    Try(UUID.fromString(uuid)).toEither.left.map(error =>
+      new ParseFailure(s"Invalid uuid \"$uuid\"", error.getMessage),
+    ),
   )
   def authUri(uuid: UUID, scope: String): Uri =
     (chasterClient.config.authUri / "auth")

@@ -12,5 +12,5 @@ case class UserToken(
 )
 
 object UserToken:
-  //Useful to do request that do not require authentication
+  // Useful to do request that do not require authentication
   lazy val empty: UserToken = UserToken(UUID.randomUUID(), "", Instant.MAX, "", "")

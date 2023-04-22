@@ -4,11 +4,11 @@ import bot.{Bot, DiscordLogger}
 import bot.chaster.ChasterClient
 import bot.chaster.model.{Lock, Segment, WheelOfFortuneConfig}
 import bot.db.RegisteredUserRepository
+import bot.instances.functionk.given
 import bot.model.{ChasterID, RegisteredUser}
 import bot.syntax.io.*
-import bot.tasks.WheelCommand
 import bot.syntax.kleisli.*
-import bot.instances.functionk.given
+import bot.tasks.WheelCommand
 
 import cats.data.OptionT
 import cats.effect.IO
@@ -29,16 +29,16 @@ class OnceGroup(
         keyholder(lock, user.guildID).semiflatMap { keyholder =>
           for
             _ <- client
-              .updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
-                configUpdate.copy(
-                  config = configUpdate.config.copy(
-                    segments = configUpdate.config.segments.filter(segment =>
-                      s"OnceGroup $group:".r.findFirstIn(segment.text).isEmpty,
-                    ),
-                  ),
-                )
-              }
-              .runUsingTokenOf(keyholder)
+                   .updateExtension[WheelOfFortuneConfig](lock._id) { configUpdate =>
+                     configUpdate.copy(
+                       config = configUpdate.config.copy(
+                         segments = configUpdate.config.segments.filter(segment =>
+                           s"OnceGroup $group:".r.findFirstIn(segment.text).isEmpty,
+                         ),
+                       ),
+                     )
+                   }
+                   .runUsingTokenOf(keyholder)
             _ <- Logger[IO].debug(s"Removed all OnceGroup options from the wheel of $user")
             _ <- discordLogger.logToSpinlog(s"Removed all OnceGroup options from the wheel of ${user.mention}")
           yield ()

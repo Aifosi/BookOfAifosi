@@ -1,13 +1,14 @@
 package bot.commands
 
 import bot.model.event.SlashCommandEvent
+
 import cats.effect.IO
 import org.typelevel.log4cats.Logger
 
 object WheelCommandsHelp extends SlashCommand:
   override val isUserCommand: Boolean = true
-  override val fullCommand: String = "wheel commands help"
-  override val description: String = "Shows detailed help on how to use wheel commands"
+  override val fullCommand: String    = "wheel commands help"
+  override val description: String    = "Shows detailed help on how to use wheel commands"
 
   override def apply(pattern: SlashPattern, event: SlashCommandEvent)(using Logger[IO]): IO[Boolean] =
     val helpMessage = s"""

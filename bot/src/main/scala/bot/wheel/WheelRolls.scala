@@ -12,20 +12,23 @@ import scala.reflect.Typeable
 class WheelRolls(
   client: ChasterClient,
   registeredUserRepository: RegisteredUserRepository,
-)(using DiscordLogger) extends ModifierTextWheelCommand[PenaltyConfig](client, registeredUserRepository):
+)(using DiscordLogger)
+    extends ModifierTextWheelCommand[PenaltyConfig](client, registeredUserRepository):
   override def textPattern: String = "WheelRolls:"
 
   override def logName: String = "wheel of fortune rolls"
 
-  override def configUpdate(configUpdate: ConfigUpdate[PenaltyConfig], modifier: Modifier)(using Typeable[PenaltyConfig]): ConfigUpdate[PenaltyConfig] =
+  override def configUpdate(configUpdate: ConfigUpdate[PenaltyConfig], modifier: Modifier)(using
+    Typeable[PenaltyConfig],
+  ): ConfigUpdate[PenaltyConfig] =
     configUpdate.copy(
       config = configUpdate.config.copy(
         penalties = configUpdate.config.penalties.map {
           case config: WheelOfFortuneTurnsPunishmentConfig =>
             config.copy(params = config.params.copy(nbActions = modifier.apply(config.params.nbActions)))
-          case config => config
-        }
-      )
+          case config                                      => config
+        },
+      ),
     )
 
   override val description: String = "Changes the number of wheel of fortune rolls required"

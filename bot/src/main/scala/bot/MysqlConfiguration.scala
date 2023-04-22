@@ -10,8 +10,9 @@ final case class MysqlConfiguration(
   driver: String,
   user: String,
   password: String,
-  url: String
-) extends DBConfig derives ConfigReader
+  url: String,
+) extends DBConfig
+    derives ConfigReader
 
 object MysqlConfiguration:
   def fromConfig(config: Config = ConfigFactory.load()): IO[MysqlConfiguration] =

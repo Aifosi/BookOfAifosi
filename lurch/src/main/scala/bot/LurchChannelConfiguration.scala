@@ -1,6 +1,7 @@
 package bot
 
 import bot.model.{Channel, DiscordID}
+
 import cats.data.OptionT
 import cats.effect.IO
 import com.typesafe.config.{Config, ConfigFactory}

@@ -4,15 +4,16 @@ import bot.DiscordLogger
 import bot.chaster.ChasterClient
 import bot.db.RegisteredUserRepository
 import bot.tasks.WheelCommand
+
 import cats.data.NonEmptyList
 
 def commonWheelCommands(
   chasterClient: ChasterClient,
-  registeredUserRepository: RegisteredUserRepository
+  registeredUserRepository: RegisteredUserRepository,
 )(using DiscordLogger): NonEmptyList[WheelCommand[?]] = NonEmptyList.of(
   new Once(chasterClient, registeredUserRepository),
   new OnceGroup(chasterClient, registeredUserRepository),
-  //These two need to be before other commands
+  // These two need to be before other commands
   new DiceMultiplier(chasterClient, registeredUserRepository),
   new VerificationPictures(chasterClient, registeredUserRepository),
   new PilloryVoteTime(chasterClient, registeredUserRepository),

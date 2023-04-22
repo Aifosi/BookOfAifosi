@@ -1,9 +1,9 @@
 package bot.commands
 
 import bot.model.event.AutoCompleteEvent
+
 import cats.effect.IO
 import cats.syntax.applicative.*
-
 import java.util.concurrent.TimeUnit
 
 object AutoComplete:
@@ -11,8 +11,8 @@ object AutoComplete:
   val timeUnits: Map[String, TimeUnit] = Map(
     TimeUnit.SECONDS.toString.toLowerCase -> TimeUnit.SECONDS,
     TimeUnit.MINUTES.toString.toLowerCase -> TimeUnit.MINUTES,
-    TimeUnit.HOURS.toString.toLowerCase -> TimeUnit.HOURS,
-    TimeUnit.DAYS.toString.toLowerCase -> TimeUnit.DAYS,
+    TimeUnit.HOURS.toString.toLowerCase   -> TimeUnit.HOURS,
+    TimeUnit.DAYS.toString.toLowerCase    -> TimeUnit.DAYS,
   )
 
   lazy val timeUnit: AutoCompleteOption = "unit" -> (_ => timeUnits.keys.toList.pure)
@@ -27,8 +27,12 @@ sealed trait AutoComplete[T]:
   protected def focusedOptions(event: AutoCompleteEvent): IO[List[T]] =
     autoCompleteOptions.get(event.focusedOption).fold(IO.pure(List.empty))(_(event))
 
-  inline protected def reply(event: AutoCompleteEvent): IO[Boolean] = focusedOptions(event).flatMap(event
-    .replyChoices[T](_)).as(true)
+  protected inline def reply(event: AutoCompleteEvent): IO[Boolean] = focusedOptions(event)
+    .flatMap(
+      event
+        .replyChoices[T](_),
+    )
+    .as(true)
 
   def apply(event: AutoCompleteEvent): IO[Boolean]
 
